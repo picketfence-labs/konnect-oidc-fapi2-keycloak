@@ -1,0 +1,10 @@
+.env
+.generated/
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/tfplan
+infra/crash.log
+infra/certs/*
+!infra/certs/.gitkeep
+.DS_Store

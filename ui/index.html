@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Konnect OIDC ルーティングデモ</title>
+  <style>
+    :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #07111f; color: #eef5ff; }
+    main { width: min(860px, calc(100% - 32px)); min-width: 0; }
+    .eyebrow { color: #69ddc3; text-transform: uppercase; letter-spacing: .16em; font-size: .78rem; }
+    h1 { font-size: clamp(2rem, 5vw, 4rem); margin: .25rem 0 1rem; line-height: 1; }
+    p { color: #b7c6da; line-height: 1.65; }
+    .panel { margin-top: 1.5rem; padding: 1.4rem; background: #101d2f; border: 1px solid #243a55; border-radius: 18px; box-shadow: 0 20px 50px #0008; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+    .metric { background: #0a1524; border-radius: 12px; padding: 1rem; border: 1px solid #1f344d; }
+    .label { color: #8fa5bf; font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; }
+    .value { font-size: 1.35rem; font-weight: 750; margin-top: .35rem; overflow-wrap: anywhere; }
+    button, .button { display: inline-block; appearance: none; border: 0; border-radius: 999px; padding: .85rem 1.2rem; background: #69ddc3; color: #03231d; font-weight: 750; text-decoration: none; cursor: pointer; }
+    button.secondary { margin-left: .5rem; background: #263c56; color: #eef5ff; }
+    pre { max-height: 300px; min-width: 0; overflow: auto; padding: 1rem; background: #050b13; border-radius: 12px; color: #b7e7dd; }
+    .error { color: #ff9c9c; white-space: pre-wrap; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">Kong Gateway 3.16 · Auth0 · Konnect</div>
+    <h1>認証情報に基づくルーティング</h1>
+    <p>ブラウザーでログインします。Kong はユーザーの部門を取得して信頼できるヘッダーに設定し、
+       Upstream を選んで httpbin にリクエストを送ります。</p>
+    <a class="button" id="login" href="http://localhost:8000/api/demo">ログインしてデモを実行</a>
+    <button class="secondary" id="again" hidden>もう一度実行</button>
+    <button class="secondary" id="spoof" hidden>偽装ヘッダーをテスト</button>
+
+    <section class="panel" id="result" hidden>
+      <div class="grid">
+        <div class="metric"><div class="label">送信ヘッダー</div><div class="value">X-Demo-Department</div></div>
+        <div class="metric"><div class="label">部門</div><div class="value" id="department">—</div></div>
+        <div class="metric"><div class="label">論理ルート</div><div class="value" id="route">—</div></div>
+        <div class="metric"><div class="label">Kong の Route</div><div class="value">oidc-routing-demo-route</div></div>
+      </div>
+      <h2>httpbin の応答</h2>
+      <pre id="raw"></pre>
+    </section>
+    <p id="check" hidden></p>
+    <p class="error" id="error" hidden></p>
+  </main>
+  <script>
+    const endpoint = 'http://localhost:8000/api/demo';
+    const result = document.querySelector('#result');
+    const error = document.querySelector('#error');
+    const again = document.querySelector('#again');
+    const spoofButton = document.querySelector('#spoof');
+    const check = document.querySelector('#check');
+    let baseline;
+
+    async function run(spoof = false) {
+      error.hidden = true;
+      check.hidden = true;
+      try {
+        const forgedDepartment = baseline?.department === 'sales' ? 'engineering' : 'sales';
+        const forgedRoute = `${forgedDepartment}-route`;
+        const response = await fetch(endpoint, {
+          credentials: 'include',
+          headers: spoof ? {
+            'X-Demo-Department': forgedDepartment,
+            'X-Demo-Route': forgedRoute
+          } : {}
+        });
+        if (!response.ok) throw new Error(`Gateway が HTTP ${response.status} を返しました`);
+        const body = await response.json();
+        const headers = body.headers || {};
+        const headerPresent = name => Object.keys(headers).some(key => key.toLowerCase() === name);
+        document.querySelector('#department').textContent = headers['X-Demo-Department'] || 'なし';
+        document.querySelector('#route').textContent = headers['X-Demo-Route'] || 'なし';
+        // httpbin は認証情報も返すため、ルーティングの証跡だけを表示する。
+        const evidence = {
+          method: body.method,
+          headers: {
+            'X-Demo-Department': headers['X-Demo-Department'] || 'なし',
+            'X-Demo-Route': headers['X-Demo-Route'] || 'なし',
+            'X-Kong-Request-Id': headers['X-Kong-Request-Id'] || 'なし',
+            'Authorization': headerPresent('authorization') ? 'あり' : 'なし',
+            'Cookie': headerPresent('cookie') ? 'あり' : 'なし'
+          }
+        };
+        document.querySelector('#raw').textContent = JSON.stringify(evidence, null, 2);
+        result.hidden = false;
+        again.hidden = false;
+        spoofButton.hidden = false;
+        if (spoof) {
+          const passed = headers['X-Demo-Department'] === baseline.department &&
+            headers['X-Demo-Route'] === baseline.route;
+          check.textContent = passed
+            ? `成功: ${forgedDepartment}/${forgedRoute} を送信しましたが、Upstream は ${baseline.department}/${baseline.route} を受け取りました。`
+            : `失敗: ${forgedDepartment}/${forgedRoute} を送信し、Upstream は ${headers['X-Demo-Department'] || 'なし'}/${headers['X-Demo-Route'] || 'なし'} を受け取りました。`;
+          check.className = passed ? '' : 'error';
+          check.hidden = false;
+        } else {
+          baseline = {
+            department: headers['X-Demo-Department'],
+            route: headers['X-Demo-Route']
+          };
+        }
+      } catch (e) {
+        error.textContent = `${e.message}\n未ログインの場合は「ログインしてデモを実行」を選んでください。`;
+        error.hidden = false;
+      }
+    }
+
+    again.addEventListener('click', () => run());
+    spoofButton.addEventListener('click', () => run(true));
+    if (new URLSearchParams(location.search).get('authenticated') === '1') run();
+  </script>
+</body>
+</html>
