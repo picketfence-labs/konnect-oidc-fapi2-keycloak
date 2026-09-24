@@ -2,14 +2,15 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route-aware logout and token revocation",
+    "title": "Route別LogoutとRefresh Token失効",
     "animation": "none",
-    "quality_profile": "showcase"
+    "quality_profile": "showcase",
+    "output": "logout.workflow.html"
   },
   "lanes": [
     {
       "id": "browser",
-      "label": "Browser"
+      "label": "利用者・ブラウザー"
     },
     {
       "id": "kong",
@@ -21,27 +22,27 @@
     },
     {
       "id": "evidence",
-      "label": "Verification and exception",
+      "label": "受入証跡",
       "variant": "exception"
     }
   ],
   "phases": [
     {
       "id": "request",
-      "label": "Logout request",
+      "label": "Route別logout",
       "fromCol": 0,
       "toCol": 1
     },
     {
       "id": "revoke",
-      "label": "Revoke and clear session",
+      "label": "Refresh Token失効とlocal session破棄",
       "fromCol": 2,
       "toCol": 3,
       "variant": "security"
     },
     {
-      "id": "op_logout",
-      "label": "Provider logout and proof",
+      "id": "sso",
+      "label": "Keycloak SSO終了と再ログイン",
       "fromCol": 4,
       "toCol": 5,
       "variant": "emphasis"
@@ -63,7 +64,7 @@
     ],
     "allowedTerminals": [
       "return_ui",
-      "revoke_error"
+      "wire_pending"
     ],
     "requiredPaths": [
       {
@@ -86,16 +87,17 @@
       "lane": "browser",
       "col": 0,
       "type": "frontend",
-      "label": "Click logout",
-      "width": 140
+      "label": "対象Routeからログアウト",
+      "sublabel": "Route A / Route B",
+      "width": 165
     },
     {
       "id": "route_logout",
       "lane": "kong",
       "col": 1,
       "type": "backend",
-      "label": "Resolve route session",
-      "sublabel": "route cookie + suffix",
+      "label": "Route sessionを解決",
+      "sublabel": "専用cookie + logout suffix",
       "width": 175
     },
     {
@@ -103,26 +105,27 @@
       "lane": "kong",
       "col": 2,
       "type": "security",
-      "label": "Revoke refresh token",
-      "sublabel": "client auth by route",
-      "width": 180
+      "label": "Refresh Tokenを失効",
+      "sublabel": "A=mTLS／B=stock PKJWT",
+      "tag": "設定済み",
+      "width": 185
     },
     {
       "id": "revoke_ok",
       "lane": "keycloak",
       "col": 2,
       "type": "security",
-      "label": "Invalidate refresh token",
-      "sublabel": "revocation endpoint",
-      "width": 180
+      "label": "Revocationを受理",
+      "sublabel": "/protocol/openid-connect/revoke",
+      "width": 185
     },
     {
       "id": "destroy_session",
       "lane": "kong",
       "col": 3,
       "type": "database",
-      "label": "Destroy Kong session",
-      "sublabel": "expire route cookie",
+      "label": "Kong sessionを破棄",
+      "sublabel": "Route専用cookieを失効",
       "width": 175
     },
     {
@@ -130,58 +133,58 @@
       "lane": "kong",
       "col": 4,
       "type": "cloud",
-      "label": "Redirect to Keycloak",
+      "label": "Keycloakへredirect",
       "sublabel": "end_session_endpoint",
-      "width": 180
+      "width": 170
     },
     {
       "id": "keycloak_logout",
       "lane": "keycloak",
       "col": 4,
       "type": "external",
-      "label": "End Keycloak SSO session",
+      "label": "Keycloak SSOを終了",
       "sublabel": "RP-Initiated Logout",
-      "width": 195
+      "width": 180
     },
     {
       "id": "return_ui",
       "lane": "browser",
       "col": 5,
       "type": "frontend",
-      "label": "Return to route selector",
-      "sublabel": "no route cookie",
-      "width": 175
+      "label": "Route selectorへ戻る",
+      "sublabel": "反対Routeは新しい認可フロー",
+      "width": 180
     },
     {
-      "id": "revoke_error",
+      "id": "wire_pending",
       "lane": "evidence",
-      "col": 2,
+      "col": 3,
       "type": "security",
-      "label": "Record revocation failure",
-      "sublabel": "continue logout; E2E fails",
-      "tag": "E2E fails",
-      "width": 195
+      "label": "Wire-level証跡を取得",
+      "sublabel": "refresh replay・cookie・SSO・Route切替",
+      "tag": "未完了",
+      "width": 200
     }
   ],
   "edges": [
     {
       "from": "click_logout",
       "to": "route_logout",
-      "label": "logout URI",
+      "label": "Route別logout URI",
       "variant": "emphasis",
       "role": "main"
     },
     {
       "from": "route_logout",
       "to": "revoke_token",
-      "label": "session refresh token",
+      "label": "session内refresh token",
       "variant": "security",
       "role": "main"
     },
     {
       "from": "revoke_token",
       "to": "revoke_ok",
-      "label": "Route A mTLS or Route B PKJWT",
+      "label": "A: tls_client_auth / B: private_key_jwt",
       "variant": "security",
       "role": "main"
     },
@@ -211,15 +214,9 @@
       "role": "return"
     },
     {
-      "from": "revoke_token",
-      "to": "revoke_error",
-      "label": "timeout or rejected authentication",
-      "variant": "security",
-      "role": "error"
-    },
-    {
-      "from": "revoke_error",
-      "to": "destroy_session",
+      "from": "destroy_session",
+      "to": "wire_pending",
+      "label": "自動受入テスト未実施",
       "variant": "dashed",
       "role": "branch"
     }
@@ -227,29 +224,29 @@
   "cards": [
     {
       "dot": "emerald",
-      "title": "Required evidence",
+      "title": "実装済み設定",
       "items": [
-        "The old refresh token cannot obtain a new access token",
-        "The Kong session cookie is expired",
-        "The next protected request starts a new authorization flow"
+        "Routeごとのlogout URL・cookie・session secretを分離",
+        "Route AはmTLS、Route Bはstock private_key_jwtでrevocation",
+        "Keycloak end_session_endpointからUIへ復帰"
       ]
     },
     {
       "dot": "amber",
-      "title": "Provider screen behavior",
+      "title": "未完了の受入証跡",
       "items": [
-        "Keycloak owns the end-user logout interaction",
-        "A valid session hint may allow immediate redirect",
-        "Test session termination, not a specific confirmation page"
+        "古いrefresh tokenで再発行できないこと",
+        "Kong cookieとKeycloak SSO sessionの終了",
+        "logout後に反対Routeで新しい認可が始まること"
       ]
     },
     {
       "dot": "rose",
-      "title": "Failure policy",
+      "title": "判定上の注意",
       "items": [
-        "Revocation failure does not trap the user in the local session",
-        "Log the failure without logging token values",
-        "Mark the automated logout scenario as failed"
+        "confirmation画面の有無は合格条件にしない",
+        "token値をログへ出さずRouteとphaseだけを記録",
+        "失効失敗時の継続動作もwire-levelで確認する"
       ]
     }
   ]

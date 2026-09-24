@@ -11,6 +11,10 @@ Kong Gateway 3.16 を Konnect の data plane として動かし、同じ Keycloa
 
 > このリポジトリは FAPI 2.0 の学習・比較用デモです。認定試験への適合を主張するものではありません。
 
+[![Route A の検証結果。署名済み claim、Kong が設定したヘッダー、証明書束縛を表示](docs/assets/ui-results.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
+
+*検証結果画面。画像をクリックすると Route A のインタラクティブ workflow を開きます。*
+
 ## 構成
 
 1. Terraform が Konnect control plane と data plane 証明書を管理します。
@@ -85,6 +89,14 @@ make up
 `make up` は Keycloak のユーザープロファイルとclient mapperを同期し、既存realmのデモユーザーにも `department`、`departement`、`route` を補正します。コンテナーを再作成せずデータだけを補正する場合は、`make sync-demo-data` を実行します。既存のブラウザーセッションは補正前のtokenを保持するため、同期後はログアウトしてからログインし直します。
 
 ブラウザーで <https://localhost:3443> を開き、Route A または Route B を選択します。`http://localhost:3000` は HTTPS のUIへリダイレクトします。ブラウザーは Gateway の `https://localhost:8443` と Keycloak の `https://localhost:8444` に接続します。3つのサーバー証明書は `.generated/pki/ca.crt` で署名されています。開発端末でこの CA を信頼する場合は、このファイルだけを対象にし、デモ終了後に信頼設定を取り消してください。
+
+[![Route A と Route B を選択するデモ開始画面](docs/assets/ui-main.png)](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)
+
+*デモ開始画面。画像をクリックすると Route B のインタラクティブ workflow を開きます。*
+
+[![Keycloak のデモユーザーログイン画面](docs/assets/ui-keycloak-auth.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
+
+*Keycloak の認証画面。画像をクリックすると Route A のインタラクティブ workflow を開きます。*
 
 ## 確認ポイント
 

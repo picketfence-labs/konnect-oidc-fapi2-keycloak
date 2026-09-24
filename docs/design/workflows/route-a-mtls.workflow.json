@@ -2,15 +2,20 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route A: mTLS client authentication",
+    "title": "Route A：mTLSクライアント認証",
     "animation": "none",
     "quality_profile": "showcase",
+    "output": "route-a-mtls.workflow.html",
     "viewBox": [
       1200,
-      560
+      660
     ]
   },
   "lanes": [
+    {
+      "id": "browser",
+      "label": "利用者・ブラウザー"
+    },
     {
       "id": "kong",
       "label": "Kong Gateway"
@@ -26,45 +31,52 @@
   ],
   "phases": [
     {
-      "id": "authorization",
-      "label": "Authorization",
+      "id": "start",
+      "label": "ルート選択とPAR",
       "fromCol": 0,
-      "toCol": 2
+      "toCol": 1
     },
     {
-      "id": "token",
-      "label": "Code and token exchange",
-      "fromCol": 3,
-      "toCol": 4,
+      "id": "authorize",
+      "label": "ユーザー認証",
+      "fromCol": 2,
+      "toCol": 3,
       "variant": "emphasis"
     },
     {
+      "id": "token",
+      "label": "コード交換と証明書束縛",
+      "fromCol": 4,
+      "toCol": 4,
+      "variant": "security"
+    },
+    {
       "id": "resource",
-      "label": "Bound-token use",
+      "label": "保護APIでの検証",
       "fromCol": 5,
       "toCol": 5,
       "variant": "security"
     }
   ],
   "mainPath": [
-    "open_a",
+    "select_a",
     "par_a",
     "login_a",
     "callback_a",
     "token_a",
-    "call_a",
+    "proxy_a",
     "verify_a"
   ],
   "semanticChecks": {
     "allowedRoots": [
-      "open_a"
+      "select_a"
     ],
     "allowedTerminals": [
       "verify_a"
     ],
     "requiredPaths": [
       {
-        "from": "open_a",
+        "from": "select_a",
         "to": "token_a"
       },
       {
@@ -75,30 +87,31 @@
   },
   "nodes": [
     {
-      "id": "open_a",
-      "lane": "kong",
+      "id": "select_a",
+      "lane": "browser",
       "col": 0,
       "type": "frontend",
-      "label": "Receive Route A login",
-      "sublabel": "browser request + PKCE",
-      "width": 140
+      "label": "Route Aを選択",
+      "sublabel": "HTTPS UIからログイン",
+      "width": 150
     },
     {
       "id": "par_a",
       "lane": "kong",
       "col": 1,
       "type": "security",
-      "label": "Push authorization request",
-      "sublabel": "PAR with tls_client_auth",
-      "width": 185
+      "label": "PARを送信",
+      "sublabel": "stock OIDC + tls_client_auth",
+      "tag": "実装済み",
+      "width": 190
     },
     {
       "id": "login_a",
       "lane": "keycloak",
       "col": 2,
       "type": "external",
-      "label": "Authenticate user",
-      "sublabel": "Keycloak local account",
+      "label": "利用者を認証",
+      "sublabel": "local demo user",
       "width": 155
     },
     {
@@ -106,44 +119,45 @@
       "lane": "kong",
       "col": 3,
       "type": "backend",
-      "label": "Validate callback",
-      "sublabel": "state, nonce, code, PKCE",
-      "width": 150
+      "label": "Callbackを検証",
+      "sublabel": "state・nonce・code・PKCE",
+      "width": 170
     },
     {
       "id": "token_a",
       "lane": "keycloak",
       "col": 4,
       "type": "security",
-      "label": "Authenticate Kong with mTLS",
-      "sublabel": "bind token to certificate",
+      "label": "KongをmTLS認証",
+      "sublabel": "access / refresh tokenを証明書へ束縛",
       "tag": "tls_client_auth",
-      "width": 190
+      "width": 205
     },
     {
-      "id": "call_a",
+      "id": "proxy_a",
       "lane": "kong",
       "col": 5,
       "type": "cloud",
-      "label": "Create session and call API",
-      "sublabel": "access token + same certificate",
-      "width": 190
+      "label": "Session作成・API呼出し",
+      "sublabel": "署名済みclaim→header + 同じ証明書",
+      "width": 205
     },
     {
       "id": "verify_a",
       "lane": "api",
       "col": 5,
       "type": "security",
-      "label": "Verify proof of possession",
-      "sublabel": "cnf.x5t#S256 = TLS thumbprint",
-      "width": 190
+      "label": "PoPとheaderを検証",
+      "sublabel": "JWT + cnf.x5t#S256 + TLS thumbprint",
+      "tag": "live確認済み",
+      "width": 220
     }
   ],
   "edges": [
     {
-      "from": "open_a",
+      "from": "select_a",
       "to": "par_a",
-      "label": "start login",
+      "label": "ログイン開始",
       "variant": "emphasis",
       "role": "main"
     },
@@ -168,47 +182,45 @@
     },
     {
       "from": "token_a",
-      "to": "call_a",
-      "label": "bound tokens",
+      "to": "proxy_a",
+      "label": "証明書束縛token",
       "variant": "emphasis",
       "role": "main"
     },
     {
-      "from": "call_a",
+      "from": "proxy_a",
       "to": "verify_a",
+      "label": "Bearer token + 同じ証明書",
       "variant": "security",
-      "role": "main",
-      "route": "drop",
-      "fromSide": "bottom",
-      "toSide": "top"
+      "role": "main"
     }
   ],
   "cards": [
     {
       "dot": "emerald",
-      "title": "Pass condition",
+      "title": "Live確認済み",
       "items": [
-        "Keycloak authenticates Kong with the registered client certificate",
-        "The access token contains cnf.x5t#S256",
-        "The protected API receives the same certificate"
-      ]
-    },
-    {
-      "dot": "rose",
-      "title": "Negative evidence",
-      "items": [
-        "No certificate fails at the token or resource boundary",
-        "A different certificate fails cnf verification",
-        "A bearer-only replay never reaches the upstream payload"
+        "browser login、code exchange、Upstream mTLSが成功",
+        "tokenとTLS peerのthumbprint一致を確認",
+        "claim由来headerとPoP evidenceをUIへ表示"
       ]
     },
     {
       "dot": "cyan",
-      "title": "Kong responsibility",
+      "title": "実装の境界",
       "items": [
-        "Use the stock OpenID Connect mTLS branch first",
-        "Reuse one Certificate entity for token and Service mTLS",
-        "Keep the client key outside the repository"
+        "PAR・token・revocationはstock OIDCのmTLS認証",
+        "Route A専用Certificate entityとsession cookieを使用",
+        "秘密鍵・session secretは生成領域またはVaultに限定"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "残る受入証跡",
+      "items": [
+        "refresh・revocation・logoutのwire-level証跡",
+        "証明書なし／Route B証明書での拒否",
+        "clean checkoutからの再現性確認"
       ]
     }
   ]
