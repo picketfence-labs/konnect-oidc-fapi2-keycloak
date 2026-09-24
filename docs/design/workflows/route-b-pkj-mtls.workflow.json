@@ -2,18 +2,19 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route B: private_key_jwt with mTLS token binding",
+    "title": "Route B：private_key_jwt + mTLS証明書束縛",
     "animation": "none",
     "quality_profile": "showcase",
-    "viewBox": [
-      1200,
-      560
-    ]
+    "output": "route-b-pkj-mtls.workflow.html"
   },
   "lanes": [
     {
+      "id": "browser",
+      "label": "利用者・ブラウザー"
+    },
+    {
       "id": "kong",
-      "label": "Kong Gateway and custom plugin"
+      "label": "Kong Gateway + custom plugin"
     },
     {
       "id": "keycloak",
@@ -26,45 +27,53 @@
   ],
   "phases": [
     {
-      "id": "authorization",
-      "label": "Authorization",
+      "id": "start",
+      "label": "ルート選択とPAR",
       "fromCol": 0,
-      "toCol": 2
+      "toCol": 1
     },
     {
-      "id": "assertion",
-      "label": "Assertion and token exchange",
-      "fromCol": 3,
-      "toCol": 4,
+      "id": "authorize",
+      "label": "ユーザー認証",
+      "fromCol": 2,
+      "toCol": 3,
       "variant": "emphasis"
     },
     {
+      "id": "assertion",
+      "label": "PKJWT生成とmTLS code exchange",
+      "fromCol": 4,
+      "toCol": 4,
+      "variant": "security"
+    },
+    {
       "id": "resource",
-      "label": "Bound-token use",
+      "label": "保護APIでの検証",
       "fromCol": 5,
       "toCol": 5,
       "variant": "security"
     }
   ],
   "mainPath": [
-    "open_b",
+    "select_b",
     "par_b",
     "login_b",
     "callback_b",
     "assert_b",
     "token_b",
+    "proxy_b",
     "verify_b"
   ],
   "semanticChecks": {
     "allowedRoots": [
-      "open_b"
+      "select_b"
     ],
     "allowedTerminals": [
       "verify_b"
     ],
     "requiredPaths": [
       {
-        "from": "open_b",
+        "from": "select_b",
         "to": "assert_b"
       },
       {
@@ -79,76 +88,87 @@
   },
   "nodes": [
     {
-      "id": "open_b",
-      "lane": "kong",
+      "id": "select_b",
+      "lane": "browser",
       "col": 0,
       "type": "frontend",
-      "label": "Receive Route B login",
-      "width": 140,
-      "sublabel": "browser request + PKCE"
+      "label": "Route Bを選択",
+      "sublabel": "HTTPS UIからログイン",
+      "width": 150
     },
     {
       "id": "par_b",
       "lane": "kong",
       "col": 1,
       "type": "security",
-      "label": "Push authorization request",
-      "sublabel": "PKJWT PAR",
-      "width": 180
+      "label": "PARを送信",
+      "sublabel": "stock OIDC private_key_jwt",
+      "tag": "Vault参照JWK",
+      "width": 195
     },
     {
       "id": "login_b",
       "lane": "keycloak",
       "col": 2,
       "type": "external",
-      "label": "Authenticate user",
-      "sublabel": "Keycloak local account",
-      "width": 145
+      "label": "利用者を認証",
+      "sublabel": "local demo user",
+      "width": 155
     },
     {
       "id": "callback_b",
       "lane": "kong",
       "col": 3,
       "type": "backend",
-      "label": "Validate callback",
-      "sublabel": "state, nonce, code, PKCE",
-      "width": 145
+      "label": "Callbackを検証",
+      "sublabel": "state・nonce・code・PKCE",
+      "width": 170
     },
     {
       "id": "assert_b",
       "lane": "kong",
       "col": 4,
       "type": "security",
-      "label": "Create PKJWT",
-      "sublabel": "issuer aud + jti",
-      "tag": "custom plugin",
-      "width": 110
+      "label": "PS256 PKJWTを生成",
+      "sublabel": "aud=issuer・kid=SPKI hash・一回限りのjti",
+      "tag": "bridge plugin",
+      "width": 215
     },
     {
       "id": "token_b",
       "lane": "keycloak",
       "col": 4,
       "type": "security",
-      "label": "Verify PKJWT and mTLS",
-      "sublabel": "certificate-bound tokens",
+      "label": "PKJWTとmTLSを検証",
+      "sublabel": "token / refreshだけ複合認証",
       "tag": "private_key_jwt",
-      "width": 180
+      "width": 205
+    },
+    {
+      "id": "proxy_b",
+      "lane": "kong",
+      "col": 5,
+      "type": "cloud",
+      "label": "Session作成・API呼出し",
+      "sublabel": "内部assertion除去 + 同じ証明書",
+      "width": 205
     },
     {
       "id": "verify_b",
       "lane": "api",
       "col": 5,
       "type": "security",
-      "label": "Verify proof of possession",
-      "sublabel": "cnf.x5t#S256 = TLS thumbprint",
-      "width": 200
+      "label": "PoPとheaderを検証",
+      "sublabel": "JWT + cnf.x5t#S256 + TLS thumbprint",
+      "tag": "live確認済み",
+      "width": 220
     }
   ],
   "edges": [
     {
-      "from": "open_b",
+      "from": "select_b",
       "to": "par_b",
-      "label": "start login",
+      "label": "ログイン開始",
       "variant": "emphasis",
       "role": "main"
     },
@@ -179,8 +199,15 @@
     },
     {
       "from": "token_b",
+      "to": "proxy_b",
+      "label": "証明書束縛token",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "from": "proxy_b",
       "to": "verify_b",
-      "label": "access token + same certificate",
+      "label": "Bearer token + 同じ証明書",
       "variant": "security",
       "role": "main"
     }
@@ -188,29 +215,29 @@
   "cards": [
     {
       "dot": "emerald",
-      "title": "Pass condition",
+      "title": "Live確認済み",
       "items": [
-        "Keycloak verifies the client assertion and TLS certificate",
-        "The assertion audience equals the Keycloak issuer",
-        "The protected API verifies the certificate-bound token"
+        "PAR、browser login、code exchange、Upstream mTLSが成功",
+        "PS256 assertionとcertificate-bound tokenを併用",
+        "claim由来headerとPoP bindingをUIで確認"
       ]
     },
     {
-      "dot": "rose",
-      "title": "Plugin security boundary",
+      "dot": "violet",
+      "title": "Endpoint別の責任分担",
       "items": [
-        "Reject client-supplied assertion parameters before OIDC runs",
-        "Generate a fresh jti for each token or refresh request",
-        "Remove internal assertion transport before the upstream call"
+        "PAR・revocation：stock OIDC private_key_jwt",
+        "token・refresh：bridgeがPKJWTを生成しstock mTLS transportへ渡す",
+        "同じRSA鍵を環境変数Vault参照で共有"
       ]
     },
     {
-      "dot": "cyan",
-      "title": "Upgrade contract",
+      "dot": "amber",
+      "title": "残る受入証跡",
       "items": [
-        "Pin Kong Gateway 3.16.0.0 for the first implementation",
-        "Test token and refresh requests at the wire level",
-        "Fail the build when Kong internal module behavior changes"
+        "refresh・revocation・logoutのwire-level証跡",
+        "誤audience・jti replay・証明書なし・assertion注入の拒否",
+        "Gateway upgrade時の内部契約回帰試験"
       ]
     }
   ]
