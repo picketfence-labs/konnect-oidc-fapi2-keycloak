@@ -55,37 +55,37 @@
 
 ### Container images
 
-- Kong custom image MUST use `kong/kong-gateway:3.16.0.0` as its base.
-- Kong custom image MUST publish to `ghcr.io/picketfence-labs/konnect-oidc-header-routing`.
-- Keycloak SHOULD pin `quay.io/keycloak/keycloak:26.7.4` by digest.
-- PoP verifier SHOULD use a minimal image and run without root privileges.
-- Image tags MUST include an immutable Git commit tag. `latest` MAY exist but MUST NOT be used by the acceptance environment.
+- Kong custom imageは`kong/kong-gateway:3.16.0.0`をbaseとすることMUST。
+- Kong custom imageは`ghcr.io/picketfence-labs/konnect-oidc-header-routing`へ発行することMUST。
+- Keycloakは`quay.io/keycloak/keycloak:26.7.4`をdigestで固定することSHOULD。
+- PoP verifierは最小構成のimageを使い、root権限なしで実行することSHOULD。
+- Image tagは不変のGit commit tagを含むMUST。`latest`は存在してもMAYだが、受入環境では使用してはならない（MUST NOT）。
 
-## Route and Service model
+## Route and Serviceモデル
 
-The target Gateway configuration MUST create two path-selected Routes and two Services.
+target Gateway configurationは、path選択された2つのRouteと2つのServiceを作成MUST。
 
 | Route | Path | Service | Session cookie |
 |---|---|---|---|
-| Route A | `/api/fapi/mtls` | `fapi-mtls-service` | unique Route A cookie name and suffix |
-| Route B | `/api/fapi/pkj-mtls` | `fapi-pkj-mtls-service` | unique Route B cookie name and suffix |
+| Route A | `/api/fapi/mtls` | `fapi-mtls-service` | Route A専用のcookie名とsuffix |
+| Route B | `/api/fapi/pkj-mtls` | `fapi-pkj-mtls-service` | Route B専用のcookie名とsuffix |
 
-Both Services MAY target the same PoP verifier deployment, but each Service MUST reference its own Kong Certificate entity. A Route MUST NOT reuse the other Route's session cookie.
+両Serviceは同じPoP verifier deploymentを対象にしてMAYだが、各Serviceは自分専用のKong Certificate entityを参照MUST。RouteはもうひとつのRouteのsession cookieを再利用してはならない（MUST NOT）。
 
-The existing `department` behavior remains in scope:
+既存の`department`挙動は引き続き対象範囲とする。
 
-- Keycloak MUST issue namespaced `department` and `route` claims.
-- Kong MUST overwrite inbound `X-Demo-Department` and `X-Demo-Route` from signed claims.
-- Header spoofing MUST NOT change the selected logical Upstream.
-- `Authorization`, `Cookie`, internal PKJWT transport headers, and private key material MUST NOT reach an echo response or application log.
+- Keycloakはnamespaced `department`とrouteのclaimを発行MUST。
+- Kongは受信した`X-Demo-Department`と`X-Demo-Route`を署名済みclaimで上書きMUST。
+- Header偽装は選択済みlogical Upstreamを変更してはならない（MUST NOT）。
+- `Authorization`、`Cookie`、内部PKJWT transport header、private key materialはecho responseやapplication logへ到達してはならない（MUST NOT）。
 
 ## Keycloak requirements
 
 ### Realm
 
-The implementation MUST provision a dedicated realm, recommended name `fapi-demo`. Realm configuration MUST be declarative and reviewable. Manual Dashboard-only setup does not satisfy acceptance.
+実装は専用realmを用意MUST（推奨名`fapi-demo`）。Realm設定は宣言的でレビュー可能であることMUST。Dashboardだけの手動設定は受入条件を満たさない。
 
-The realm MUST provide:
+Realmは次を提供MUST。
 
 - OIDC discovery
 - PAR endpoint
@@ -94,220 +94,220 @@ The realm MUST provide:
 - revocation endpoint
 - end-session endpoint
 - JWKS endpoint
-- HTTPS with a trusted development CA
+- 信頼済みdevelopment CAによるHTTPS
 
-### Demo users and claims
+### Demo userとclaim
 
-Provision at least two generated-password users.
+生成済みpasswordを持つuserを2名以上用意する。
 
 | User role | `department` | `route` |
 |---|---|---|
 | Sales demo user | `sales` | `sales-route` |
 | Engineering demo user | `engineering` | `engineering-route` |
 
-Passwords MUST be generated outside Git and surfaced only through an explicit operator command. Protocol Mappers MUST add the namespaced claims to ID and access tokens.
+PasswordはGit外で生成し、明示的なoperator commandだけで取得可能にすることMUST。Protocol Mapperは、namespaced claimをID tokenとaccess tokenへ追加MUST。
 
 ### FAPI policy
 
-Both clients MUST use the Keycloak `fapi-2-security-profile` client policy or an equivalent explicit policy with the same enforced controls.
+両clientはKeycloakの`fapi-2-security-profile` client policy、または同等の制御を明示した独自policyを使用MUST。
 
-The policy MUST enforce:
+Policyは次を強制MUST。
 
 - authorization code flow
-- PAR for every authorization request
-- PKCE with `S256`
-- confidential client authentication
-- authorization code lifetime of no more than 60 seconds
-- signed ID tokens
-- FAPI-compatible signing algorithms
-- sender-constrained access tokens
-- refresh token support
+- 全authorization requestへのPAR
+- PKCE（`S256`）
+- confidential clientのclient authentication
+- 60秒以下のauthorization code lifetime
+- 署名済みID token
+- FAPI互換の署名algorithm
+- sender-constrained access token
+- refresh tokenのサポート
 
-This demo targets the FAPI 2.0 Security Profile. FAPI 2.0 Message Signing and certification submission are out of scope.
+本デモはFAPI 2.0 Security Profileを対象とする。FAPI 2.0 Message Signingと認定審査への提出は対象外。
 
 ### Route A client
 
-Recommended client ID: `kong-fapi-mtls`.
+推奨client ID: `kong-fapi-mtls`。
 
-The client MUST:
+Clientは次をMUST。
 
-- authenticate with `tls_client_auth` or Keycloak's standards-equivalent X.509 client authenticator
-- trust only the Route A client certificate or its issuing CA
-- issue mTLS certificate-bound access and refresh tokens
-- reject token requests without the registered certificate
-- reject token requests using the Route B certificate
+- `tls_client_auth`、またはKeycloak標準相当のX.509 client authenticatorで認証する
+- Route Aのclient certificateまたはその発行CAだけを信頼する
+- mTLS certificate-boundのaccess tokenとrefresh tokenを発行する
+- 登録済みcertificateがないtoken requestを拒否する
+- Route Bのcertificateを使ったtoken requestを拒否する
 
 ### Route B client
 
-Recommended client ID: `kong-fapi-pkj-mtls`.
+推奨client ID: `kong-fapi-pkj-mtls`。
 
-The client MUST:
+Clientは次をMUST。
 
-- authenticate with `private_key_jwt`
-- register only the public key corresponding to Kong's Route B private JWK
-- require a FAPI-compatible client assertion algorithm, recommended `PS256`
-- require `aud` to equal the Keycloak issuer string
-- reject expired assertions and replayed `jti` values
-- issue mTLS certificate-bound access and refresh tokens using the Route B TLS certificate
-- reject token requests that contain a valid PKJWT but omit the TLS client certificate
+- `private_key_jwt`で認証する
+- KongのRoute B private JWKに対応する公開鍵だけを登録する
+- FAPI互換のclient assertion algorithmを要求する（推奨`PS256`）
+- `aud`がKeycloak issuer文字列と一致することを要求する
+- 期限切れのassertionと再送された`jti`を拒否する
+- Route BのTLS certificateを使ったmTLS certificate-boundのaccess tokenとrefresh tokenを発行する
+- 有効なPKJWTを含むがTLS client certificateを省略したtoken requestを拒否する
 
 ### Key material
 
-The implementation MUST use separate key material for these purposes:
+実装は次の用途ごとに別々の鍵材料を使用MUST。
 
 - Keycloak server TLS
-- Route A client authentication and token binding
-- Route B token binding
-- Route B PKJWT signing
+- Route Aのclient authenticationとtoken binding
+- Route Bのtoken binding
+- Route BのPKJWT signing
 - PoP verifier server TLS
 
-Private keys MUST NOT enter Git, Terraform state output, decK state, browser responses, or logs. Development certificates MAY be issued from a repository-local CA workflow if generated artifacts stay ignored.
+Private keyはGit、Terraform state output、decK state、browser response、logへ入ってはならない（MUST NOT）。生成物がignore対象であれば、development certificateはリポジトリローカルのCA workflowから発行してもよい（MAY）。
 
 ## Kong Gateway requirements
 
 ### Route A OpenID Connect configuration
 
-Route A SHOULD use the stock OpenID Connect plugin without custom token request code.
+Route Aは、custom token request codeを持たないstock OpenID Connect pluginを使用SHOULD。
 
-The configuration MUST:
+Configurationは次をMUST。
 
-- use Keycloak discovery
-- use PAR
-- use PKCE S256
-- set token endpoint client authentication to `tls_client_auth`
-- reference the Route A Certificate entity
-- use the mTLS endpoint alias when Keycloak publishes one
-- enable session authentication
-- use a Route A-specific redirect URI, logout suffix, and session secret
+- Keycloak discoveryを使う
+- PARを使う
+- PKCE S256を使う
+- token endpoint client authenticationを`tls_client_auth`に設定する
+- Route A Certificate entityを参照する
+- Keycloakがmtls endpoint aliasを公開している場合はそれを使う
+- session authenticationを有効化する
+- Route A専用のredirect URI、logout suffix、session secretを使う
 
 ### Route B custom plugin contract
 
-The custom plugin MUST remain a small preprocessor. It MUST NOT implement a new browser session, authorization endpoint, or BFF.
+custom pluginは、小さなpreprocessorのままであることMUST。新しいbrowser session、authorization endpoint、BFFを実装してはならない（MUST NOT）。
 
-For token and refresh requests, the plugin MUST:
+tokenとrefresh requestについて、pluginは次をMUST。
 
-1. Reject or remove client-supplied `client_assertion` and `client_assertion_type` values from query, body, and headers.
-2. Generate a new Private Key JWT with `iss = sub = client_id`.
-3. Set `aud` to the exact Keycloak issuer string.
-4. Generate a cryptographically random, one-time `jti`.
-5. Set a lifetime of 60 seconds or less.
-6. Sign with the configured FAPI-compatible private JWK.
-7. Pass the assertion to the OpenID Connect plugin without exposing it to the upstream application.
-8. Reuse the stock OIDC mTLS certificate loading and endpoint transport path.
-9. Remove internal transport headers before the protected Service request.
+1. query、body、headerからclient供給の`client_assertion`と`client_assertion_type`を拒否または除去する。
+2. `iss = sub = client_id`とする新しいPrivate Key JWTを生成する。
+3. `aud`をKeycloak issuer文字列と正確に一致させる。
+4. 暗号学的にランダムで一回限りの`jti`を生成する。
+5. lifetimeを60秒以下に設定する。
+6. 設定済みのFAPI互換private JWKで署名する。
+7. assertionをupstream applicationへ露出せずOpenID Connect pluginへ渡す。
+8. stock OIDCのmTLS certificate loadingとendpoint transport pathを再利用する。
+9. protected Service requestの前に内部transport headerを除去する。
 
-The plugin MUST run before the OpenID Connect plugin. Any cleanup plugin MUST run after authentication and before proxying to the application.
+pluginはOpenID Connect pluginより前に実行することMUST。cleanup pluginは認証後かつapplicationへのproxy前に実行することMUST。
 
-The plugin MUST fail closed when:
+pluginは次の場合にfail closedすることMUST。
 
-- the issuer is missing or differs from discovery
-- the private JWK is unavailable
-- the TLS certificate is unavailable
-- assertion generation fails
-- an external request attempts to supply assertion parameters
+- issuerが欠落しているか、discoveryと異なる
+- private JWKが利用できない
+- TLS certificateが利用できない
+- assertion生成が失敗する
+- 外部requestがassertion parameterを供給しようとする
 
-The plugin MAY reuse `kong.openid-connect.utils` in the pinned Gateway image. Because this is an internal module, tests MUST detect signature or behavior drift during Gateway upgrades.
+pluginは、pinされたGateway image内の`kong.openid-connect.utils`を再利用してもよい（MAY）。これは内部moduleであるため、Gateway upgrade時にsignatureや挙動のdriftを検出するテストを用意することMUST。
 
 ### Outbound Service mTLS
 
-Each Service MUST present the same certificate used to obtain that Route's bound token. The implementation MUST NOT share a Service entity if sharing prevents Route-specific client certificates.
+各Serviceは、そのRouteのbound tokenを取得した際と同じcertificateを提示することMUST。共有によってRoute別のclient certificateが使えなくなる場合、実装はService entityを共有してはならない（MUST NOT）。
 
 ## PoP verifier API contract
 
-The PoP verifier is part of the security boundary. It MUST:
+PoP verifierはセキュリティ境界の一部である。次をMUST。
 
-1. Require a verified TLS client certificate.
-2. Validate the JWT signature against Keycloak JWKS.
-3. Validate `iss`, `aud`, `exp`, `nbf`, and required scopes.
-4. Require `cnf.x5t#S256`.
-5. Compute the SHA-256 thumbprint of the TLS peer certificate.
-6. Compare both thumbprints using a constant-time comparison.
-7. Return `401 invalid_token` when the claim is absent or different.
-8. Return only sanitized evidence to the UI.
+1. 検証済みTLS client certificateを要求する。
+2. JWT署名をKeycloak JWKSに対して検証する。
+3. `iss`、`aud`、`exp`、`nbf`、必須scopeを検証する。
+4. `cnf.x5t#S256`を要求する。
+5. TLS peer certificateのSHA-256 thumbprintを計算する。
+6. 両thumbprintをconstant-time比較する。
+7. claimが欠落または不一致の場合は`401 invalid_token`を返す。
+8. UIへはsanitized evidenceだけを返す。
 
-The response MAY include:
+Responseは次を含んでもよい（MAY）。
 
-- Route identifier
-- client authentication label
+- Route識別子
+- client authenticationのlabel
 - token certificate thumbprint
 - TLS peer certificate thumbprint
-- `department` and logical `route`
-- boolean binding result
+- `department`とlogical `route`
+- binding結果のboolean
 
-The response MUST NOT include raw tokens, cookies, private keys, full certificates, or client assertions.
+Responseは、raw token、cookie、private key、完全なcertificate、client assertionを含んではならない（MUST NOT）。
 
 ## Logout and revocation contract
 
-Each Route MUST expose a distinct logout URL.
+各Routeは、それぞれ別のlogout URLを公開することMUST。
 
-The logout sequence MUST be:
+Logout sequenceは次であることMUST。
 
-1. Resolve the Route-specific Kong session.
-2. Revoke the refresh token at Keycloak with the Route's client authentication method.
-3. Destroy the Kong session and expire the Route-specific cookie.
-4. Redirect the browser to Keycloak `end_session_endpoint`.
-5. Return the browser to the route selector UI.
+1. Route固有のKong sessionを解決する。
+2. Routeのclient authentication方式でKeycloakへrefresh tokenをrevokeする。
+3. Kong sessionを破棄し、Route固有のcookieを失効させる。
+4. browserをKeycloakの`end_session_endpoint`へredirectする。
+5. browserをroute selector UIへ戻す。
 
-If revocation fails, Kong SHOULD continue local and Keycloak logout so the user is not trapped in a session. The implementation MUST log the failure without token values and MUST fail the automated logout acceptance scenario.
+Revocationが失敗した場合でも、Kongはlocal logoutとKeycloak logoutを継続SHOULD。これは利用者がsessionへ閉じ込められないようにするため。実装は、token値を含めずに失敗をログへ記録することMUST、かつ自動化されたlogout受入scenarioを失敗させることMUST。
 
-A specific confirmation screen is not an acceptance requirement. A valid `id_token_hint` can allow Keycloak to end the session and redirect immediately.
+specificなconfirmation画面の表示は受入条件ではない。有効な`id_token_hint`があれば、Keycloakはconfirmationを省略してただちにsessionを終了・redirectしてもよい。
 
 ## UI requirements
 
-The UI MUST provide:
+UIは次を提供MUST。
 
-- Route A login button
-- Route B login button
-- logout button for the active Route
-- active client authentication method
-- `department` and logical route
+- Route Aのloginボタン
+- Route Bのloginボタン
+- 現在のRoute用のlogoutボタン
+- 有効なclient authentication方式
+- `department`とlogical route
 - token certificate thumbprint
 - TLS peer certificate thumbprint
-- binding verification result
-- clear error output for expected negative tests
+- binding検証結果
+- 想定されるnegative testに対する明確なerror表示
 
-The UI MUST NOT store access tokens, refresh tokens, client assertions, or private keys in browser storage.
+UIは、access token、refresh token、client assertion、private keyをbrowser storageへ保存してはならない（MUST NOT）。
 
 ## Delivery and automation requirements
 
 ### Infrastructure as code
 
-- Keycloak realm, clients, roles, users, Protocol Mappers, and client policies MUST be declarative.
-- Gateway entities MUST remain in decK state.
-- Konnect infrastructure MAY remain in Terraform.
-- Auth0 resources MUST be removed from the target dependency graph or isolated behind an optional legacy profile.
-- `make validate` MUST remain safe and MUST NOT mutate live systems.
-- Apply, sync, image push, and destroy MUST remain explicit commands.
+- Keycloak realm、client、role、user、Protocol Mapper、client policyは宣言的であることMUST。
+- Gateway entityはdecK stateに残すことMUST。
+- Konnect infrastructureはTerraformに残してもよい（MAY）。
+- Auth0 resourceは、対象dependency graphから削除するか、optionalなlegacy profileの背後へ分離することMUST。
+- `make validate`は安全であり続け、live systemを変更してはならない（MUST NOT）。
+- Apply、sync、image push、destroyは明示的なcommandであり続けることMUST。
 
 ### GHCR
 
-The repository MUST add a GitHub Actions workflow that:
+Repositoryは、次を行うGitHub Actions workflowを追加することMUST。
 
-1. Builds the custom Kong image.
-2. Runs unit, integration, and static tests.
-3. Generates an SBOM.
-4. Runs a vulnerability scan with a documented severity policy.
-5. Publishes only after tests pass.
-6. Uses `packages: write` for GHCR.
-7. Publishes an immutable commit tag and records the image digest.
+1. custom Kong imageをbuildする。
+2. unit、integration、static testを実行する。
+3. SBOMを生成する。
+4. 文書化されたseverity policyでvulnerability scanを実行する。
+5. testが成功した後だけ発行する。
+6. GHCRに対して`packages: write`を使う。
+7. 不変のcommit tagを発行し、image digestを記録する。
 
-The workflow MUST NOT print secrets or private key material.
+Workflowは、secretやprivate key materialを出力してはならない（MUST NOT）。
 
 ## Observability and evidence
 
-The implementation MUST produce evidence that distinguishes the two Routes without exposing credentials.
+実装は、credentialを露出せずに2つのRouteを区別できるevidenceを生成することMUST。
 
-Required evidence:
+必須のevidence:
 
-- PAR occurs before browser authorization.
-- Route A token request presents the Route A certificate and no PKJWT.
-- Route B token request presents the Route B certificate and a valid PKJWT.
-- Keycloak token contains `cnf.x5t#S256`.
-- Protected API receives the same certificate used for token binding.
-- Negative requests fail at the expected boundary.
-- Logout revokes the refresh token and ends both Kong and Keycloak sessions.
+- PARがbrowser authorizationより前に行われる。
+- Route Aのtoken requestがRoute Aのcertificateを提示し、PKJWTを伴わない。
+- Route Bのtoken requestがRoute Bのcertificateと有効なPKJWTを提示する。
+- Keycloak tokenが`cnf.x5t#S256`を含む。
+- Protected APIがtoken bindingに使われた同じcertificateを受け取る。
+- Negative requestが想定された境界で失敗する。
+- Logoutがrefresh tokenをrevokeし、KongとKeycloakの両sessionを終了させる。
 
-Logs MUST identify the Route and phase. Logs MUST redact token values, cookies, assertions, JWKs, certificate private keys, and authorization codes.
+Logは、RouteとPhaseを識別できることMUST。Logは、token値、cookie、assertion、JWK、certificate private key、authorization codeをredactすることMUST。
 
 ## Acceptance scenarios
 
@@ -315,72 +315,82 @@ Logs MUST identify the Route and phase. Logs MUST redact token values, cookies, 
 
 | ID | Scenario | Pass condition |
 |---|---|---|
-| A-PAR-01 | Route A browser login | PAR, PKCE S256, and mTLS client authentication complete |
-| A-POP-01 | Route A protected API call | `cnf` equals the Route A TLS peer certificate thumbprint |
-| B-PAR-01 | Route B browser login | PAR and PKCE S256 complete |
-| B-PKJ-01 | Route B code exchange | Keycloak accepts PS256 PKJWT with issuer audience and one-time `jti` |
-| B-POP-01 | Route B protected API call | `cnf` equals the Route B TLS peer certificate thumbprint |
-| CLAIM-01 | Sales and engineering login | signed claims drive the expected logical Upstream |
-| LOGOUT-A-01 | Route A logout | refresh replay fails, cookie expires, Keycloak session ends |
-| LOGOUT-B-01 | Route B logout | refresh replay fails, cookie expires, Keycloak session ends |
-| SWITCH-01 | Route switch after logout | the opposite Route starts a new authorization flow |
+| A-PAR-01 | Route A browser login | PAR、PKCE S256、mTLS client authenticationが完了する |
+| A-POP-01 | Route A protected API call | `cnf`がRoute A TLS peer certificateのthumbprintと一致する |
+| B-PAR-01 | Route B browser login | PARとPKCE S256が完了する |
+| B-PKJ-01 | Route B code exchange | KeycloakがissuerをaudienceとするPS256 PKJWTと一回限りの`jti`を受理する |
+| B-POP-01 | Route B protected API call | `cnf`がRoute B TLS peer certificateのthumbprintと一致する |
+| CLAIM-01 | Sales・engineeringのlogin | 署名済みclaimが期待するlogical Upstreamへ導く |
+| LOGOUT-A-01 | Route A logout | refresh replayが失敗し、cookieが失効し、Keycloak sessionが終了する |
+| LOGOUT-B-01 | Route B logout | refresh replayが失敗し、cookieが失効し、Keycloak sessionが終了する |
+| SWITCH-01 | logout後のRoute切替 | 反対側のRouteが新しいauthorization flowを開始する |
 
 ### Negative scenarios
 
 | ID | Scenario | Expected result |
 |---|---|---|
-| A-CERT-01 | Route A token request without certificate | Keycloak rejects client authentication |
-| A-CERT-02 | Route A token request with Route B certificate | Keycloak rejects client authentication |
-| B-AUD-01 | Route B PKJWT with token endpoint URL as `aud` | Keycloak rejects the assertion |
-| B-JTI-01 | Replay a Route B assertion | Keycloak rejects the replay |
-| B-SPOOF-01 | Browser supplies `client_assertion` | custom plugin rejects or removes the input |
-| B-CERT-01 | Valid PKJWT without TLS certificate | Keycloak rejects token issuance |
-| POP-01 | Bound token without client certificate | PoP verifier returns `401 invalid_token` |
-| POP-02 | Bound token with the other Route's certificate | PoP verifier returns `401 invalid_token` |
-| HEADER-01 | Browser spoofs department and route headers | signed claims overwrite both values |
-| LEAK-01 | Inspect application response and logs | no token, cookie, assertion, or private key is present |
+| A-CERT-01 | certificateなしのRoute A token request | Keycloakがclient authenticationを拒否する |
+| A-CERT-02 | Route B certificateを使ったRoute A token request | Keycloakがclient authenticationを拒否する |
+| B-AUD-01 | `aud`をtoken endpoint URLにしたRoute B PKJWT | Keycloakがassertionを拒否する |
+| B-JTI-01 | Route B assertionの再送 | Keycloakが再送を拒否する |
+| B-SPOOF-01 | Browserが`client_assertion`を供給する | custom pluginが入力を拒否または除去する |
+| B-CERT-01 | TLS certificateなしの有効なPKJWT | Keycloakがtoken発行を拒否する |
+| POP-01 | client certificateなしのbound token | PoP verifierが`401 invalid_token`を返す |
+| POP-02 | もう一方のRouteのcertificateを使ったbound token | PoP verifierが`401 invalid_token`を返す |
+| HEADER-01 | Browserがdepartmentとrouteのheaderを偽装する | 署名済みclaimが両方の値を上書きする |
+| LEAK-01 | Application responseとlogの点検 | token、cookie、assertion、private keyが存在しない |
 
 ## Definition of done
 
-Development is complete when:
+開発は次のとき完了とする。
 
-- every positive and negative scenario passes in automation or has a documented browser evidence procedure
-- `make validate` passes from a clean checkout
-- `deck diff` shows only intended tagged entities before sync and no diff after sync
-- the custom image is available from GHCR by immutable tag and digest
-- a fresh environment can generate secrets, start Keycloak, connect the data plane, and run both Routes from documented commands
-- logout and Route switching pass for both Routes
-- documentation does not claim OpenID Foundation certification
+- すべてのpositiveとnegative scenarioが自動化で通過するか、文書化されたbrowser evidence手順を持つ
+- clean checkoutから`make validate`が通る
+- syncの前は意図したtag付きentityだけが`deck diff`に現れ、sync後はdiffが無い
+- custom imageが不変のtagとdigestでGHCRから取得できる
+- 新しい環境が、文書化されたcommandからsecret生成、Keycloak起動、data plane接続、両Routeの実行までを行える
+- logoutとRoute切替が両Routeで成功する
+- documentationがOpenID Foundation certificationを主張していない
 
 ## Out of scope
 
-- production HA and disaster recovery
-- production PKI or HSM integration
-- Entra ID federation, MFA, or Conditional Access
+- production HAとdisaster recovery
+- production PKIまたはHSM連携
+- Entra ID federation、MFA、Conditional Access
 - Auth0 HRI
 - FAPI 2.0 Message Signing
-- OpenID Foundation certification submission
+- OpenID Foundation certificationへの提出
 - production audit retention
-- real customer identities or data
+- 実顧客のIDやデータ
 
 ## Delivery sequence
 
-1. Add Keycloak and PoP verifier scaffolding with generated development PKI.
-2. Implement Route A and prove mTLS-bound token issuance.
-3. Implement the Route B custom plugin and unit tests.
-4. Prove Route B PKJWT plus mTLS token binding.
-5. Add revocation and logout for both Routes.
-6. Add UI evidence and negative tests.
-7. Add GHCR build, SBOM, scan, and immutable publish.
-8. Update the diagrams only when implementation evidence matches the workflows.
+1. 生成済みdevelopment PKIとともにKeycloakとPoP verifierのscaffoldingを追加する。
+2. Route Aを実装し、mTLS-bound tokenの発行を実証する。
+3. Route B custom pluginとunit testを実装する。
+4. Route BのPKJWTとmTLS token bindingを実証する。
+5. 両Routeへrevocationとlogoutを追加する。
+6. UI evidenceとnegative testを追加する。
+7. GHCR build、SBOM、scan、不変tagでのpublishを追加する。
+8. 実装evidenceがworkflowと一致した時点でだけdiagramを更新する。
 
 ## Workflow diagrams
 
-- [Route A mTLS workflow](workflows/route-a-mtls.workflow.html)
-- [Route B PKJWT and mTLS workflow](workflows/route-b-pkj-mtls.workflow.html)
-- [Logout and revocation workflow](workflows/logout.workflow.html)
+各diagramは、レビュー用のJSON source、静的なPNG、インタラクティブなHTML artifactの3形態で管理する。JSON/PNG/HTMLはこのrepository内の`workflows/`に残し、インタラクティブなHTML artifactは共有用にGitHub Pagesへも公開している。
 
-The JSON files beside each HTML artifact are the reviewable diagram source.
+[![Route A: mTLS client authenticationのworkflow](workflows/route-a-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
+
+*Route A: mTLSクライアント認証。画像をクリックするとインタラクティブ版を開く。* Source: [JSON](workflows/route-a-mtls.workflow.json) / [ローカルHTML](workflows/route-a-mtls.workflow.html)
+
+[![Route B: private_key_jwt + mTLSのworkflow](workflows/route-b-pkj-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)
+
+*Route B: private_key_jwt + mTLS証明書束縛。画像をクリックするとインタラクティブ版を開く。* Source: [JSON](workflows/route-b-pkj-mtls.workflow.json) / [ローカルHTML](workflows/route-b-pkj-mtls.workflow.html)
+
+[![LogoutとRefresh Token失効のworkflow](workflows/logout.workflow.png)](https://picketfence-labs.github.io/diagrams/5522b25c922a/)
+
+*Route別LogoutとRefresh Token失効。画像をクリックするとインタラクティブ版を開く。* Source: [JSON](workflows/logout.workflow.json) / [ローカルHTML](workflows/logout.workflow.html)
+
+diagramはworkflowを説明するものであり、実装状況そのものではない。受入判定は本文書のtestに従う。
 
 ## Primary sources
 
