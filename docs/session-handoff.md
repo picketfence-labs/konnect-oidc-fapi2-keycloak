@@ -9,7 +9,7 @@
 
 ### 確認済みの結果
 
-- ローカル data plane は Kong Gateway 3.16.0.0 で Konnect に接続しました。最後に確認した endpoint は Gateway が `localhost:8000`、UI が `localhost:3000` です。
+- ローカル data plane は Kong Gateway 3.16.0.0 で Konnect に接続しました。ブラウザーフローで使う Gateway endpoint は `https://localhost:8443`、UI は `https://localhost:3443` です。
 - engineering のブラウザーログインは `engineering/engineering-route` を表示しました。sales の `sales/sales-route` は利用者が別のブラウザーセッションで確認しました。
 - 両方の httpbin 応答では `Authorization` と `Cookie` が欠落していました。
 - engineering の認証済みセッションから `sales/sales-route` を偽装して送っても、httpbin は `engineering/engineering-route` を受け取り、UI は PASS を表示しました。

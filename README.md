@@ -1,112 +1,131 @@
-# Konnect OIDC ヘッダールーティングのデモ
+# Keycloak FAPI 2.0 クライアント認証デモ
 
-Kong Gateway 3.16 を Konnect の data plane としてローカルで動かし、Auth0 の認可コードフローでログインします。認証済みユーザーの `department` claim をヘッダーへ設定し、部門に応じて Upstream を選択します。ブラウザー UI は httpbin が受け取った部門とルートの値を表示します。
+Kong Gateway 3.16 を Konnect の data plane として動かし、同じ Keycloak realm に対する二つの OAuth クライアント認証方式を比較するローカルデモです。
 
-2026-09-22 時点で Gateway 3.16 のデモ検証は完了しています。検証結果と保留事項は [セッション引き継ぎ](docs/session-handoff.md)を参照してください。追加機能の有効化や稼働環境の変更前には要件を再確認してください。
+| ルート | パス | token endpoint のクライアント認証 |
+| --- | --- | --- |
+| Route A | `/api/fapi/mtls` | `tls_client_auth` |
+| Route B | `/api/fapi/pkj-mtls` | `private_key_jwt`（PS256）+ mTLS |
 
-当初の依頼にあった `OAuth0` は **Auth0** と解釈しています。claim 名は `department` に統一し、Auth0 Action は入力側の誤記 `departement` も受け付けます。
+両ルートで PAR、PKCE S256、短命な認可コード、証明書に束縛されたアクセストークンを要求します。Upstream の PoP verifier は JWT の署名・issuer・audience・時刻・scope と、`cnf.x5t#S256` が実際の TLS peer 証明書に一致することを確認します。
+
+> このリポジトリは FAPI 2.0 の学習・比較用デモです。認定試験への適合を主張するものではありません。
 
 ## 構成
 
-1. Terraform が Konnect control plane、data plane 証明書、Auth0 のアプリケーション・API・データベース接続・Action・デモユーザーを作成します。
-2. decK が control plane 内の Gateway エンティティを管理します。
-3. ローカルの `kong/kong-gateway:3.16.0.0` data plane が mTLS で Konnect に接続します。
-4. OpenID Connect plugin が認可コードとセッションを処理し、PKCE S256 を要求します。Auth0 の `department` claim は `X-Demo-Department` に、署名済みの `route` claim は `X-Demo-Route` に設定されます。
-5. Route By Header plugin が両ヘッダーの組を確認して Upstream を選びます。3 つの Upstream はすべて同じ httpbin Target を参照します。
-6. UI が httpbin の応答からルーティングの証跡を表示します。
+1. Terraform が Konnect control plane と data plane 証明書を管理します。
+2. Keycloak はローカル HTTPS で起動し、生成済み realm を import します。
+3. decK が二つの Route、OIDC plugin、upstream mTLS 証明書を Konnect へ登録します。
+4. Route B のカスタム plugin が外部入力を拒否し、60 秒以内の PS256 client assertion を生成します。
+5. PoP verifier が sender-constrained access token を検証し、トークンや証明書本体を含まない証跡だけを返します。
+6. UI が認証方式、署名済み claim、Kong が設定した Upstream ヘッダー、証明書束縛の結果を表示します。
 
-Kong の基本ルーターは認証より先に動きます。そのため、このデモでは同じリクエスト中に別の Kong Route を選ぶ代わりに、access フェーズで Upstream を選択します。Gateway の Route と Service はそれぞれ 1 つです。
+秘密鍵、パスワード、セッション secret、生成済み realm は `.generated/` に保存され、Git の対象外です。
 
 ## 前提条件
 
-- Terraform 1.11 以降、decK 1.53 以降、Docker Compose、Python 3
-- control plane の作成と Gateway 設定が可能な Konnect PAT
-- Auth0 Terraform provider 用の Management API アプリケーション。Gateway クライアントの secret を読み取るため、`read:client_credentials` または `read:client_keys` が必要です。
-- Auth0 のデモ用テナントを推奨します。ログイン Action はテナント全体に適用されます。
+- Terraform 1.11 以降
+- decK 1.53 以降
+- Docker Compose
+- Python 3 と OpenSSL
+- control plane を作成できる Konnect PAT
 
-Data plane は Konnect control plane から Enterprise ライセンスを継承します。ローカルの `KONG_LICENSE_DATA` は不要です。
+Data plane は Konnect control plane から Enterprise ライセンスを取得します。ローカルの `KONG_LICENSE_DATA` は不要です。
 
-## 設定と起動
+## セットアップ
 
-`.env.example` を `.env` にコピーし、Konnect と Auth0 の接続情報を入力します。共用 Auth0 テナントでは、既定の database connection に残す client ID を live API で確認し、`TF_VAR_default_db_existing_client_ids` の JSON 配列に設定してください。例の空配列をそのまま使うと既存 client の割り当てが消えるため、plan で必ず確認します。claim namespace の既定値は例示用なので、実利用時は `TF_VAR_claim_namespace` に管理下の URI を設定してください。
+環境変数ファイルを作り、`KONNECT_TOKEN` と利用リージョンの `KONNECT_SERVER_URL` を設定します。
 
 ```bash
 cp .env.example .env
-```
-
-```bash
 $EDITOR .env
 ```
 
-```bash
-make init
-```
+設定と静的検査を実行します。この段階では外部リソースを変更しません。
 
 ```bash
 make validate
 ```
 
-Terraform と decK の変更内容を確認してから、必要な操作だけを実行します。
+Konnect の変更計画を確認し、承認した計画だけを適用します。
 
 ```bash
 make plan
-```
-
-```bash
 make apply
 ```
 
-```bash
-make deck-diff
-```
+ローカル開発用 CA、サーバー／クライアント証明書、Route B の署名鍵、Keycloak realm、デモユーザーを生成します。再実行しても既存の鍵と資格情報は保持されます。
 
 ```bash
+make generate-dev-assets
+```
+
+デモユーザーを明示的に確認する場合だけ、次を実行します。
+
+```bash
+sed -n '1,2p' .generated/demo-users.txt
+```
+
+Gateway 設定の差分を確認し、承認後に同期します。
+
+```bash
+make plugin-schema-sync
+make deck-diff
 make deck-sync
 ```
+
+`plugin-schema-sync` は custom plugin の `schema.lua` だけを対象Control Planeへ登録または更新します。これは外部変更なので、schemaをレビューしてから実行してください。`deck-diff` と `deck-sync` は事前に登録状態をread-onlyで確認します。
+
+最後にローカルサービスを起動します。
 
 ```bash
 make up
 ```
 
-<http://localhost:3000> を開いてログインし、画面に部門と論理ルートが表示されることを確認してください。**偽装ヘッダーをテスト**すると、ブラウザーが別部門の値を送っても、Upstream には認証済み claim の値が届くことを確認できます。
+`make up` は Keycloak のユーザープロファイルとclient mapperを同期し、既存realmのデモユーザーにも `department`、`departement`、`route` を補正します。コンテナーを再作成せずデータだけを補正する場合は、`make sync-demo-data` を実行します。既存のブラウザーセッションは補正前のtokenを保持するため、同期後はログアウトしてからログインし直します。
 
-デモユーザーのパスワードは機密扱いの Terraform output にあります。
+ブラウザーで <https://localhost:3443> を開き、Route A または Route B を選択します。`http://localhost:3000` は HTTPS のUIへリダイレクトします。ブラウザーは Gateway の `https://localhost:8443` と Keycloak の `https://localhost:8444` に接続します。3つのサーバー証明書は `.generated/pki/ca.crt` で署名されています。開発端末でこの CA を信頼する場合は、このファイルだけを対象にし、デモ終了後に信頼設定を取り消してください。
+
+## 確認ポイント
+
+- Route A は `tls_client_auth` と表示される。
+- Route B は `private_key_jwt+mtls` と表示される。
+- `binding_verified` が `true` で、token thumbprint と TLS peer thumbprint が一致する。
+- デモユーザーに応じて `department` と `logical_route` が変わる。
+- `department_header` と `logical_route_header` が署名済み claim と一致し、UI に「claim とヘッダー: 一致」と表示される。
+- UI の偽装テストで送った `X-Demo-*` ヘッダーが、署名済み claim の値を上書きしない。
+- 各ルートのログアウト後、対応するセッション cookie が再利用できない。
+
+## 現在の実装範囲
+
+Route A のログイン、トークン交換、失効は stock OIDC plugin の mTLS 機能で構成しています。Route B のtokenとrefreshでは、preprocessorがリクエストごとに`private_key_jwt`を生成し、stock OIDC pluginのmTLS transportへ渡します。PARとrevocationでは、同じ鍵を環境変数Vaultから解決し、stock OIDC pluginの`private_key_jwt`認証を使います。秘密JWKの値はdecK stateへ入りません。
+
+Route AとRoute Bのbrowser login、code exchange、Upstream mTLS、証明書束縛はlive環境で確認済みです。残る完了条件は、refresh、revocation、logoutのwire-level証跡と、要件書の異常系を実行して記録することです。現在の設定は失敗を隠さず、Keycloak側の検証結果をそのまま反映します。
+
+## 停止と削除
+
+ローカルコンテナーだけを停止します。
 
 ```bash
-terraform -chdir=infra output -json demo_users
+make down
 ```
 
-## PAR と FAPI の範囲
-
-PKCE S256 は既定で有効です。PAR は任意です。Auth0 では Enterprise プランの Highly Regulated Identity アドオンと、Dashboard でのテナント設定が必要です。この設定は現在の Auth0 Management API では管理できません。
-
-利用可能なテナントで PAR を有効にする場合は、次の順に進めます。
-
-1. Auth0 Dashboard の **Settings > Advanced** で **Allow Pushed Authorization Requests** を有効にします。
-2. `.env` に `TF_VAR_enable_par=true` を設定します。
-3. `make plan` の内容を確認してから `make apply` を実行します。
-4. `make deck-diff` の内容を確認してから `make deck-sync` を実行します。PAR 用の `kong/kong-par.yaml` が選択されます。
-
-この構成は FAPI 2.0 適合を示すものではありません。送信者制約付きアクセストークンや非対称鍵によるクライアント認証などは対象外です。
-
-## 削除
-
-`make destroy` はローカルコンテナーを停止し、Konnect と Auth0 の Terraform 管理リソースを削除します。control plane の削除に伴い、decK 管理の Gateway エンティティも削除されます。実行時に削除計画を確認してください。
+`make destroy` はローカルコンテナーを停止し、Terraform が管理する Konnect リソースを削除します。`.generated/` の鍵と資格情報は自動削除しません。削除計画を確認できる状況でのみ実行してください。
 
 ## セキュリティ上の注意
 
-- OIDC plugin が `X-Demo-Department` と `X-Demo-Route` を認証済み claim の値で上書きします。呼び出し元がヘッダーを送っても Upstream を選べません。
-- `X-Demo-Route` は署名済みユーザー情報から導く判定用ラベルです。Route By Header plugin が応答に追加する値ではありません。
-- デモユーザーのパスワード、data plane の秘密鍵、Auth0 の client secret、Terraform state はローカルに保持し、Git の対象から除外します。
-- 共用環境では認証ヘッダーを含むペイロード取得を有効にしないでください。
-- 本番用途では共有 secret によるクライアント認証を `private_key_jwt` または mTLS に置き換える必要があります。
+- `.env`、`.generated/`、`infra/certs/`、Terraform state を commit しないでください。
+- Route B plugin はブラウザーから渡された `client_assertion` と `client_assertion_type` を拒否してから内部値を設定します。
+- Kong は upstream へ転送する前に cookie と内部 client assertion ヘッダーを除去します。
+- PoP verifier は raw token、Authorization ヘッダー、証明書本体を応答やアプリケーションログに出しません。
+- 開発用 CA と鍵の有効期間・保管方法は本番用途を想定していません。
 
 ## 関連資料
 
 - [設計概要](docs/design-brief.md)
 - [Keycloak FAPI 2.0 デモ要件](docs/design/fapi2-keycloak-requirements.md)
 - [設計資料と workflow](docs/design/README.md)
+- [ADR 0006: custom plugin、GHCR、logout](docs/decisions/0006-fapi-custom-plugin-ghcr-logout.md)
 - [ADR 0007: Keycloak-only FAPI 2.0 demo](docs/decisions/0007-keycloak-only-fapi2-demo.md)
-- [設計判断](docs/decisions/0001-identity-aware-upstream-routing.md)
+- [ADR 0008: Route B endpoint認証の分担](docs/decisions/0008-route-b-endpoint-auth-split.md)
 - [障害対応記録](docs/troubleshooting-log.md)
-- [セッション引き継ぎ](docs/session-handoff.md)

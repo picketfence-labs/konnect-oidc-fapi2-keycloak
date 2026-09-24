@@ -1,0 +1,187 @@
+{
+  "realm": "fapi-demo",
+  "enabled": true,
+  "displayName": "FAPI 2.0 demo",
+  "sslRequired": "all",
+  "defaultSignatureAlgorithm": "PS256",
+  "accessCodeLifespan": 60,
+  "accessTokenLifespan": 300,
+  "revokeRefreshToken": true,
+  "refreshTokenMaxReuse": 0,
+  "ssoSessionIdleTimeout": 900,
+  "ssoSessionMaxLifespan": 3600,
+  "clients": [
+    {
+      "clientId": "kong-fapi-mtls",
+      "name": "Route A: TLS client authentication",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-x509",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://localhost:8443/api/fapi/mtls"],
+      "webOrigins": [],
+      "attributes": {
+        "x509.subjectdn": "CN=kong-fapi-mtls",
+        "pkce.code.challenge.method": "S256",
+        "require.pushed.authorization.requests": "true",
+        "tls.client.certificate.bound.access.tokens": "true",
+        "use.refresh.tokens": "true",
+        "post.logout.redirect.uris": "https://localhost:3443/?logout=route-a",
+        "id.token.signed.response.alg": "PS256"
+      },
+      "protocolMappers": [
+        {
+          "name": "department",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "department",
+            "claim.name": "https://fapi-demo\\.example\\.com/department",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "logical-route",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "route",
+            "claim.name": "https://fapi-demo\\.example\\.com/route",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "pop-verifier-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "pop-verifier",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "kong-fapi-pkj-mtls",
+      "name": "Route B: Private Key JWT with mTLS binding",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-jwt",
+      "standardFlowEnabled": true,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": ["https://localhost:8443/api/fapi/pkj-mtls"],
+      "webOrigins": [],
+      "attributes": {
+        "jwt.credential.public.key": "__ROUTE_B_PUBLIC_KEY__",
+        "token.endpoint.auth.signing.alg": "PS256",
+        "token.endpoint.auth.signing.max.exp": "60",
+        "pkce.code.challenge.method": "S256",
+        "require.pushed.authorization.requests": "true",
+        "tls.client.certificate.bound.access.tokens": "true",
+        "use.refresh.tokens": "true",
+        "post.logout.redirect.uris": "https://localhost:3443/?logout=route-b",
+        "id.token.signed.response.alg": "PS256"
+      },
+      "protocolMappers": [
+        {
+          "name": "department",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "department",
+            "claim.name": "https://fapi-demo\\.example\\.com/department",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "logical-route",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "config": {
+            "user.attribute": "route",
+            "claim.name": "https://fapi-demo\\.example\\.com/route",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true"
+          }
+        },
+        {
+          "name": "pop-verifier-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "pop-verifier",
+            "access.token.claim": "true",
+            "id.token.claim": "false"
+          }
+        }
+      ]
+    }
+  ],
+  "users": [
+    {
+      "username": "sales.user@fapi-demo.invalid",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Sales",
+      "attributes": {
+        "department": ["sales"],
+        "departement": ["sales"],
+        "route": ["sales-route"]
+      },
+      "credentials": [
+        {"type": "password", "value": "__SALES_PASSWORD__", "temporary": false}
+      ]
+    },
+    {
+      "username": "engineering.user@fapi-demo.invalid",
+      "enabled": true,
+      "emailVerified": true,
+      "firstName": "Demo",
+      "lastName": "Engineering",
+      "attributes": {
+        "department": ["engineering"],
+        "departement": ["engineering"],
+        "route": ["engineering-route"]
+      },
+      "credentials": [
+        {"type": "password", "value": "__ENGINEERING_PASSWORD__", "temporary": false}
+      ]
+    }
+  ],
+  "clientPolicies": {
+    "policies": [
+      {
+        "name": "fapi-2-confidential-clients",
+        "description": "Apply the built-in FAPI 2.0 Security Profile to confidential clients.",
+        "enabled": true,
+        "conditions": [
+          {
+            "condition": "client-access-type",
+            "configuration": {
+              "is-negative-logic": false,
+              "type": ["confidential"]
+            }
+          }
+        ],
+        "profiles": ["fapi-2-security-profile"]
+      }
+    ]
+  },
+  "clientProfiles": {"profiles": []}
+}

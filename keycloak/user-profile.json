@@ -1,0 +1,34 @@
+{
+  "attributes": [
+    {
+      "name": "department",
+      "displayName": "Department",
+      "validations": {"length": {"min": 1, "max": 64}},
+      "permissions": {
+        "view": ["admin", "user"],
+        "edit": ["admin"]
+      },
+      "multivalued": false
+    },
+    {
+      "name": "departement",
+      "displayName": "Department compatibility alias",
+      "validations": {"length": {"min": 1, "max": 64}},
+      "permissions": {
+        "view": ["admin"],
+        "edit": ["admin"]
+      },
+      "multivalued": false
+    },
+    {
+      "name": "route",
+      "displayName": "Logical route",
+      "validations": {"length": {"min": 1, "max": 64}},
+      "permissions": {
+        "view": ["admin", "user"],
+        "edit": ["admin"]
+      },
+      "multivalued": false
+    }
+  ]
+}

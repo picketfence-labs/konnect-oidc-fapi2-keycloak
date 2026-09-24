@@ -1,12 +1,12 @@
 resource "konnect_gateway_control_plane" "demo" {
   name         = var.control_plane_name
-  description  = "Auth0 OIDC claim-to-header and identity-aware routing demo for OIDC"
+  description  = "Keycloak FAPI 2.0 mTLS and private_key_jwt comparison demo"
   cluster_type = "CLUSTER_TYPE_CONTROL_PLANE"
   auth_type    = "pinned_client_certs"
 
   labels = {
     owner   = "picketfence-labs"
-    purpose = "oidc-routing-demo"
+    purpose = "keycloak-fapi2-demo"
   }
 
   proxy_urls = [{

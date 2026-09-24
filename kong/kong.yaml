@@ -1,84 +1,185 @@
 _format_version: "3.0"
 
-upstreams:
-  - name: oidc-sales-upstream
-    host_header: httpbin.konghq.com
-    tags: [oidc-routing-demo]
-    targets:
-      - target: httpbin.konghq.com:443
-        weight: 100
-        tags: [oidc-routing-demo]
-  - name: oidc-engineering-upstream
-    host_header: httpbin.konghq.com
-    tags: [oidc-routing-demo]
-    targets:
-      - target: httpbin.konghq.com:443
-        weight: 100
-        tags: [oidc-routing-demo]
-  - name: oidc-default-upstream
-    host_header: httpbin.konghq.com
-    tags: [oidc-routing-demo]
-    targets:
-      - target: httpbin.konghq.com:443
-        weight: 100
-        tags: [oidc-routing-demo]
+certificates:
+  - id: 11111111-1111-4111-8111-111111111111
+    cert: "{vault://env/route-a-tls-cert}"
+    key: "{vault://env/route-a-tls-key}"
+    tags: [fapi2-demo, route-a]
+  - id: 22222222-2222-4222-8222-222222222222
+    cert: "{vault://env/route-b-tls-cert}"
+    key: "{vault://env/route-b-tls-key}"
+    tags: [fapi2-demo, route-b]
+
+ca_certificates:
+  - id: 33333333-3333-4333-8333-333333333333
+    cert: "${{ env "DECK_FAPI_CA_CERT_YAML" }}"
+    tags: [fapi2-demo]
 
 services:
-  - name: oidc-httpbin-service
+  - name: fapi-mtls-service
     protocol: https
-    host: oidc-default-upstream
-    port: 443
-    path: /anything
-    tags: [oidc-routing-demo]
+    host: pop-verifier
+    port: 9443
+    path: /evidence
+    tls_verify: true
+    ca_certificates: [33333333-3333-4333-8333-333333333333]
+    client_certificate: 11111111-1111-4111-8111-111111111111
+    tags: [fapi2-demo, route-a]
     routes:
-      - name: oidc-routing-demo-route
-        paths: [/api/demo]
+      - name: fapi-mtls-route
+        paths: [/api/fapi/mtls]
         strip_path: true
-        tags: [oidc-routing-demo]
+        tags: [fapi2-demo, route-a]
     plugins:
       - name: cors
-        tags: [oidc-routing-demo]
+        tags: [fapi2-demo, route-a]
         config:
-          origins: [http://localhost:3000]
-          methods: [GET, OPTIONS]
+          origins: ["https://localhost:3443"]
+          methods: [GET, POST, OPTIONS]
           headers: [Accept, Content-Type, X-Demo-Department, X-Demo-Route]
           credentials: true
           max_age: 3600
       - name: openid-connect
-        tags: [oidc-routing-demo]
+        tags: [fapi2-demo, route-a]
         config:
-          issuer: ${{ env "DECK_AUTH0_ISSUER" }}
-          client_id: [${{ env "DECK_AUTH0_CLIENT_ID" }}]
-          client_secret: [${{ env "DECK_AUTH0_CLIENT_SECRET" }}]
-          # Keep this aligned with infra/auth0.tf. Browser login on 3.16 was verified.
-          client_auth: [client_secret_basic]
+          issuer: https://localhost:8444/realms/fapi-demo
+          authorization_endpoint: https://localhost:8444/realms/fapi-demo/protocol/openid-connect/auth
+          token_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/token
+          mtls_token_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/token
+          jwks_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/certs
+          pushed_authorization_request_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/ext/par/request
+          revocation_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/revoke
+          mtls_revocation_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/revoke
+          end_session_endpoint: https://localhost:8444/realms/fapi-demo/protocol/openid-connect/logout
+          client_id: [kong-fapi-mtls]
+          client_auth: [tls_client_auth]
+          token_endpoint_auth_method: tls_client_auth
+          pushed_authorization_request_endpoint_auth_method: tls_client_auth
+          revocation_endpoint_auth_method: tls_client_auth
+          tls_client_auth_cert_id: 11111111-1111-4111-8111-111111111111
+          tls_client_auth_ssl_verify: true
           ssl_verify: true
           auth_methods: [authorization_code, session]
-          scopes: [openid, profile, email]
-          redirect_uri: ["http://localhost:8000/api/demo"]
-          authorization_query_args_names: [audience]
-          authorization_query_args_values: [${{ env "DECK_AUTH0_AUDIENCE" }}]
+          scopes: [openid, profile]
+          redirect_uri: ["https://localhost:8443/api/fapi/mtls"]
           require_proof_key_for_code_exchange: true
+          require_pushed_authorization_requests: true
           login_action: redirect
-          login_redirect_uri: ["http://localhost:3000/?authenticated=1"]
-          login_tokens: []
-          session_secret: ${{ env "DECK_SESSION_SECRET" }}
-          cache_tokens_salt: ${{ env "DECK_CACHE_TOKENS_SALT" }}
+          login_redirect_uri: ["https://localhost:3443/?authenticated=route-a"]
+          logout_uri_suffix: /logout
+          logout_methods: [GET, POST]
+          logout_revoke: true
+          logout_redirect_uri: ["https://localhost:3443/?logout=route-a"]
+          session_cookie_name: fapi_route_a_session
+          session_secret: ${{ env "DECK_ROUTE_A_SESSION_SECRET" }}
+          cache_tokens_salt: ${{ env "DECK_ROUTE_A_CACHE_SALT" }}
+          upstream_access_token_header: authorization:bearer
           upstream_headers:
             - header: X-Demo-Department
-              path: [${{ env "DECK_DEPARTMENT_CLAIM" }}]
+              path: ["https://fapi-demo.example.com/department"]
             - header: X-Demo-Route
-              path: [${{ env "DECK_ROUTE_CLAIM" }}]
-      - name: route-by-header
-        tags: [oidc-routing-demo]
-        config:
-          rules:
-            - condition: {X-Demo-Department: sales, X-Demo-Route: sales-route}
-              upstream_name: oidc-sales-upstream
-            - condition: {X-Demo-Department: engineering, X-Demo-Route: engineering-route}
-              upstream_name: oidc-engineering-upstream
+              path: ["https://fapi-demo.example.com/route"]
       - name: request-transformer
-        tags: [oidc-routing-demo]
+        tags: [fapi2-demo, route-a]
         config:
           remove:
-            headers: [Authorization, Cookie]
+            headers: [Cookie, client_assertion, client_assertion_type, X-Fapi-Route, X-Fapi-Client-Auth]
+          add:
+            headers: [X-Fapi-Route:route-a, X-Fapi-Client-Auth:tls_client_auth]
+
+  - name: fapi-pkj-mtls-service
+    protocol: https
+    host: pop-verifier
+    port: 9443
+    path: /evidence
+    tls_verify: true
+    ca_certificates: [33333333-3333-4333-8333-333333333333]
+    client_certificate: 22222222-2222-4222-8222-222222222222
+    tags: [fapi2-demo, route-b]
+    routes:
+      - name: fapi-pkj-mtls-route
+        paths: [/api/fapi/pkj-mtls]
+        strip_path: true
+        tags: [fapi2-demo, route-b]
+    plugins:
+      - name: cors
+        tags: [fapi2-demo, route-b]
+        config:
+          origins: ["https://localhost:3443"]
+          methods: [GET, POST, OPTIONS]
+          headers: [Accept, Content-Type, X-Demo-Department, X-Demo-Route]
+          credentials: true
+          max_age: 3600
+      - name: fapi-client-auth-bridge
+        tags: [fapi2-demo, route-b]
+        protocols: [grpc, grpcs, http, https]
+        config:
+          issuer: https://localhost:8444/realms/fapi-demo
+          discovery_endpoint: https://keycloak:8443/realms/fapi-demo/.well-known/openid-configuration
+          client_id: kong-fapi-pkj-mtls
+          private_key_file: /etc/kong/fapi/route-b-pkj.key
+          tls_certificate_file: /etc/kong/fapi/route-b.crt
+          key_id: ${{ env "DECK_ROUTE_B_JWK_KID" }}
+          assertion_ttl: 60
+      - name: openid-connect
+        tags: [fapi2-demo, route-b]
+        config:
+          issuer: https://localhost:8444/realms/fapi-demo
+          authorization_endpoint: https://localhost:8444/realms/fapi-demo/protocol/openid-connect/auth
+          token_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/token
+          mtls_token_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/token
+          jwks_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/certs
+          pushed_authorization_request_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/ext/par/request
+          revocation_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/revoke
+          mtls_revocation_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/revoke
+          end_session_endpoint: https://localhost:8444/realms/fapi-demo/protocol/openid-connect/logout
+          client_id: [kong-fapi-pkj-mtls]
+          client_auth: [tls_client_auth]
+          client_alg: [PS256]
+          client_jwk:
+            - kty: RSA
+              kid: ${{ env "DECK_ROUTE_B_JWK_KID" }}
+              use: sig
+              alg: PS256
+              "n": ${{ env "DECK_ROUTE_B_JWK_N" }}
+              e: ${{ env "DECK_ROUTE_B_JWK_E" }}
+              d: "{vault://env/route-b-jwk/d}"
+              p: "{vault://env/route-b-jwk/p}"
+              q: "{vault://env/route-b-jwk/q}"
+              dp: "{vault://env/route-b-jwk/dp}"
+              dq: "{vault://env/route-b-jwk/dq}"
+              qi: "{vault://env/route-b-jwk/qi}"
+          token_endpoint_auth_method: tls_client_auth
+          token_post_args_client: [client_assertion, client_assertion_type]
+          pushed_authorization_request_endpoint_auth_method: private_key_jwt
+          revocation_endpoint_auth_method: private_key_jwt
+          tls_client_auth_cert_id: 22222222-2222-4222-8222-222222222222
+          tls_client_auth_ssl_verify: true
+          ssl_verify: true
+          auth_methods: [authorization_code, session]
+          scopes: [openid, profile]
+          redirect_uri: ["https://localhost:8443/api/fapi/pkj-mtls"]
+          require_proof_key_for_code_exchange: true
+          require_pushed_authorization_requests: true
+          login_action: redirect
+          login_redirect_uri: ["https://localhost:3443/?authenticated=route-b"]
+          logout_uri_suffix: /logout
+          logout_methods: [GET, POST]
+          logout_revoke: true
+          logout_redirect_uri: ["https://localhost:3443/?logout=route-b"]
+          session_cookie_name: fapi_route_b_session
+          session_secret: ${{ env "DECK_ROUTE_B_SESSION_SECRET" }}
+          cache_tokens_salt: ${{ env "DECK_ROUTE_B_CACHE_SALT" }}
+          upstream_access_token_header: authorization:bearer
+          upstream_headers:
+            - header: X-Demo-Department
+              path: ["https://fapi-demo.example.com/department"]
+            - header: X-Demo-Route
+              path: ["https://fapi-demo.example.com/route"]
+      - name: request-transformer
+        tags: [fapi2-demo, route-b]
+        config:
+          remove:
+            headers: [Cookie, client_assertion, client_assertion_type, X-Fapi-Route, X-Fapi-Client-Auth]
+          add:
+            headers: [X-Fapi-Route:route-b, X-Fapi-Client-Auth:private_key_jwt+mtls]

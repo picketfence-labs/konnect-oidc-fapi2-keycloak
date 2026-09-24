@@ -12,11 +12,7 @@ set -a
 source "$ROOT/.env"
 set +a
 
-: "${AUTH0_DOMAIN:?AUTH0_DOMAIN is required}"
-: "${AUTH0_CLIENT_ID:?AUTH0_CLIENT_ID is required}"
 : "${KONNECT_TOKEN:?KONNECT_TOKEN is required}"
-export TF_VAR_auth0_domain="$AUTH0_DOMAIN"
-export TF_VAR_auth0_management_client_id="$AUTH0_CLIENT_ID"
 export KONNECT_SERVER_URL="${KONNECT_SERVER_URL:-https://us.api.konghq.com}"
 
 exec "$@"
