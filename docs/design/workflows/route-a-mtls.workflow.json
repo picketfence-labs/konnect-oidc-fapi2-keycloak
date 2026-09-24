@@ -1,0 +1,215 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Route A: mTLS client authentication",
+    "animation": "none",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1200,
+      560
+    ]
+  },
+  "lanes": [
+    {
+      "id": "kong",
+      "label": "Kong Gateway"
+    },
+    {
+      "id": "keycloak",
+      "label": "Keycloak"
+    },
+    {
+      "id": "api",
+      "label": "PoP verifier API"
+    }
+  ],
+  "phases": [
+    {
+      "id": "authorization",
+      "label": "Authorization",
+      "fromCol": 0,
+      "toCol": 2
+    },
+    {
+      "id": "token",
+      "label": "Code and token exchange",
+      "fromCol": 3,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "resource",
+      "label": "Bound-token use",
+      "fromCol": 5,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "open_a",
+    "par_a",
+    "login_a",
+    "callback_a",
+    "token_a",
+    "call_a",
+    "verify_a"
+  ],
+  "semanticChecks": {
+    "allowedRoots": [
+      "open_a"
+    ],
+    "allowedTerminals": [
+      "verify_a"
+    ],
+    "requiredPaths": [
+      {
+        "from": "open_a",
+        "to": "token_a"
+      },
+      {
+        "from": "token_a",
+        "to": "verify_a"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "open_a",
+      "lane": "kong",
+      "col": 0,
+      "type": "frontend",
+      "label": "Receive Route A login",
+      "sublabel": "browser request + PKCE",
+      "width": 140
+    },
+    {
+      "id": "par_a",
+      "lane": "kong",
+      "col": 1,
+      "type": "security",
+      "label": "Push authorization request",
+      "sublabel": "PAR with tls_client_auth",
+      "width": 185
+    },
+    {
+      "id": "login_a",
+      "lane": "keycloak",
+      "col": 2,
+      "type": "external",
+      "label": "Authenticate user",
+      "sublabel": "Keycloak local account",
+      "width": 155
+    },
+    {
+      "id": "callback_a",
+      "lane": "kong",
+      "col": 3,
+      "type": "backend",
+      "label": "Validate callback",
+      "sublabel": "state, nonce, code, PKCE",
+      "width": 150
+    },
+    {
+      "id": "token_a",
+      "lane": "keycloak",
+      "col": 4,
+      "type": "security",
+      "label": "Authenticate Kong with mTLS",
+      "sublabel": "bind token to certificate",
+      "tag": "tls_client_auth",
+      "width": 190
+    },
+    {
+      "id": "call_a",
+      "lane": "kong",
+      "col": 5,
+      "type": "cloud",
+      "label": "Create session and call API",
+      "sublabel": "access token + same certificate",
+      "width": 190
+    },
+    {
+      "id": "verify_a",
+      "lane": "api",
+      "col": 5,
+      "type": "security",
+      "label": "Verify proof of possession",
+      "sublabel": "cnf.x5t#S256 = TLS thumbprint",
+      "width": 190
+    }
+  ],
+  "edges": [
+    {
+      "from": "open_a",
+      "to": "par_a",
+      "label": "start login",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "from": "par_a",
+      "to": "login_a",
+      "label": "request_uri",
+      "role": "main"
+    },
+    {
+      "from": "login_a",
+      "to": "callback_a",
+      "label": "authorization code",
+      "role": "main"
+    },
+    {
+      "from": "callback_a",
+      "to": "token_a",
+      "label": "code + verifier + client certificate",
+      "variant": "security",
+      "role": "main"
+    },
+    {
+      "from": "token_a",
+      "to": "call_a",
+      "label": "bound tokens",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "from": "call_a",
+      "to": "verify_a",
+      "variant": "security",
+      "role": "main",
+      "route": "drop",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Pass condition",
+      "items": [
+        "Keycloak authenticates Kong with the registered client certificate",
+        "The access token contains cnf.x5t#S256",
+        "The protected API receives the same certificate"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Negative evidence",
+      "items": [
+        "No certificate fails at the token or resource boundary",
+        "A different certificate fails cnf verification",
+        "A bearer-only replay never reaches the upstream payload"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Kong responsibility",
+      "items": [
+        "Use the stock OpenID Connect mTLS branch first",
+        "Reuse one Certificate entity for token and Service mTLS",
+        "Keep the client key outside the repository"
+      ]
+    }
+  ]
+}

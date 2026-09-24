@@ -104,6 +104,9 @@ PKCE S256 は既定で有効です。PAR は任意です。Auth0 では Enterpri
 ## 関連資料
 
 - [設計概要](docs/design-brief.md)
+- [Keycloak FAPI 2.0 デモ要件](docs/design/fapi2-keycloak-requirements.md)
+- [設計資料と workflow](docs/design/README.md)
+- [ADR 0007: Keycloak-only FAPI 2.0 demo](docs/decisions/0007-keycloak-only-fapi2-demo.md)
 - [設計判断](docs/decisions/0001-identity-aware-upstream-routing.md)
 - [障害対応記録](docs/troubleshooting-log.md)
 - [セッション引き継ぎ](docs/session-handoff.md)

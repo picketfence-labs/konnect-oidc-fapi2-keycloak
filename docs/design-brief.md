@@ -1,67 +1,85 @@
 # 設計概要
 
-2026-09-22 に利用者の指示で Gateway 3.16 のデモ検証を終了しました。認証済みユーザー 2 名のルーティングと、engineering ユーザーのヘッダー偽装防止を確認しています。追加要件は [セッション引き継ぎ](session-handoff.md)を読んでから検討してください。
+2026-09-22 に Auth0 を使った初期デモの検証を終了しました。認証済みユーザー 2 名のルーティングと、engineering ユーザーのヘッダー偽装防止を確認済みです。
+
+次の開発では IdP を Keycloak に置き換え、FAPI 2.0 の主要なセキュリティ要素を比較できるデモへ拡張します。実装要件は [Keycloak FAPI 2.0 デモ要件](design/fapi2-keycloak-requirements.md)、設計判断は [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)を正とします。[セッション引き継ぎ](session-handoff.md)は初期デモの実績と注意事項を記録しています。
 
 ## 目的
 
-Auth0 OIDC の認可コードログイン、claim の取得、安全なヘッダー設定、認証情報に基づく Upstream 選択をブラウザーで再現します。Kong Gateway 3.16 のローカル data plane は Konnect control plane に接続します。
+同じブラウザー向け認可コードフローを使い、token endpoint のクライアント認証方式だけが異なる次の 2 経路を比較します。
 
-## 要件
+| 経路 | token endpoint のクライアント認証 | 送信者制約 |
+|---|---|---|
+| Route A `/api/fapi/mtls` | `tls_client_auth` | mTLS certificate-bound access token |
+| Route B `/api/fapi/pkj-mtls` | `private_key_jwt` | mTLS certificate-bound access token |
 
-- Auth0 を IdP として使用する。当初の `OAuth0` は Auth0 と解釈する。
-- `department` を取得し、入力側の誤記 `departement` も許容する。
-- 認証済み claim から Upstream に送るヘッダーを設定する。
-- そのヘッダーでルーティングする。
-- Gateway Service と外部 backend Target は各 1 つとする。
-- ブラウザーの認可コードフローと結果 UI を提供する。
-- Konnect と Auth0 の基盤リソースは Terraform、Gateway エンティティは decK で管理する。
-- 作成と削除を宣言的に実行できるようにする。
-- FAPI 関連の任意機能と推奨設定を示す。
+両経路で Authorization Code、PAR、PKCE S256、証明書バインドトークンの検証、refresh token の revoke、Kong セッション破棄、Keycloak の RP-Initiated Logout を実演します。
 
-## 構成
+## 初期デモから維持する要件
 
-- Route は `/api/demo`、Service は `oidc-httpbin-service`。
-- `sales`、`engineering`、`default` の 3 つの Upstream は同じ HTTPS httpbin Target を参照する。
-- OpenID Connect plugin（priority 1050）が claim を `X-Demo-Department` と `X-Demo-Route` に設定する。
-- Auth0 Action が `department` から署名済み `route` claim を導く。
-- Route By Header plugin（priority 850）が両ヘッダーの組で Upstream を選ぶ。
-- Request Transformer が認証と Upstream 選択の後に `Authorization` と `Cookie` を削除する。
-- UI は httpbin の応答からルーティングに必要な値だけを表示する。
+- 認証済み `department` claim を Upstream 向けヘッダーへ設定する。
+- `department` と入力側の誤記 `departement` を正規化する。
+- 認証済み claim から導いた値で Upstream を選択する。
+- 呼び出し元が送る偽装ヘッダーを信頼しない。
+- Upstream へ `Authorization` と `Cookie` を転送しない。
+- ブラウザー UI で選択経路、クライアント認証方式、PoP 検証結果、論理ルートを確認できるようにする。
 
-基本ルーターは認証 plugin より先に動くため、同じリクエストで生成したヘッダーを Kong Route の条件にはできません。この設計では access フェーズで Upstream を切り替え、Route と Service を 1 つずつ維持します。
+## 目標構成
 
-## FAPI に関する判断
+- Keycloak を Authorization Server、OpenID Provider、ログイン UI として使用する。
+- Route A と Route B を別の Kong Route と Gateway Service に分離する。
+- Route A は標準 OpenID Connect plugin の mTLS client authentication を使う。
+- Route B は最小限の file-based Lua plugin で `private_key_jwt` client assertion を生成し、標準 OpenID Connect plugin の mTLS token transport を再利用する。
+- 両経路で mTLS certificate-bound access token を発行し、PoP verifier が `cnf.x5t#S256` と TLS peer certificate を照合する。
+- custom Data Plane image は `kong/kong-gateway:3.16.0.0` を base とし、`ghcr.io/picketfence-labs/konnect-oidc-header-routing` へ発行する。
+- Konnect と Keycloak の設定を宣言的に再現し、秘密鍵と証明書はリポジトリへ収録しない。
 
-- 既定は認可コード、セッション、PKCE S256。
-- PAR は Auth0 `/oauth/par` と Kong OIDC の設定で任意に有効化する。
-- Auth0 の PAR は有料アドオンとテナント設定が必要で、現在の Management API からテナント設定を変更できないため、既定では無効にする。
-- FAPI 2.0 全体への適合は対象外とする。
+## Route B の custom plugin 境界
+
+custom plugin は `private_key_jwt` assertion の生成と token request への注入だけを担当します。BFF、Kong core fork、独自 OIDC クライアントは追加しません。
+
+assertion は Keycloak の issuer を `aud` とし、短い有効期間、一回限りの `jti`、非対称署名を使います。外部リクエストから渡された `client_assertion` と `client_assertion_type` は破棄します。詳細な契約と失敗条件は要件書に定義します。
+
+## ログアウト
+
+ログアウトボタンは次の順で処理します。
+
+1. refresh token を Keycloak の revocation endpoint で revoke する。
+2. Kong のセッションを破棄する。
+3. Keycloak の `end_session_endpoint` へ遷移する。
+4. `post_logout_redirect_uri` で UI に戻り、再アクセス時に再認証が必要であることを確認する。
+
+確認画面の表示は Keycloak のセッション状態や設定に依存するため、必須の合格条件にはしません。Keycloak の SSO セッションが終了し、保護対象へ無認証で戻れないことを合格条件にします。
 
 ## 検証条件
 
-| 項目 | 確認方法 | 合格条件 |
-|---|---|---|
-| IaC 構文 | `make validate` | Terraform、Compose、YAML、静的チェックが通る |
-| 基盤変更のプレビュー | `make plan` | 意図した Konnect・Auth0 リソースだけが変わる |
-| Gateway 変更のプレビュー | `make deck-diff` | `oidc-routing-demo` タグの対象だけが変わる |
-| data plane 接続 | Konnect UI と Gateway ログ | 接続済みで cluster エラーがない |
-| 認可コードと PKCE | ブラウザーログイン | Auth0 ログイン後に UI へ戻る |
-| ヘッダー設定 | UI と httpbin 応答 | `X-Demo-Department` がユーザー metadata と一致する |
-| Upstream 選択 | UI、httpbin 応答、設定 | 部門と署名済み `X-Demo-Route` が選択規則に一致する |
-| 偽装防止 | UI から矛盾するヘッダーを送る | OIDC claim の値が優先される |
-| 任意の PAR | 有効化後の Auth0 通信 | `/authorize` より先に `/oauth/par` を呼ぶ |
+| 項目 | 合格条件 |
+|---|---|
+| 静的検証 | `make validate` が通る |
+| Route A | `tls_client_auth` で token を取得し、証明書バインドを検証できる |
+| Route B | `private_key_jwt` で token を取得し、証明書バインドを検証できる |
+| PAR と PKCE | 両経路が PAR と PKCE S256 を使用する |
+| 認証方式の分離 | Route A と Route B の設定、鍵、ログ証跡を区別できる |
+| PoP 正常系 | `cnf.x5t#S256` と TLS peer certificate の thumbprint が一致する |
+| PoP 異常系 | 証明書なし、別証明書、thumbprint 不一致を拒否する |
+| assertion 異常系 | 期限切れ、誤った `aud`、`jti` 再利用、誤署名を拒否する |
+| ヘッダー偽装防止 | Upstream が認証済み claim 由来の値だけを受け取る |
+| ログアウト | token revoke、Kong session 破棄、Keycloak SSO session 終了を確認できる |
 
 ## 対象外
 
-- 本番可用性、HA、独自ドメイン、WAF、監査ログ保持、FAPI 認証
+- Entra ID と Auth0 を使った FAPI 経路
+- FAPI 2.0 Security Profile への正式な認証取得
+- DPoP-bound access token
+- BFF と Kong core fork
+- 本番可用性、HA、独自ドメイン、WAF、監査ログの長期保持
 - 実顧客の ID とデータ
-- 2 つのデモ用規則を超える動的なポリシー管理
 
-## 保留事項
+## 開発着手時の順序
 
-- [x] US の Konnect API endpoint に接続し、Gateway 3.16 の data plane を確認した。
-- [x] 共用 Auth0 テナントの既存アプリと接続設定を維持した。
-- [ ] Auth0 プランが Highly Regulated Identity と PAR を利用できるか確認し、有効化の要否を判断する。
-- [x] data plane のライセンスは Konnect control plane から継承した。
-- [x] engineering と sales のブラウザーログインで部門とルートを確認した。sales の結果は利用者による報告。
-- [x] engineering で偽装ヘッダーを送っても、httpbin は認証済み claim の値を受け取った。
+1. [要件書](design/fapi2-keycloak-requirements.md)と [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)をレビューする。
+2. Keycloak realm、2 clients、FAPI policy、鍵と証明書の生成方法を宣言する。
+3. Route A を標準 plugin だけで成立させる。
+4. Route B の最小 custom plugin と custom image を追加する。
+5. PoP verifier と logout orchestration を追加する。
+6. UI と証跡を追加し、要件書の正常系と異常系を自動化する。
