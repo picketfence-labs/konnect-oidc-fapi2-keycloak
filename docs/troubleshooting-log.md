@@ -62,3 +62,84 @@
 
 - 原因: localhost:3000 の preflight が `Accept` と `Content-Type` だけを許可していた。
 - 対処: `X-Demo-Department` と `X-Demo-Route` を追加した。同期後、engineering の認証済みセッションで `sales/sales-route` を送っても、httpbin は `engineering/engineering-route` を受け取った。
+
+## 2026-09-23: decKのPEM環境変数展開でYAML parseに失敗した
+
+- 期待: decKの環境変数テンプレートから生成済みPEMを読み込み、Gateway差分を表示する。
+- 実際: 改行を含むPEMがYAML parse前にそのまま展開され、2行目以降が無効なYAMLになった。
+- 対処: client certificateと秘密鍵はenvironment Vault referenceへ変更し、data plane runtimeだけに値を渡す。公開CAだけをJSON/YAML互換のescape済み文字列として展開する。実生成値を使った`docker compose config`と`deck file validate`で再確認した。
+
+## 2026-09-23: Konnectにcustom plugin schemaがなくdecK diffが停止した
+
+- 期待: file-based custom pluginを含む設定について、対象を絞ったdecK差分を取得する。
+- 実際: 13件の作成差分を計算した後、Konnectが`no plugin-schema for 'fapi-client-auth-bridge'`を返した。
+- 対処: Konnect要件に合わせて`schema.lua`をself-containedにし、登録状態のread-only checkと明示的なschema syncを別コマンドにした。schema未登録時は`deck-diff`と`deck-sync`を事前に停止する。
+
+## 2026-09-24: Route BのOIDC pluginだけが部分syncで拒否された
+
+- 期待: レビュー済みの14エンティティをKonnectへ同期する。
+- 実際: 13エンティティは作成されたが、Route Bの`openid-connect`だけが`validation error: unknown field`で拒否された。
+- 原因: RSA JWKのmodulusキー`n`を引用していなかったため、decKのYAML解釈で真偽値キーとして扱われ、Konnectへ未知フィールドとして渡された。
+- 対処: JWKキーを`"n"`と明示的に引用した。`client_jwk`を段階的に復元するオンライン検証で`n`追加時だけ失敗することを確認し、修正後は秘密値を含まないダミー設定をKonnectのschema validation APIで検証した。
+- 再確認: 送信範囲の承認後、残差分がRoute BのOIDC plugin作成1件だけであることを確認して再同期した。同期後の差分は作成0・更新0・削除0になった。
+
+## 2026-09-24: Keycloakのrealm importファイルをmountできなかった
+
+- 期待: `make up`で生成済みrealm JSONをKeycloakのimportディレクトリへread-only mountする。
+- 実際: `/opt/keycloak/data`全体の永続化mountと、その配下へのrealmファイルmountが重なり、Docker Desktopがmountpointをrootfs外として拒否した。
+- 対処: Keycloakの永続化対象を`/opt/keycloak/data/h2`へ絞り、`/opt/keycloak/data/import`へのrealmファイルmountと重ならないようにした。静的テストで重複mountの再導入を防止する。
+
+## 2026-09-24: data planeがKonnectの公開CAを検証できなかった
+
+- 期待: Kong data planeがKonnectへ接続して同期済みGateway設定を受信する。
+- 実際: Kongはhealthyだったが両Routeが404になり、cluster/telemetry接続は`unable to get local issuer certificate`で停止した。
+- 原因: `KONG_LUA_SSL_TRUSTED_CERTIFICATE`をローカル開発CAだけに設定し、コンテナーのsystem trust storeを置き換えていた。
+- 対処: `system,/etc/kong/fapi/ca.crt`を指定し、Konnectの公開CAとローカルKeycloak CAを同時に信頼する。TLS検証は無効化しない。
+
+## 2026-09-24: Route BのPARでJWKのkidが一致しなかった
+
+- 期待: Route BのOIDC pluginがPS256のclient assertionを生成し、KeycloakのPAR endpointで認証される。
+- 実際: Keycloakは`client_credentials_setup_required`を返し、設定済み公開鍵の`kid`とassertionの`kid`が一致しなかった。
+- 原因: Kong側は固定値`route-b-pkj`を使っていたが、Keycloakは公開鍵SPKI DERのSHA-256 thumbprintを`kid`として生成する。
+- 対処: JWK export時に同じSPKI thumbprintを算出し、runtime JWK、OIDC plugin、custom pluginへ`DECK_ROUTE_B_JWK_KID`として一貫して渡す。
+- 再確認: Konnect同期後の差分が作成0・更新0・削除0であることを確認し、Kongを再作成した。Route AとRoute BはいずれもPARを完了してKeycloakの認可endpointへ302を返した。
+
+## 2026-09-24: UIからRoute Aを選ぶと401になった
+
+- 期待: Route AのPAR後にKeycloakのログイン画面が表示される。
+- 実際: Keycloakから`Invalid redirect_uri`が返り、Kongのcallbackは認可codeがないため401を返した。
+- 原因: FAPI 2.0 client policyを有効にしたclientへ、平文HTTPの`http://localhost:8000`をredirect URIとして登録していた。
+- 対処: 両Routeのredirect URIとUIのGateway endpointを`https://localhost:8443`へ統一する。UIも`https://localhost:3443`で配信し、login・logout後のredirectとGateway CORS originをHTTPSへ揃える。Keycloakのpost-logout URIはwildcardを使わず、Routeごとの完全一致URIを登録する。UIはKeycloakをJavaScriptから直接呼ばないため、clientの不要な`webOrigins`を空にする。Kong proxyとUIには開発用CAで署名した専用server証明書を設定する。
+- 再確認: decK同期後の差分は作成0・更新0・削除0になった。HTTP UIはHTTPS UIへ308を返し、HTTPS UIは200を返した。Route AとRoute BはPAR後、cookieを保持したbrowser相当のリクエストでKeycloakログイン画面へ200で到達した。
+
+## 2026-09-24: ログイン後のtoken交換が401になった
+
+- 期待: Keycloakのログイン後、Kongがauthorization codeをtokenへ交換する。
+- 実際: Keycloakは`Offline tokens not allowed for the user or client`を返し、Kongはtoken endpointの400を401として返した。
+- 原因: refresh tokenの取得に不要な`offline_access` scopeを両Routeで要求していた。Keycloakはこれを通常のrefresh tokenではなくoffline tokenの要求として扱った。
+- 対処: OIDC scopeを`openid profile`へ絞る。Keycloak clientの`use.refresh.tokens=true`は維持し、通常のrefresh tokenを発行・revokeする。
+- 再確認: decK同期後の差分は作成0・更新0・削除0になった。Route Aは生成済みデモユーザーによるログイン、authorization code交換、token取得、HTTPS UI復帰まで成功した。
+
+## 2026-09-24: 認証後のUpstream呼び出しが502になった
+
+- 期待: Kongがtokenにバインドしたclient証明書を提示し、PoP verifierが`/evidence`を返す。
+- 実際: PoP verifierのTLSハンドシェイクがclient証明書を`certificate unknown`として拒否し、Kongは502を返した。server側を修正すると、同じ理由でKeycloak JWKS取得が失敗して401になった。
+- 原因: 既存の開発CAに`keyUsage=keyCertSign`がなく、Python 3.13のstrict X.509検証が証明書chainを拒否した。標準のOpenSSL検証では同じchainが成功した。
+- 対処: PoP verifierはclient証明書とJWKS取得の両方でCA・hostname検証を維持し、既存の開発CAに限ってstrict flagを外す。mTLSは`CERT_REQUIRED`のままにする。新規CAにはcriticalな`keyUsage=keyCertSign,cRLSign`を付ける。
+- 再確認: Route Aを生成済みデモユーザーで実行し、token交換、KongからPoP verifierへのmTLS、JWT検証、証明書thumbprint照合が成功した。Gatewayは`binding_verified=true`を含むevidenceをHTTP 200で返した。
+
+## 2026-09-24: 認証成功後もdepartmentとlogical_routeがnullになった
+
+- 期待: Keycloakがデモユーザーの`department`と`route`をnamespaced claimへ追加し、Kongが同じ値をUpstreamヘッダーへ設定する。
+- 実際: client protocol mapperは存在したが、両ユーザーのカスタム属性が空だったため、証跡の`department`と`logical_route`が`null`になった。属性を補正した後も、URI形式のclaim名に含まれるドットがJSON階層として解釈され、フラットなclaim参照は`null`のままだった。
+- 原因: Keycloak 26はユーザープロファイルに未定義の属性を既定で無視する。realm import内の`department`、`departement`、`route`も保存されなかった。また、OIDC mapperのclaim名はドット記法をJSON階層として扱う。
+- 対処: 3属性を管理対象にしたユーザープロファイルを宣言し、`make up`で既定プロファイルへマージしてから既存デモユーザーを冪等に同期する。Keycloak 26.7.4の管理APIは`unmanagedAttributePolicy`を含む更新を汎用parse errorで拒否したため、既定の無効設定を変更せず管理対象属性だけを追加する。URI claim名のドットはバックスラッシュでescapeし、同期処理で既存client mapperも補正する。PoP verifierとUIにはclaim値とKongが設定したヘッダー値を分けて表示し、一致結果も追加する。
+
+## 2026-09-24: デモ前スナップショットで受入作業を保留した
+
+- 完了済み: Route AとRoute Bのbrowser login、code exchange、Upstream mTLS、証明書束縛、`department`と`logical_route`のclaim、Kongが設定する`X-Demo-*`ヘッダーをlive環境で確認した。`make validate`と両RouteのE2E検証も成功した。
+- 保留: Route AとRoute Bのrefresh token revoke、Kong session破棄、Keycloak SSO logout、反対Routeへの切り替えについて、wire-level証跡を自動取得する。
+- 保留: `A-CERT-01`、`A-CERT-02`、`B-AUD-01`、`B-JTI-01`、`B-SPOOF-01`、`B-CERT-01`、`POP-01`、`POP-02`、`HEADER-01`、`LEAK-01`の異常系を自動化し、期待した境界で拒否されることを記録する。
+- 保留: clean checkoutからの秘密情報生成、Keycloak起動、data plane接続、両Route実行を再現する。
+- 保留: GitHub Actionsでテスト、SBOM生成、脆弱性スキャンを通し、KongとPoP verifierのimageをcommit SHA tagでGHCRへ発行してdigestを記録する。
+- 再開時の順序: logoutとrevocation、異常系、clean checkout、GitHub ActionsとGHCRの順に進める。デモ環境の設定変更は、現在の動作確認済みスナップショットを保持してから行う。

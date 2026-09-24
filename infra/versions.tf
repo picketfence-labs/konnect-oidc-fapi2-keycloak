@@ -6,10 +6,6 @@ terraform {
       source  = "kong/konnect"
       version = "~> 3.22.0"
     }
-    auth0 = {
-      source  = "auth0/auth0"
-      version = "~> 1.57.0"
-    }
     tls = {
       source  = "hashicorp/tls"
       version = "~> 4.1"
@@ -26,4 +22,3 @@ terraform {
 }
 
 provider "konnect" {}
-provider "auth0" {}

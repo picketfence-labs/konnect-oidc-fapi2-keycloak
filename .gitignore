@@ -1,5 +1,6 @@
 .env
 .generated/
+keycloak/data/
 infra/.terraform/
 infra/*.tfstate
 infra/*.tfstate.*
@@ -8,3 +9,5 @@ infra/crash.log
 infra/certs/*
 !infra/certs/.gitkeep
 .DS_Store
+__pycache__/
+*.py[cod]

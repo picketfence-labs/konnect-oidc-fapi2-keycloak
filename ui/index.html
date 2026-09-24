@@ -3,115 +3,138 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Konnect OIDC ルーティングデモ</title>
+  <title>FAPI 2.0 クライアント認証デモ</title>
   <style>
-    :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #07111f; color: #eef5ff; }
-    main { width: min(860px, calc(100% - 32px)); min-width: 0; }
-    .eyebrow { color: #69ddc3; text-transform: uppercase; letter-spacing: .16em; font-size: .78rem; }
-    h1 { font-size: clamp(2rem, 5vw, 4rem); margin: .25rem 0 1rem; line-height: 1; }
-    p { color: #b7c6da; line-height: 1.65; }
-    .panel { margin-top: 1.5rem; padding: 1.4rem; background: #101d2f; border: 1px solid #243a55; border-radius: 18px; box-shadow: 0 20px 50px #0008; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
-    .metric { background: #0a1524; border-radius: 12px; padding: 1rem; border: 1px solid #1f344d; }
-    .label { color: #8fa5bf; font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; }
-    .value { font-size: 1.35rem; font-weight: 750; margin-top: .35rem; overflow-wrap: anywhere; }
-    button, .button { display: inline-block; appearance: none; border: 0; border-radius: 999px; padding: .85rem 1.2rem; background: #69ddc3; color: #03231d; font-weight: 750; text-decoration: none; cursor: pointer; }
-    button.secondary { margin-left: .5rem; background: #263c56; color: #eef5ff; }
-    pre { max-height: 300px; min-width: 0; overflow: auto; padding: 1rem; background: #050b13; border-radius: 12px; color: #b7e7dd; }
-    .error { color: #ff9c9c; white-space: pre-wrap; }
+    @import url("https://fonts.googleapis.com/css2?family=Funnel+Sans:wght@300;400;700;800&family=Roboto+Mono:wght@400;700&display=swap");
+    :root { color-scheme: dark; font-family: "Funnel Sans", ui-sans-serif, system-ui, sans-serif; background: #001408; color: #f7fff9; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; background-color: #001408; background-image: linear-gradient(#31391920 1px, transparent 1px), linear-gradient(90deg, #31391920 1px, transparent 1px), radial-gradient(circle at 75% 0%, #123d27 0, #001408 42rem); background-size: 32px 32px, 32px 32px, auto; }
+    main { width: min(1080px, calc(100% - 32px)); margin: 0 auto; padding: clamp(48px, 8vw, 96px) 0; }
+    .eyebrow { color: #ccff00; text-transform: uppercase; letter-spacing: .16em; font-size: .75rem; font-weight: 600; }
+    h1, h2 { font-family: "Funnel Sans", sans-serif; }
+    h1 { max-width: 780px; margin: .4rem 0 1rem; font-size: clamp(2.4rem, 7vw, 5rem); font-weight: 800; line-height: .98; letter-spacing: -.035em; }
+    h2 { margin: 0 0 .45rem; }
+    p { max-width: 760px; color: #bdd0c2; line-height: 1.6; }
+    .routes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 2rem; }
+    .route-card, .panel { padding: 1.4rem; border: 1px solid #38604a; border-radius: 8px; background: #082316de; }
+    .route-card.active { border-color: #ccff00; box-shadow: 0 0 16px #ccff0040; }
+    .route-card p { min-height: 4.8rem; }
+    .tag { display: inline-block; margin-bottom: .9rem; padding: .3rem .55rem; border-radius: 999px; background: #173b28; color: #d9ffe4; font-size: .75rem; }
+    .button, button { display: inline-block; appearance: none; border: 1px solid transparent; border-radius: 999px; padding: .82rem 1.1rem; background: #ccff00; color: #001408; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; }
+    .secondary { background: transparent; border-color: #71927c; color: #f7fff9; }
+    .actions { display: flex; flex-wrap: wrap; gap: .65rem; margin-top: 1rem; }
+    .panel { margin-top: 1.2rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+    .metric { min-width: 0; padding: 1rem; border: 1px solid #2b523b; border-radius: 8px; background: #001b0d; }
+    .label { color: #86a990; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .09em; }
+    .value { margin-top: .38rem; overflow-wrap: anywhere; font-size: 1.12rem; font-weight: 700; }
+    pre { max-height: 320px; overflow: auto; padding: 1rem; border-radius: 4px; background: #000d05; color: #d9ffe4; font-family: "Roboto Mono", monospace; }
+    .status { color: #ccff00; }
+    .error { color: #ffaaa5; white-space: pre-wrap; }
     [hidden] { display: none !important; }
   </style>
 </head>
 <body>
   <main>
-    <div class="eyebrow">Kong Gateway 3.16 · Auth0 · Konnect</div>
-    <h1>認証情報に基づくルーティング</h1>
-    <p>ブラウザーでログインします。Kong はユーザーの部門を取得して信頼できるヘッダーに設定し、
-       Upstream を選んで httpbin にリクエストを送ります。</p>
-    <a class="button" id="login" href="http://localhost:8000/api/demo">ログインしてデモを実行</a>
-    <button class="secondary" id="again" hidden>もう一度実行</button>
-    <button class="secondary" id="spoof" hidden>偽装ヘッダーをテスト</button>
+    <div class="eyebrow">Kong Gateway · Keycloak · sender-constrained tokens</div>
+    <h1>同じログインを、異なるクライアント認証で。</h1>
+    <p>両ルートとも PAR、PKCE S256、証明書に束縛されたアクセストークンを使います。違いは、Kong が Keycloak の token endpoint へ自分自身をどう認証するかです。</p>
+
+    <section class="routes" aria-label="認証方式を選択">
+      <article class="route-card" data-route="route-a">
+        <span class="tag">Route A</span>
+        <h2>mTLS</h2>
+        <p>クライアント証明書だけで Kong を認証します。標準 OIDC plugin の構成です。</p>
+        <a class="button" href="https://localhost:8443/api/fapi/mtls">mTLS でログイン</a>
+      </article>
+      <article class="route-card" data-route="route-b">
+        <span class="tag">Route B</span>
+        <h2>private_key_jwt + mTLS</h2>
+        <p>短命な PS256 assertion とクライアント証明書を同時に提示します。</p>
+        <a class="button" href="https://localhost:8443/api/fapi/pkj-mtls">複合認証でログイン</a>
+      </article>
+    </section>
 
     <section class="panel" id="result" hidden>
+      <div class="eyebrow">検証結果</div>
       <div class="grid">
-        <div class="metric"><div class="label">送信ヘッダー</div><div class="value">X-Demo-Department</div></div>
-        <div class="metric"><div class="label">部門</div><div class="value" id="department">—</div></div>
-        <div class="metric"><div class="label">論理ルート</div><div class="value" id="route">—</div></div>
-        <div class="metric"><div class="label">Kong の Route</div><div class="value">oidc-routing-demo-route</div></div>
+        <div class="metric"><div class="label">選択したルート</div><div class="value" id="route">—</div></div>
+        <div class="metric"><div class="label">クライアント認証</div><div class="value" id="client-auth">—</div></div>
+        <div class="metric"><div class="label">部門（署名済み claim）</div><div class="value" id="department">—</div></div>
+        <div class="metric"><div class="label">論理ルート（署名済み claim）</div><div class="value" id="logical-route">—</div></div>
+        <div class="metric"><div class="label">上流ヘッダー（部門）</div><div class="value" id="department-header">—</div></div>
+        <div class="metric"><div class="label">上流ヘッダー（論理ルート）</div><div class="value" id="logical-route-header">—</div></div>
+        <div class="metric"><div class="label">claim とヘッダー</div><div class="value status" id="header-match">—</div></div>
+        <div class="metric"><div class="label">証明書束縛</div><div class="value status" id="binding">—</div></div>
       </div>
-      <h2>httpbin の応答</h2>
+      <div class="actions">
+        <button id="again">再検証</button>
+        <button class="secondary" id="spoof">偽装ヘッダーを送信</button>
+        <a class="button secondary" id="logout" href="#">このルートからログアウト</a>
+      </div>
+      <p id="check" hidden></p>
+      <h2>サニタイズ済み証跡</h2>
       <pre id="raw"></pre>
     </section>
-    <p id="check" hidden></p>
     <p class="error" id="error" hidden></p>
   </main>
   <script>
-    const endpoint = 'http://localhost:8000/api/demo';
+    const routes = {
+      'route-a': { endpoint: 'https://localhost:8443/api/fapi/mtls', logout: 'https://localhost:8443/api/fapi/mtls/logout' },
+      'route-b': { endpoint: 'https://localhost:8443/api/fapi/pkj-mtls', logout: 'https://localhost:8443/api/fapi/pkj-mtls/logout' }
+    };
+    const selectedRoute = new URLSearchParams(location.search).get('authenticated');
+    const config = routes[selectedRoute];
     const result = document.querySelector('#result');
     const error = document.querySelector('#error');
-    const again = document.querySelector('#again');
-    const spoofButton = document.querySelector('#spoof');
     const check = document.querySelector('#check');
     let baseline;
 
     async function run(spoof = false) {
+      if (!config) return;
       error.hidden = true;
       check.hidden = true;
       try {
-        const forgedDepartment = baseline?.department === 'sales' ? 'engineering' : 'sales';
-        const forgedRoute = `${forgedDepartment}-route`;
-        const response = await fetch(endpoint, {
+        const response = await fetch(config.endpoint, {
           credentials: 'include',
-          headers: spoof ? {
-            'X-Demo-Department': forgedDepartment,
-            'X-Demo-Route': forgedRoute
-          } : {}
+          headers: spoof ? { 'X-Demo-Department': 'forged', 'X-Demo-Route': 'forged-route' } : {}
         });
         if (!response.ok) throw new Error(`Gateway が HTTP ${response.status} を返しました`);
-        const body = await response.json();
-        const headers = body.headers || {};
-        const headerPresent = name => Object.keys(headers).some(key => key.toLowerCase() === name);
-        document.querySelector('#department').textContent = headers['X-Demo-Department'] || 'なし';
-        document.querySelector('#route').textContent = headers['X-Demo-Route'] || 'なし';
-        // httpbin は認証情報も返すため、ルーティングの証跡だけを表示する。
-        const evidence = {
-          method: body.method,
-          headers: {
-            'X-Demo-Department': headers['X-Demo-Department'] || 'なし',
-            'X-Demo-Route': headers['X-Demo-Route'] || 'なし',
-            'X-Kong-Request-Id': headers['X-Kong-Request-Id'] || 'なし',
-            'Authorization': headerPresent('authorization') ? 'あり' : 'なし',
-            'Cookie': headerPresent('cookie') ? 'あり' : 'なし'
-          }
-        };
+        const evidence = await response.json();
+        document.querySelector('#route').textContent = evidence.route || selectedRoute;
+        document.querySelector('#client-auth').textContent = evidence.client_authentication || '不明';
+        document.querySelector('#department').textContent = evidence.department || 'なし';
+        document.querySelector('#logical-route').textContent = evidence.logical_route || 'なし';
+        document.querySelector('#department-header').textContent = evidence.department_header || 'なし';
+        document.querySelector('#logical-route-header').textContent = evidence.logical_route_header || 'なし';
+        document.querySelector('#header-match').textContent = evidence.header_claims_match ? '一致' : '不一致';
+        document.querySelector('#header-match').className = evidence.header_claims_match ? 'value status' : 'value error';
+        document.querySelector('#binding').textContent = evidence.binding_verified ? '検証成功' : '検証失敗';
         document.querySelector('#raw').textContent = JSON.stringify(evidence, null, 2);
         result.hidden = false;
-        again.hidden = false;
-        spoofButton.hidden = false;
+        document.querySelector(`[data-route="${selectedRoute}"]`).classList.add('active');
         if (spoof) {
-          const passed = headers['X-Demo-Department'] === baseline.department &&
-            headers['X-Demo-Route'] === baseline.route;
-          check.textContent = passed
-            ? `成功: ${forgedDepartment}/${forgedRoute} を送信しましたが、Upstream は ${baseline.department}/${baseline.route} を受け取りました。`
-            : `失敗: ${forgedDepartment}/${forgedRoute} を送信し、Upstream は ${headers['X-Demo-Department'] || 'なし'}/${headers['X-Demo-Route'] || 'なし'} を受け取りました。`;
-          check.className = passed ? '' : 'error';
+          const passed = evidence.department === baseline.department &&
+            evidence.logical_route === baseline.logical_route &&
+            evidence.department_header === baseline.department_header &&
+            evidence.logical_route_header === baseline.logical_route_header &&
+            evidence.header_claims_match;
+          check.textContent = passed ? '成功: 外部から送った偽装ヘッダーは、署名済み claim の値を変更できませんでした。' : '失敗: 偽装ヘッダーの影響を検出しました。';
+          check.className = passed ? 'status' : 'error';
           check.hidden = false;
         } else {
-          baseline = {
-            department: headers['X-Demo-Department'],
-            route: headers['X-Demo-Route']
-          };
+          baseline = evidence;
         }
       } catch (e) {
-        error.textContent = `${e.message}\n未ログインの場合は「ログインしてデモを実行」を選んでください。`;
+        error.textContent = `${e.message}\nセッションがない場合は、上の該当ルートからログインしてください。`;
         error.hidden = false;
       }
     }
 
-    again.addEventListener('click', () => run());
-    spoofButton.addEventListener('click', () => run(true));
-    if (new URLSearchParams(location.search).get('authenticated') === '1') run();
+    document.querySelector('#again').addEventListener('click', () => run());
+    document.querySelector('#spoof').addEventListener('click', () => run(true));
+    document.querySelector('#logout').href = config?.logout || '#';
+    if (config) run();
   </script>
 </body>
 </html>

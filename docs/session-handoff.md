@@ -1,12 +1,15 @@
 # OIDC デモのセッション引き継ぎ
 
+> [!IMPORTANT]
+> この文書は Auth0 を使った初期デモの完了時点を記録しています。次の開発では Keycloak-only 構成を採用します。実装要件は [Keycloak FAPI 2.0 デモ要件](design/fapi2-keycloak-requirements.md)、設計判断は [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)を参照してください。
+
 ## 2026-09-22 の終了時点
 
 利用者の指示により、Gateway 3.16 のデモ検証を現在の状態で終了しました。次の作業では追加要件を確認してください。以下の古い試行記録を、そのまま実行待ちの作業と解釈しないでください。
 
 ### 確認済みの結果
 
-- ローカル data plane は Kong Gateway 3.16.0.0 で Konnect に接続しました。最後に確認した endpoint は Gateway が `localhost:8000`、UI が `localhost:3000` です。
+- ローカル data plane は Kong Gateway 3.16.0.0 で Konnect に接続しました。ブラウザーフローで使う Gateway endpoint は `https://localhost:8443`、UI は `https://localhost:3443` です。
 - engineering のブラウザーログインは `engineering/engineering-route` を表示しました。sales の `sales/sales-route` は利用者が別のブラウザーセッションで確認しました。
 - 両方の httpbin 応答では `Authorization` と `Cookie` が欠落していました。
 - engineering の認証済みセッションから `sales/sales-route` を偽装して送っても、httpbin は `engineering/engineering-route` を受け取り、UI は PASS を表示しました。

@@ -1,0 +1,217 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Route B: private_key_jwt with mTLS token binding",
+    "animation": "none",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1200,
+      560
+    ]
+  },
+  "lanes": [
+    {
+      "id": "kong",
+      "label": "Kong Gateway and custom plugin"
+    },
+    {
+      "id": "keycloak",
+      "label": "Keycloak"
+    },
+    {
+      "id": "api",
+      "label": "PoP verifier API"
+    }
+  ],
+  "phases": [
+    {
+      "id": "authorization",
+      "label": "Authorization",
+      "fromCol": 0,
+      "toCol": 2
+    },
+    {
+      "id": "assertion",
+      "label": "Assertion and token exchange",
+      "fromCol": 3,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "resource",
+      "label": "Bound-token use",
+      "fromCol": 5,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "open_b",
+    "par_b",
+    "login_b",
+    "callback_b",
+    "assert_b",
+    "token_b",
+    "verify_b"
+  ],
+  "semanticChecks": {
+    "allowedRoots": [
+      "open_b"
+    ],
+    "allowedTerminals": [
+      "verify_b"
+    ],
+    "requiredPaths": [
+      {
+        "from": "open_b",
+        "to": "assert_b"
+      },
+      {
+        "from": "assert_b",
+        "to": "token_b"
+      },
+      {
+        "from": "token_b",
+        "to": "verify_b"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "open_b",
+      "lane": "kong",
+      "col": 0,
+      "type": "frontend",
+      "label": "Receive Route B login",
+      "width": 140,
+      "sublabel": "browser request + PKCE"
+    },
+    {
+      "id": "par_b",
+      "lane": "kong",
+      "col": 1,
+      "type": "security",
+      "label": "Push authorization request",
+      "sublabel": "PKJWT PAR",
+      "width": 180
+    },
+    {
+      "id": "login_b",
+      "lane": "keycloak",
+      "col": 2,
+      "type": "external",
+      "label": "Authenticate user",
+      "sublabel": "Keycloak local account",
+      "width": 145
+    },
+    {
+      "id": "callback_b",
+      "lane": "kong",
+      "col": 3,
+      "type": "backend",
+      "label": "Validate callback",
+      "sublabel": "state, nonce, code, PKCE",
+      "width": 145
+    },
+    {
+      "id": "assert_b",
+      "lane": "kong",
+      "col": 4,
+      "type": "security",
+      "label": "Create PKJWT",
+      "sublabel": "issuer aud + jti",
+      "tag": "custom plugin",
+      "width": 110
+    },
+    {
+      "id": "token_b",
+      "lane": "keycloak",
+      "col": 4,
+      "type": "security",
+      "label": "Verify PKJWT and mTLS",
+      "sublabel": "certificate-bound tokens",
+      "tag": "private_key_jwt",
+      "width": 180
+    },
+    {
+      "id": "verify_b",
+      "lane": "api",
+      "col": 5,
+      "type": "security",
+      "label": "Verify proof of possession",
+      "sublabel": "cnf.x5t#S256 = TLS thumbprint",
+      "width": 200
+    }
+  ],
+  "edges": [
+    {
+      "from": "open_b",
+      "to": "par_b",
+      "label": "start login",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "from": "par_b",
+      "to": "login_b",
+      "label": "request_uri",
+      "role": "main"
+    },
+    {
+      "from": "login_b",
+      "to": "callback_b",
+      "label": "authorization code",
+      "role": "main"
+    },
+    {
+      "from": "callback_b",
+      "to": "assert_b",
+      "label": "code exchange",
+      "role": "main"
+    },
+    {
+      "from": "assert_b",
+      "to": "token_b",
+      "label": "PKJWT + client certificate",
+      "variant": "security",
+      "role": "main"
+    },
+    {
+      "from": "token_b",
+      "to": "verify_b",
+      "label": "access token + same certificate",
+      "variant": "security",
+      "role": "main"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Pass condition",
+      "items": [
+        "Keycloak verifies the client assertion and TLS certificate",
+        "The assertion audience equals the Keycloak issuer",
+        "The protected API verifies the certificate-bound token"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Plugin security boundary",
+      "items": [
+        "Reject client-supplied assertion parameters before OIDC runs",
+        "Generate a fresh jti for each token or refresh request",
+        "Remove internal assertion transport before the upstream call"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Upgrade contract",
+      "items": [
+        "Pin Kong Gateway 3.16.0.0 for the first implementation",
+        "Test token and refresh requests at the wire level",
+        "Fail the build when Kong internal module behavior changes"
+      ]
+    }
+  ]
+}

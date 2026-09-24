@@ -1,0 +1,256 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Route-aware logout and token revocation",
+    "animation": "none",
+    "quality_profile": "showcase"
+  },
+  "lanes": [
+    {
+      "id": "browser",
+      "label": "Browser"
+    },
+    {
+      "id": "kong",
+      "label": "Kong Gateway"
+    },
+    {
+      "id": "keycloak",
+      "label": "Keycloak"
+    },
+    {
+      "id": "evidence",
+      "label": "Verification and exception",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "request",
+      "label": "Logout request",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "revoke",
+      "label": "Revoke and clear session",
+      "fromCol": 2,
+      "toCol": 3,
+      "variant": "security"
+    },
+    {
+      "id": "op_logout",
+      "label": "Provider logout and proof",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "emphasis"
+    }
+  ],
+  "mainPath": [
+    "click_logout",
+    "route_logout",
+    "revoke_token",
+    "revoke_ok",
+    "destroy_session",
+    "redirect_logout",
+    "keycloak_logout",
+    "return_ui"
+  ],
+  "semanticChecks": {
+    "allowedRoots": [
+      "click_logout"
+    ],
+    "allowedTerminals": [
+      "return_ui",
+      "revoke_error"
+    ],
+    "requiredPaths": [
+      {
+        "from": "click_logout",
+        "to": "revoke_token"
+      },
+      {
+        "from": "revoke_token",
+        "to": "keycloak_logout"
+      },
+      {
+        "from": "keycloak_logout",
+        "to": "return_ui"
+      }
+    ]
+  },
+  "nodes": [
+    {
+      "id": "click_logout",
+      "lane": "browser",
+      "col": 0,
+      "type": "frontend",
+      "label": "Click logout",
+      "width": 140
+    },
+    {
+      "id": "route_logout",
+      "lane": "kong",
+      "col": 1,
+      "type": "backend",
+      "label": "Resolve route session",
+      "sublabel": "route cookie + suffix",
+      "width": 175
+    },
+    {
+      "id": "revoke_token",
+      "lane": "kong",
+      "col": 2,
+      "type": "security",
+      "label": "Revoke refresh token",
+      "sublabel": "client auth by route",
+      "width": 180
+    },
+    {
+      "id": "revoke_ok",
+      "lane": "keycloak",
+      "col": 2,
+      "type": "security",
+      "label": "Invalidate refresh token",
+      "sublabel": "revocation endpoint",
+      "width": 180
+    },
+    {
+      "id": "destroy_session",
+      "lane": "kong",
+      "col": 3,
+      "type": "database",
+      "label": "Destroy Kong session",
+      "sublabel": "expire route cookie",
+      "width": 175
+    },
+    {
+      "id": "redirect_logout",
+      "lane": "kong",
+      "col": 4,
+      "type": "cloud",
+      "label": "Redirect to Keycloak",
+      "sublabel": "end_session_endpoint",
+      "width": 180
+    },
+    {
+      "id": "keycloak_logout",
+      "lane": "keycloak",
+      "col": 4,
+      "type": "external",
+      "label": "End Keycloak SSO session",
+      "sublabel": "RP-Initiated Logout",
+      "width": 195
+    },
+    {
+      "id": "return_ui",
+      "lane": "browser",
+      "col": 5,
+      "type": "frontend",
+      "label": "Return to route selector",
+      "sublabel": "no route cookie",
+      "width": 175
+    },
+    {
+      "id": "revoke_error",
+      "lane": "evidence",
+      "col": 2,
+      "type": "security",
+      "label": "Record revocation failure",
+      "sublabel": "continue logout; E2E fails",
+      "tag": "E2E fails",
+      "width": 195
+    }
+  ],
+  "edges": [
+    {
+      "from": "click_logout",
+      "to": "route_logout",
+      "label": "logout URI",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "from": "route_logout",
+      "to": "revoke_token",
+      "label": "session refresh token",
+      "variant": "security",
+      "role": "main"
+    },
+    {
+      "from": "revoke_token",
+      "to": "revoke_ok",
+      "label": "Route A mTLS or Route B PKJWT",
+      "variant": "security",
+      "role": "main"
+    },
+    {
+      "from": "revoke_ok",
+      "to": "destroy_session",
+      "label": "revoked",
+      "variant": "emphasis",
+      "role": "return"
+    },
+    {
+      "from": "destroy_session",
+      "to": "redirect_logout",
+      "role": "main"
+    },
+    {
+      "from": "redirect_logout",
+      "to": "keycloak_logout",
+      "label": "id_token_hint + post_logout_redirect_uri",
+      "role": "main"
+    },
+    {
+      "from": "keycloak_logout",
+      "to": "return_ui",
+      "label": "redirect",
+      "variant": "emphasis",
+      "role": "return"
+    },
+    {
+      "from": "revoke_token",
+      "to": "revoke_error",
+      "label": "timeout or rejected authentication",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "from": "revoke_error",
+      "to": "destroy_session",
+      "variant": "dashed",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Required evidence",
+      "items": [
+        "The old refresh token cannot obtain a new access token",
+        "The Kong session cookie is expired",
+        "The next protected request starts a new authorization flow"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Provider screen behavior",
+      "items": [
+        "Keycloak owns the end-user logout interaction",
+        "A valid session hint may allow immediate redirect",
+        "Test session termination, not a specific confirmation page"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Failure policy",
+      "items": [
+        "Revocation failure does not trap the user in the local session",
+        "Log the failure without logging token values",
+        "Mark the automated logout scenario as failed"
+      ]
+    }
+  ]
+}
