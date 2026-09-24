@@ -17,7 +17,7 @@ logoutでは、Kong sessionだけでなくAuth0 SSO sessionとrefresh tokenを�
 ## Decision
 
 1. Route BはKong coreやBFFではなく、file-based Lua custom pluginで補完する。
-2. custom Data Plane imageは`kong/kong-gateway:3.16.0.0`をbaseとし、`ghcr.io/picketfence-labs/konnect-oidc-header-routing`へ発行する。
+2. custom Data Plane imageは`kong/kong-gateway:3.16.0.0`をbaseとし、`ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak`へ発行する。
 3. GitHub ActionsからGHCRへ発行し、workflowには`packages: write`を付与する。private packageのpull権限とData Plane hostの認証は実装時に検証する。
 4. Route Bのtoken exchange/refreshでは、custom pluginが`aud = issuer`のPrivate Key JWTを生成し、stock OIDCのmTLS transport分岐へ安全に注入する。外部入力の同名parameterは拒否し、内部連携headerはUpstream送信前に削除する。
 5. logoutは両Routeで`logout_revoke=true`とし、refresh tokenのrevocationを必須にする。Auth0は`POST /oauth/revoke`で`private_key_jwt`をサポートするため、Route Bではまずstock OIDCの`revocation_endpoint_auth_method=private_key_jwt`を使用する。Route Aは`tls_client_auth`とmTLS revocation endpoint aliasを使用する。

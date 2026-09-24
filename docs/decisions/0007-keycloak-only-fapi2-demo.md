@@ -25,7 +25,7 @@ Keycloak 26.7.4はFAPI 2.0 Security Profile用client policy、PAR、Private Key 
 6. 両RouteでPAR、PKCE S256、authorization code lifetime、client assertion algorithm、sender-constrained tokenをKeycloak client policyで強制する。
 7. 両Routeのaccess tokenとrefresh tokenを、token request時にKongが提示したcertificateへバインドする。
 8. PoP verifier APIはJWT検証に加え、`cnf.x5t#S256`とTLS peer certificateのSHA-256 thumbprintを照合する。
-9. custom Kong imageは`kong/kong-gateway:3.16.0.0`をbaseとし、`ghcr.io/picketfence-labs/konnect-oidc-header-routing`へ発行する。
+9. custom Kong imageは`kong/kong-gateway:3.16.0.0`をbaseとし、`ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak`へ発行する。
 10. logoutはrefresh token revocation、Kong session破棄、Keycloak RP-Initiated Logoutの順で行う。
 
 ## Consequences

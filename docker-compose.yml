@@ -26,7 +26,7 @@ services:
   pop-verifier:
     build:
       context: ./pop-verifier
-    image: ghcr.io/picketfence-labs/konnect-oidc-header-routing/pop-verifier:${APP_IMAGE_TAG:-dev}
+    image: ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak/pop-verifier:${APP_IMAGE_TAG:-dev}
     restart: unless-stopped
     environment:
       OIDC_ISSUER: https://localhost:8444/realms/fapi-demo
@@ -45,7 +45,7 @@ services:
   kong:
     build:
       context: ./kong
-    image: ghcr.io/picketfence-labs/konnect-oidc-header-routing:${KONG_IMAGE_TAG:-dev}
+    image: ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak:${KONG_IMAGE_TAG:-dev}
     restart: unless-stopped
     environment:
       KONG_ROLE: data_plane

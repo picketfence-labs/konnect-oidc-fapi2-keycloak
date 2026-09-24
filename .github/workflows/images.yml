@@ -18,10 +18,10 @@ jobs:
         image:
           - name: kong
             context: ./kong
-            repository: ghcr.io/picketfence-labs/konnect-oidc-header-routing
+            repository: ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak
           - name: pop-verifier
             context: ./pop-verifier
-            repository: ghcr.io/picketfence-labs/konnect-oidc-header-routing/pop-verifier
+            repository: ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak/pop-verifier
     steps:
       - uses: actions/checkout@v4
 

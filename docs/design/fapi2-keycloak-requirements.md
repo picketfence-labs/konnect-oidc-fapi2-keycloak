@@ -56,7 +56,7 @@
 ### Container images
 
 - Kong custom imageは`kong/kong-gateway:3.16.0.0`をbaseとすることMUST。
-- Kong custom imageは`ghcr.io/picketfence-labs/konnect-oidc-header-routing`へ発行することMUST。
+- Kong custom imageは`ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak`へ発行することMUST。
 - Keycloakは`quay.io/keycloak/keycloak:26.7.4`をdigestで固定することSHOULD。
 - PoP verifierは最小構成のimageを使い、root権限なしで実行することSHOULD。
 - Image tagは不変のGit commit tagを含むMUST。`latest`は存在してもMAYだが、受入環境では使用してはならない（MUST NOT）。
