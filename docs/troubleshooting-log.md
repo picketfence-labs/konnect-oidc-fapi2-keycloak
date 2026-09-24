@@ -143,3 +143,31 @@
 - 保留: clean checkoutからの秘密情報生成、Keycloak起動、data plane接続、両Route実行を再現する。
 - 保留: GitHub Actionsでテスト、SBOM生成、脆弱性スキャンを通し、KongとPoP verifierのimageをcommit SHA tagでGHCRへ発行してdigestを記録する。
 - 再開時の順序: logoutとrevocation、異常系、clean checkout、GitHub ActionsとGHCRの順に進める。デモ環境の設定変更は、現在の動作確認済みスナップショットを保持してから行う。
+
+## 2026-09-24: UIアクセスがnginxの`400 Request Header Or Cookie Too Large`になった(再発)
+
+- 期待: `make destroy`と`make up`でコンテナーを再作成した後、`https://localhost:3443`のUIが表示される。
+- 実際: `ui`コンテナー(`nginx:1.29-alpine`)が`400 Bad Request: Request Header Or Cookie Too Large`を返した。コンテナーを再作成しても再発した。
+- 原因: UI・Kong・Keycloakを同一ドメイン`localhost`の別ポート(3443/8443/8444)で配信しているため、ブラウザーはポートを区別せずCookieを共有する。KeycloakのセッションCookie(`KEYCLOAK_SESSION`、`AUTH_SESSION_ID(_LEGACY)`、`KC_RESTART`等)が繰り返しのログイン試行やリアルム再importで積み重なり、Cookieヘッダー全体がUIのnginxのデフォルトヘッダーバッファを超えた。コンテナー再作成では解消しない、ブラウザー側に溜まった状態が原因のため。
+- 対処: 即時回避としてブラウザーの`localhost`向けCookieを削除する。恒久対処として`ui/default.conf`へ`large_client_header_buffers 4 32k;`と`client_header_buffer_size 4k;`を追加し、多少のCookie肥大化を許容できるようにした。
+- 再確認: 未実施。設定反映後、再度ブラウザーからUIへアクセスして200が返ることを確認する。以前と同じ事象が再発した場合は、UI・Kong・Keycloakのホスト名分離(同一`localhost`をやめる)を検討する。
+
+## 2026-09-24: `make destroy`後の`make up`でログインボタンが`ERR_CONNECTION_REFUSED`になった
+
+- 期待: `make destroy`の後に`make up`でコンテナーを再作成すれば、Route AとRoute Bのログインができる。
+- 実際: UIでRoute AまたはRoute Bのログインボタンを押すと、どちらも`ERR_CONNECTION_REFUSED`になった。`docker compose ps`ではKongコンテナーだけが`Restarting`を繰り返していた。
+- 原因: `make destroy`はTerraformが管理するKonnect control plane・data plane client証明書を含む全リソースを削除し、`infra/certs/tls.crt`・`tls.key`(data planeのクラスタ証明書、`infra/konnect.tf`の`local_file`)も削除される。一方`make up`は`generate-dev-assets`と`render-runtime`だけに依存し、Terraform applyを実行しない。そのため`destroy`後に`plan`/`apply`を挟まず`up`すると、Kongは`/etc/kong/certs/tls.crt`を読めず`cluster_cert: failed loading certificate`でクラッシュループし、8000/8443番ポートで待ち受けない。ブラウザーからはKongへの接続自体が存在しないため`ERR_CONNECTION_REFUSED`になる。UIやKeycloak自体は正常に起動していた。
+- 対処: `make destroy`の後は、`make up`の前に必ずセットアップ手順を`plan`/`apply`からやり直す。
+
+  ```bash
+  make plan
+  make apply
+  make generate-dev-assets
+  make plugin-schema-sync
+  make deck-diff
+  make deck-sync
+  make up
+  ```
+
+  `apply`でKonnect control planeとdata plane証明書を再作成し、`generate-dev-assets`が新しい`infra/certs/tls.crt`・`tls.key`を`.generated/runtime.env`経由でKongへ渡す。`deck-sync`は新しいcontrol planeに対して14エンティティ全件を作成し直す(destroy前の登録内容は残らない)。
+- 再確認: 上記手順を実行後、`docker compose ps`でKongが`healthy`になることを確認した。UIからRoute A/Bともにログイン画面まで到達可能になった。なお`apply`後に`.generated/demo-users.txt`のパスワードが再生成されるため、destroy前に控えたデモユーザーの資格情報は無効になる。

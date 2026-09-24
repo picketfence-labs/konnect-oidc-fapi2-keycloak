@@ -70,6 +70,15 @@ make generate-dev-assets
 sed -n '1,2p' .generated/demo-users.txt
 ```
 
+username と password を個別の値として取り出す場合は、全行をループで読み込みます。
+
+```bash
+while read -r DEMO_USERNAME DEMO_PASSWORD; do
+  echo "username: ${DEMO_USERNAME}"
+  echo "password: ${DEMO_PASSWORD}"
+done < .generated/demo-users.txt
+```
+
 Gateway 設定の差分を確認し、承認後に同期します。
 
 ```bash
