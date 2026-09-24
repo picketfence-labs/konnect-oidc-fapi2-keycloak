@@ -31,7 +31,7 @@
 - Route A は標準 OpenID Connect plugin の mTLS client authentication を使う。
 - Route B は最小限の file-based Lua plugin で `private_key_jwt` client assertion を生成し、標準 OpenID Connect plugin の mTLS token transport を再利用する。
 - 両経路で mTLS certificate-bound access token を発行し、PoP verifier が `cnf.x5t#S256` と TLS peer certificate を照合する。
-- custom Data Plane image は `kong/kong-gateway:3.16.0.0` を base とし、`ghcr.io/picketfence-labs/konnect-oidc-header-routing` へ発行する。
+- custom Data Plane image は `kong/kong-gateway:3.16.0.0` を base とし、`ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak` へ発行する。
 - Konnect と Keycloak の設定を宣言的に再現し、秘密鍵と証明書はリポジトリへ収録しない。
 
 ## Route B の custom plugin 境界
