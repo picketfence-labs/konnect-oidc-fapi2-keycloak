@@ -1,0 +1,250 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "3rd Party経由FAPI 2.0構成（設計）",
+    "animation": "none",
+    "quality_profile": "showcase",
+    "output": "third-party-architecture.architecture.html",
+    "viewBox": [
+      1300,
+      680
+    ]
+  },
+  "components": [
+    {
+      "id": "ui",
+      "type": "frontend",
+      "label": "Browser / UI",
+      "sublabel": "3rd Party UI :3443",
+      "pos": [
+        30,
+        300
+      ],
+      "size": [
+        140,
+        64
+      ]
+    },
+    {
+      "id": "tpgw",
+      "type": "security",
+      "label": "3rd Party Gateway",
+      "sublabel": "FAPI client · bridge · iss guard",
+      "pos": [
+        255,
+        296
+      ],
+      "size": [
+        200,
+        72
+      ]
+    },
+    {
+      "id": "keycloak",
+      "type": "external",
+      "label": "Keycloak 26.7.4",
+      "sublabel": "PAR · token · introspection",
+      "pos": [
+        495,
+        80
+      ],
+      "size": [
+        200,
+        72
+      ]
+    },
+    {
+      "id": "apigw",
+      "type": "security",
+      "label": "API Gateway",
+      "sublabel": "RS · introspection · PoP strict",
+      "pos": [
+        740,
+        296
+      ],
+      "size": [
+        190,
+        72
+      ]
+    },
+    {
+      "id": "upstream",
+      "type": "backend",
+      "label": "Upstream API",
+      "sublabel": "PoP verifier · JWT再検証",
+      "pos": [
+        1115,
+        296
+      ],
+      "size": [
+        150,
+        72
+      ]
+    },
+    {
+      "id": "cp_tp",
+      "type": "cloud",
+      "label": "Konnect CP",
+      "sublabel": "third-party",
+      "pos": [
+        265,
+        560
+      ],
+      "size": [
+        180,
+        60
+      ]
+    },
+    {
+      "id": "cp_api",
+      "type": "cloud",
+      "label": "Konnect CP",
+      "sublabel": "api",
+      "pos": [
+        745,
+        560
+      ],
+      "size": [
+        180,
+        60
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "3rd Party",
+      "wraps": [
+        "ui",
+        "tpgw"
+      ],
+      "pad": 22
+    },
+    {
+      "kind": "region",
+      "label": "Authorization Server",
+      "wraps": [
+        "keycloak"
+      ],
+      "pad": 22
+    },
+    {
+      "kind": "region",
+      "label": "API提供者",
+      "wraps": [
+        "apigw",
+        "upstream"
+      ],
+      "pad": 22
+    },
+    {
+      "kind": "region",
+      "label": "Konnect（control plane × 2）",
+      "wraps": [
+        "cp_tp",
+        "cp_api"
+      ],
+      "pad": 22
+    }
+  ],
+  "connections": [
+    {
+      "from": "ui",
+      "to": "tpgw",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "from": "tpgw",
+      "to": "keycloak",
+      "label": "mTLS: Route A cert / Route B cert + PKJWT",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "left",
+      "via": [
+        [
+          355,
+          116
+        ]
+      ],
+      "labelAt": [
+        240,
+        200
+      ]
+    },
+    {
+      "from": "tpgw",
+      "to": "apigw",
+      "label": "mTLS 同じRoute別cert + Bearer",
+      "variant": "security"
+    },
+    {
+      "from": "apigw",
+      "to": "keycloak",
+      "label": "mTLS introspection cert",
+      "variant": "security",
+      "fromSide": "top",
+      "toSide": "right",
+      "via": [
+        [
+          835,
+          116
+        ]
+      ],
+      "labelAt": [
+        930,
+        200
+      ]
+    },
+    {
+      "from": "apigw",
+      "to": "upstream",
+      "label": "mTLS upstream cert + X-Client-Cert",
+      "variant": "security"
+    },
+    {
+      "from": "cp_tp",
+      "to": "tpgw",
+      "label": "config",
+      "variant": "dashed",
+      "labelAt": [
+        355,
+        450
+      ]
+    },
+    {
+      "from": "cp_api",
+      "to": "apigw",
+      "label": "config",
+      "variant": "dashed",
+      "labelAt": [
+        835,
+        450
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "単一のRS検証ポリシー",
+      "items": [
+        "API Gatewayが両Routeのtokenをintrospection + mTLS PoP strictで検証"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "証明書の一貫性",
+      "items": [
+        "Keycloakへの提示cert = cnf.x5t#S256 = API Gatewayのpeer cert"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "設計（未実装）",
+      "items": [
+        "目標設計であり、live検証は実装後に行う"
+      ]
+    }
+  ]
+}

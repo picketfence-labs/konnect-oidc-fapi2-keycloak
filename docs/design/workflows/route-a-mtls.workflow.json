@@ -2,7 +2,7 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route A：mTLSクライアント認証",
+    "title": "Route A：mTLSクライアント認証（設計）",
     "animation": "none",
     "quality_profile": "showcase",
     "output": "route-a-mtls.workflow.html",
@@ -13,102 +13,96 @@
   },
   "lanes": [
     {
-      "id": "browser",
-      "label": "利用者・ブラウザー"
-    },
-    {
-      "id": "kong",
-      "label": "Kong Gateway"
+      "id": "tpgw",
+      "label": "3rd Party Gateway（UIからRoute Aを選択）"
     },
     {
       "id": "keycloak",
       "label": "Keycloak"
     },
     {
-      "id": "api",
-      "label": "PoP verifier API"
+      "id": "apigw",
+      "label": "API Gateway"
+    },
+    {
+      "id": "upstream",
+      "label": "Upstream API"
     }
   ],
   "phases": [
     {
       "id": "start",
-      "label": "ルート選択とPAR",
+      "label": "PAR",
       "fromCol": 0,
-      "toCol": 1
+      "toCol": 0
     },
     {
       "id": "authorize",
-      "label": "ユーザー認証",
-      "fromCol": 2,
-      "toCol": 3,
+      "label": "ユーザー認証とCallback",
+      "fromCol": 1,
+      "toCol": 2,
       "variant": "emphasis"
     },
     {
       "id": "token",
       "label": "コード交換と証明書束縛",
-      "fromCol": 4,
-      "toCol": 4,
+      "fromCol": 3,
+      "toCol": 3,
       "variant": "security"
     },
     {
       "id": "resource",
-      "label": "保護APIでの検証",
-      "fromCol": 5,
+      "label": "API Gatewayでの検証",
+      "fromCol": 4,
       "toCol": 5,
       "variant": "security"
     }
   ],
   "mainPath": [
-    "select_a",
     "par_a",
     "login_a",
     "callback_a",
     "token_a",
-    "proxy_a",
+    "call_a",
+    "rs_a",
     "verify_a"
   ],
   "semanticChecks": {
     "allowedRoots": [
-      "select_a"
+      "par_a"
     ],
     "allowedTerminals": [
       "verify_a"
     ],
     "requiredPaths": [
       {
-        "from": "select_a",
+        "from": "par_a",
         "to": "token_a"
       },
       {
         "from": "token_a",
+        "to": "rs_a"
+      },
+      {
+        "from": "rs_a",
         "to": "verify_a"
       }
     ]
   },
   "nodes": [
     {
-      "id": "select_a",
-      "lane": "browser",
-      "col": 0,
-      "type": "frontend",
-      "label": "Route Aを選択",
-      "sublabel": "HTTPS UIからログイン",
-      "width": 150
-    },
-    {
       "id": "par_a",
-      "lane": "kong",
-      "col": 1,
+      "lane": "tpgw",
+      "col": 0,
       "type": "security",
       "label": "PARを送信",
-      "sublabel": "stock OIDC + tls_client_auth",
-      "tag": "実装済み",
+      "sublabel": "PKCE S256 + tls_client_auth",
       "width": 190
     },
     {
       "id": "login_a",
       "lane": "keycloak",
-      "col": 2,
+      "col": 1,
       "type": "external",
       "label": "利用者を認証",
       "sublabel": "local demo user",
@@ -116,51 +110,51 @@
     },
     {
       "id": "callback_a",
-      "lane": "kong",
-      "col": 3,
+      "lane": "tpgw",
+      "col": 2,
       "type": "backend",
       "label": "Callbackを検証",
-      "sublabel": "state・nonce・code・PKCE",
+      "sublabel": "state・PKCE・iss必須",
       "width": 170
     },
     {
       "id": "token_a",
       "lane": "keycloak",
-      "col": 4,
+      "col": 3,
       "type": "security",
-      "label": "KongをmTLS認証",
+      "label": "Route A certで認証",
       "sublabel": "access / refresh tokenを証明書へ束縛",
-      "tag": "tls_client_auth",
       "width": 205
     },
     {
-      "id": "proxy_a",
-      "lane": "kong",
-      "col": 5,
+      "id": "call_a",
+      "lane": "tpgw",
+      "col": 4,
       "type": "cloud",
-      "label": "Session作成・API呼出し",
-      "sublabel": "署名済みclaim→header + 同じ証明書",
+      "label": "API Gatewayを呼出し",
+      "sublabel": "Bearer header + 同じRoute A cert",
+      "width": 205
+    },
+    {
+      "id": "rs_a",
+      "lane": "apigw",
+      "col": 5,
+      "type": "security",
+      "label": "introspection + PoP検証",
+      "sublabel": "cnf.x5t#S256 = TLS peer cert",
       "width": 205
     },
     {
       "id": "verify_a",
-      "lane": "api",
+      "lane": "upstream",
       "col": 5,
-      "type": "security",
-      "label": "PoPとheaderを検証",
-      "sublabel": "JWT + cnf.x5t#S256 + TLS thumbprint",
-      "tag": "live確認済み",
-      "width": 220
+      "type": "backend",
+      "label": "JWT再検証・evidence",
+      "sublabel": "X-Client-Cert ↔ cnf・azp→route",
+      "width": 205
     }
   ],
   "edges": [
-    {
-      "from": "select_a",
-      "to": "par_a",
-      "label": "ログイン開始",
-      "variant": "emphasis",
-      "role": "main"
-    },
     {
       "from": "par_a",
       "to": "login_a",
@@ -170,57 +164,52 @@
     {
       "from": "login_a",
       "to": "callback_a",
-      "label": "authorization code",
+      "label": "code + iss",
       "role": "main"
     },
     {
       "from": "callback_a",
       "to": "token_a",
-      "label": "code + verifier + client certificate",
+      "label": "code + verifier + Route A cert",
       "variant": "security",
       "role": "main"
     },
     {
       "from": "token_a",
-      "to": "proxy_a",
+      "to": "call_a",
       "label": "証明書束縛token",
       "variant": "emphasis",
       "role": "main"
     },
     {
-      "from": "proxy_a",
+      "from": "call_a",
+      "to": "rs_a",
+      "label": "mTLS + Bearer",
+      "variant": "security",
+      "role": "main"
+    },
+    {
+      "from": "rs_a",
       "to": "verify_a",
-      "label": "Bearer token + 同じ証明書",
+      "label": "mTLS upstream cert",
       "variant": "security",
       "role": "main"
     }
   ],
   "cards": [
     {
-      "dot": "emerald",
-      "title": "Live確認済み",
+      "dot": "amber",
+      "title": "設計（未実装）",
       "items": [
-        "browser login、code exchange、Upstream mTLSが成功",
-        "tokenとTLS peerのthumbprint一致を確認",
-        "claim由来headerとPoP evidenceをUIへ表示"
+        "目標設計。live検証はA-E2E-01・A-CNF-01で行う"
       ]
     },
     {
       "dot": "cyan",
-      "title": "実装の境界",
+      "title": "Route Aの要点",
       "items": [
-        "PAR・token・revocationはstock OIDCのmTLS認証",
-        "Route A専用Certificate entityとsession cookieを使用",
-        "秘密鍵・session secretは生成領域またはVaultに限定"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "残る受入証跡",
-      "items": [
-        "refresh・revocation・logoutのwire-level証跡",
-        "証明書なし／Route B証明書での拒否",
-        "clean checkoutからの再現性確認"
+        "PAR・token・revocationはstock OIDCのtls_client_auth",
+        "iss欠落の認可レスポンスはOIDC plugin前に400で拒否"
       ]
     }
   ]

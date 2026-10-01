@@ -2,78 +2,78 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route B：private_key_jwt + mTLS証明書束縛",
+    "title": "Route B：private_key_jwt + mTLS証明書束縛（設計）",
     "animation": "none",
     "quality_profile": "showcase",
     "output": "route-b-pkj-mtls.workflow.html"
   },
   "lanes": [
     {
-      "id": "browser",
-      "label": "利用者・ブラウザー"
-    },
-    {
-      "id": "kong",
-      "label": "Kong Gateway + custom plugin"
+      "id": "tpgw",
+      "label": "3rd Party Gateway + bridge plugin（UIからRoute Bを選択）"
     },
     {
       "id": "keycloak",
       "label": "Keycloak"
     },
     {
-      "id": "api",
-      "label": "PoP verifier API"
+      "id": "apigw",
+      "label": "API Gateway"
+    },
+    {
+      "id": "upstream",
+      "label": "Upstream API"
     }
   ],
   "phases": [
     {
       "id": "start",
-      "label": "ルート選択とPAR",
+      "label": "PAR",
       "fromCol": 0,
-      "toCol": 1
+      "toCol": 0
     },
     {
       "id": "authorize",
-      "label": "ユーザー認証",
-      "fromCol": 2,
-      "toCol": 3,
+      "label": "ユーザー認証とCallback",
+      "fromCol": 1,
+      "toCol": 2,
       "variant": "emphasis"
     },
     {
       "id": "assertion",
-      "label": "PKJWT生成とmTLS code exchange",
-      "fromCol": 4,
-      "toCol": 4,
+      "label": "PKJWT + mTLSでコード交換",
+      "fromCol": 3,
+      "toCol": 3,
       "variant": "security"
     },
     {
       "id": "resource",
-      "label": "保護APIでの検証",
-      "fromCol": 5,
+      "label": "API Gatewayでの検証",
+      "fromCol": 4,
       "toCol": 5,
       "variant": "security"
     }
   ],
   "mainPath": [
-    "select_b",
     "par_b",
     "login_b",
     "callback_b",
     "assert_b",
     "token_b",
-    "proxy_b",
+    "call_b",
+    "rs_b",
     "verify_b"
   ],
   "semanticChecks": {
     "allowedRoots": [
-      "select_b"
+      "par_b"
     ],
     "allowedTerminals": [
       "verify_b"
     ],
     "requiredPaths": [
       {
-        "from": "select_b",
+        "from": "par_b",
         "to": "assert_b"
       },
       {
@@ -82,34 +82,28 @@
       },
       {
         "from": "token_b",
+        "to": "rs_b"
+      },
+      {
+        "from": "rs_b",
         "to": "verify_b"
       }
     ]
   },
   "nodes": [
     {
-      "id": "select_b",
-      "lane": "browser",
-      "col": 0,
-      "type": "frontend",
-      "label": "Route Bを選択",
-      "sublabel": "HTTPS UIからログイン",
-      "width": 150
-    },
-    {
       "id": "par_b",
-      "lane": "kong",
-      "col": 1,
+      "lane": "tpgw",
+      "col": 0,
       "type": "security",
       "label": "PARを送信",
-      "sublabel": "stock OIDC private_key_jwt",
-      "tag": "Vault参照JWK",
-      "width": 195
+      "sublabel": "PKCE S256 + stock private_key_jwt",
+      "width": 205
     },
     {
       "id": "login_b",
       "lane": "keycloak",
-      "col": 2,
+      "col": 1,
       "type": "external",
       "label": "利用者を認証",
       "sublabel": "local demo user",
@@ -117,61 +111,60 @@
     },
     {
       "id": "callback_b",
-      "lane": "kong",
-      "col": 3,
+      "lane": "tpgw",
+      "col": 2,
       "type": "backend",
       "label": "Callbackを検証",
-      "sublabel": "state・nonce・code・PKCE",
+      "sublabel": "state・PKCE・iss必須",
       "width": 170
     },
     {
       "id": "assert_b",
-      "lane": "kong",
-      "col": 4,
+      "lane": "tpgw",
+      "col": 3,
       "type": "security",
       "label": "PS256 PKJWTを生成",
-      "sublabel": "aud=issuer・kid=SPKI hash・一回限りのjti",
-      "tag": "bridge plugin",
-      "width": 215
+      "sublabel": "bridge・aud=issuer・一回限りのjti",
+      "width": 205
     },
     {
       "id": "token_b",
       "lane": "keycloak",
-      "col": 4,
+      "col": 3,
       "type": "security",
       "label": "PKJWTとmTLSを検証",
-      "sublabel": "token / refreshだけ複合認証",
-      "tag": "private_key_jwt",
+      "sublabel": "tokenをRoute B certへ束縛",
       "width": 205
     },
     {
-      "id": "proxy_b",
-      "lane": "kong",
-      "col": 5,
+      "id": "call_b",
+      "lane": "tpgw",
+      "col": 4,
       "type": "cloud",
-      "label": "Session作成・API呼出し",
-      "sublabel": "内部assertion除去 + 同じ証明書",
+      "label": "API Gatewayを呼出し",
+      "sublabel": "Bearer header + 同じRoute B cert",
+      "width": 205
+    },
+    {
+      "id": "rs_b",
+      "lane": "apigw",
+      "col": 5,
+      "type": "security",
+      "label": "introspection + PoP検証",
+      "sublabel": "Route Aと同じ検証ポリシー",
       "width": 205
     },
     {
       "id": "verify_b",
-      "lane": "api",
+      "lane": "upstream",
       "col": 5,
-      "type": "security",
-      "label": "PoPとheaderを検証",
-      "sublabel": "JWT + cnf.x5t#S256 + TLS thumbprint",
-      "tag": "live確認済み",
-      "width": 220
+      "type": "backend",
+      "label": "JWT再検証・evidence",
+      "sublabel": "X-Client-Cert ↔ cnf・azp→route",
+      "width": 205
     }
   ],
   "edges": [
-    {
-      "from": "select_b",
-      "to": "par_b",
-      "label": "ログイン開始",
-      "variant": "emphasis",
-      "role": "main"
-    },
     {
       "from": "par_b",
       "to": "login_b",
@@ -181,8 +174,10 @@
     {
       "from": "login_b",
       "to": "callback_b",
-      "label": "authorization code",
-      "role": "main"
+      "label": "code + iss",
+      "role": "main",
+      "fromSide": "right",
+      "toSide": "bottom"
     },
     {
       "from": "callback_b",
@@ -193,51 +188,46 @@
     {
       "from": "assert_b",
       "to": "token_b",
-      "label": "PKJWT + client certificate",
+      "label": "PKJWT + Route B TLS cert",
       "variant": "security",
       "role": "main"
     },
     {
       "from": "token_b",
-      "to": "proxy_b",
+      "to": "call_b",
       "label": "証明書束縛token",
       "variant": "emphasis",
       "role": "main"
     },
     {
-      "from": "proxy_b",
+      "from": "call_b",
+      "to": "rs_b",
+      "label": "mTLS + Bearer",
+      "variant": "security",
+      "role": "main"
+    },
+    {
+      "from": "rs_b",
       "to": "verify_b",
-      "label": "Bearer token + 同じ証明書",
+      "label": "mTLS upstream cert",
       "variant": "security",
       "role": "main"
     }
   ],
   "cards": [
     {
-      "dot": "emerald",
-      "title": "Live確認済み",
+      "dot": "amber",
+      "title": "設計（未実装）",
       "items": [
-        "PAR、browser login、code exchange、Upstream mTLSが成功",
-        "PS256 assertionとcertificate-bound tokenを併用",
-        "claim由来headerとPoP bindingをUIで確認"
+        "目標設計。live検証はB-E2E-01・B-CNF-01で行う"
       ]
     },
     {
       "dot": "violet",
       "title": "Endpoint別の責任分担",
       "items": [
-        "PAR・revocation：stock OIDC private_key_jwt",
-        "token・refresh：bridgeがPKJWTを生成しstock mTLS transportへ渡す",
-        "同じRSA鍵を環境変数Vault参照で共有"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "残る受入証跡",
-      "items": [
-        "refresh・revocation・logoutのwire-level証跡",
-        "誤audience・jti replay・証明書なし・assertion注入の拒否",
-        "Gateway upgrade時の内部契約回帰試験"
+        "PAR・revocation：stock private_key_jwt",
+        "token・refresh：bridgeがPKJWTを生成しstock mTLSへ渡す"
       ]
     }
   ]
