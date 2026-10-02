@@ -2,6 +2,13 @@
 
 予期しない動作、失敗した操作、原因、対処、再確認事項を記録します。認証情報や token の実値は記載しません。
 
+## 2026-10-02: `gh pr edit`がProjects classic互換エラーで失敗した
+
+- 期待: WP2のDraft PR本文へCI成功結果を追記する。
+- 実際: `gh pr edit --body-file`のGraphQL queryが`pullRequest.projectCards`で拒否された。PRのcodeとCIは成功済み。
+- 対処: 同じ本文をJSON fileの`body`へ格納し、`gh api repos/<owner>/<repo>/pulls/<number> --method PATCH --input <file>`で更新した。
+- 再確認: REST APIの本文更新は成功。merge、Issue close、runtime変更は行っていない。
+
 ## 2026-10-02: WP2検証のprovider取得がsandbox内で失敗した
 
 - 期待: 隔離worktreeの`make validate`が静的検証を完了する。
