@@ -5157,7 +5157,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <!-- Swimlanes -->
         <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-0" x="40" y="52" width="1062" height="104" rx="10" class="c-lane" stroke-width="1"/>
-        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / 3rd Party Gateway + bridge plugin（UIからRoute Bを選択）</text>
+        <text x="54" y="74" class="t-dim" font-size="10" font-weight="600">01 / 3rd Party Gateway + custom plugins（UIからRoute Bを選択）</text>
 
         <rect data-graph-role="structural-frame" data-composition-frame-kind="lane" data-composition-frame-id="lane-1" x="40" y="176" width="1062" height="104" rx="10" class="c-lane" stroke-width="1"/>
         <text x="54" y="198" class="t-dim" font-size="10" font-weight="600">02 / Keycloak</text>
@@ -5195,8 +5195,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <path data-edge-from="token_b" data-edge-to="call_b" data-edge-label="証明書束縛token" data-edge-key="6" data-composition-points="760.9,250;864.4,250;864.4,145" d="M 760.9 250 L 864.4 250 L 864.4 145" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
 
         <!-- Nodes -->
-        <g id="node-par_b" data-node-id="par_b" data-node-label="PARを送信" tabindex="0" role="button" aria-label="Focus PARを送信, PKCE S256 + stock private_key_jwt, 3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › PAR" aria-pressed="false" data-node-kind="security" data-node-sublabel="PKCE S256 + stock private_key_jwt" data-node-context="3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › PAR">
-          <title>PARを送信 · PKCE S256 + stock private_key_jwt · 3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › PAR</title>
+        <g id="node-par_b" data-node-id="par_b" data-node-label="PARを送信" tabindex="0" role="button" aria-label="Focus PARを送信, PKCE S256 + PKJWT + mTLS補完, 3rd Party Gateway + custom plugins（UIからRoute Bを選択） › PAR" aria-pressed="false" data-node-kind="security" data-node-sublabel="PKCE S256 + PKJWT + mTLS補完" data-node-context="3rd Party Gateway + custom plugins（UIからRoute Bを選択） › PAR">
+          <title>PARを送信 · PKCE S256 + PKJWT + mTLS補完 · 3rd Party Gateway + custom plugins（UIからRoute Bを選択） › PAR</title>
           <rect x="48" y="93" width="205" height="52" rx="6" class="c-mask"/>
           <rect x="48" y="93" width="205" height="52" rx="6" class="c-security" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(54 99) scale(0.6875)">
@@ -5204,22 +5204,22 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="150.5" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">PARを送信</text>
-          <text data-detail="context" x="150.5" y="131" class="t-muted" font-size="8" text-anchor="middle">PKCE S256 + stock private_key_jwt</text>
+          <text data-detail="context" x="150.5" y="131" class="t-muted" font-size="8" text-anchor="middle">PKCE S256 + PKJWT + mTLS補完</text>
         </g>
 
-        <g id="node-callback_b" data-node-id="callback_b" data-node-label="Callbackを検証" tabindex="0" role="button" aria-label="Focus Callbackを検証, state・PKCE・iss必須, 3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › ユーザー認証とCallback" aria-pressed="false" data-node-kind="backend" data-node-sublabel="state・PKCE・iss必須" data-node-context="3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › ユーザー認証とCallback">
-          <title>Callbackを検証 · state・PKCE・iss必須 · 3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › ユーザー認証とCallback</title>
+        <g id="node-callback_b" data-node-id="callback_b" data-node-label="Callbackを検証" tabindex="0" role="button" aria-label="Focus Callbackを検証, state・PKCE・提示issの一致, 3rd Party Gateway + custom plugins（UIからRoute Bを選択） › ユーザー認証とCallback" aria-pressed="false" data-node-kind="backend" data-node-sublabel="state・PKCE・提示issの一致" data-node-context="3rd Party Gateway + custom plugins（UIからRoute Bを選択） › ユーザー認証とCallback">
+          <title>Callbackを検証 · state・PKCE・提示issの一致 · 3rd Party Gateway + custom plugins（UIからRoute Bを選択） › ユーザー認証とCallback</title>
           <rect x="305.5" y="93" width="170" height="52" rx="6" class="c-mask"/>
           <rect x="305.5" y="93" width="170" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(311.5 99) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="390.5" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Callbackを検証</text>
-          <text data-detail="context" x="390.5" y="131" class="t-muted" font-size="8" text-anchor="middle">state・PKCE・iss必須</text>
+          <text data-detail="context" x="390.5" y="131" class="t-muted" font-size="8" text-anchor="middle">state・PKCE・提示issの一致</text>
         </g>
 
-        <g id="node-assert_b" data-node-id="assert_b" data-node-label="PS256 PKJWTを生成" tabindex="0" role="button" aria-label="Focus PS256 PKJWTを生成, bridge・aud=issuer・一回限りのjti, 3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › PKJWT + mTLSでコード交換" aria-pressed="false" data-node-kind="security" data-node-sublabel="bridge・aud=issuer・一回限りのjti" data-node-context="3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › PKJWT + mTLSでコード交換">
-          <title>PS256 PKJWTを生成 · bridge・aud=issuer・一回限りのjti · 3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › PKJWT + mTLSでコード交換</title>
+        <g id="node-assert_b" data-node-id="assert_b" data-node-label="PS256 PKJWTを生成" tabindex="0" role="button" aria-label="Focus PS256 PKJWTを生成, bridge送信時delegate・aud=issuer・新規jti, 3rd Party Gateway + custom plugins（UIからRoute Bを選択） › PKJWT + mTLSでコード交換" aria-pressed="false" data-node-kind="security" data-node-sublabel="bridge送信時delegate・aud=issuer・新規jti" data-node-context="3rd Party Gateway + custom plugins（UIからRoute Bを選択） › PKJWT + mTLSでコード交換">
+          <title>PS256 PKJWTを生成 · bridge送信時delegate・aud=issuer・新規jti · 3rd Party Gateway + custom plugins（UIからRoute Bを選択） › PKJWT + mTLSでコード交換</title>
           <rect x="555.9" y="93" width="205" height="52" rx="6" class="c-mask"/>
           <rect x="555.9" y="93" width="205" height="52" rx="6" class="c-security" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(561.9 99) scale(0.6875)">
@@ -5227,11 +5227,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="658.4" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">PS256 PKJWTを生成</text>
-          <text data-detail="context" x="658.4" y="131" class="t-muted" font-size="8" text-anchor="middle">bridge・aud=issuer・一回限りのjti</text>
+          <text data-detail="context" x="658.4" y="131" class="t-muted" font-size="8" text-anchor="middle">bridge送信時delegate・aud=issuer・新規jti</text>
         </g>
 
-        <g id="node-call_b" data-node-id="call_b" data-node-label="API Gatewayを呼出し" tabindex="0" role="button" aria-label="Focus API Gatewayを呼出し, Bearer header + 同じRoute B cert, 3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › API Gatewayでの検証" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="Bearer header + 同じRoute B cert" data-node-context="3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › API Gatewayでの検証">
-          <title>API Gatewayを呼出し · Bearer header + 同じRoute B cert · 3rd Party Gateway + bridge plugin（UIからRoute Bを選択） › API Gatewayでの検証</title>
+        <g id="node-call_b" data-node-id="call_b" data-node-label="API Gatewayを呼出し" tabindex="0" role="button" aria-label="Focus API Gatewayを呼出し, Bearer header + 同じRoute B cert, 3rd Party Gateway + custom plugins（UIからRoute Bを選択） › API Gatewayでの検証" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="Bearer header + 同じRoute B cert" data-node-context="3rd Party Gateway + custom plugins（UIからRoute Bを選択） › API Gatewayでの検証">
+          <title>API Gatewayを呼出し · Bearer header + 同じRoute B cert · 3rd Party Gateway + custom plugins（UIからRoute Bを選択） › API Gatewayでの検証</title>
           <rect x="768.9" y="93" width="205" height="52" rx="6" class="c-mask"/>
           <rect x="768.9" y="93" width="205" height="52" rx="6" class="c-cloud" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="cloud" class="semantic-sigil s-cloud" transform="translate(774.9 99) scale(0.6875)">
@@ -5530,18 +5530,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>設計（未実装）</h3>
         </div>
         <ul>
-          <li>&bull; 目標設計。live検証はB-E2E-01・B-CNF-01で行う</li>
+          <li>&bull; 目標設計。方式確定（ADR 0012）、実装はWP5</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot violet"></div>
-          <h3>Endpoint別の責任分担</h3>
+          <h3>PKJWT + mTLSの補完範囲</h3>
         </div>
         <ul>
-          <li>&bull; PAR・revocation：stock private_key_jwt</li>
-          <li>&bull; token・refresh：bridgeがPKJWTを生成しstock mTLSへ渡す</li>
+          <li>&bull; token・refresh：bridge送信時署名 + stock TLS</li>
+          <li>&bull; PAR・revoke・metadata：専用AS transport</li>
         </ul>
       </div>
     </div>

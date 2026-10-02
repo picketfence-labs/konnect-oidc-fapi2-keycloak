@@ -5166,7 +5166,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
 
         <!-- Connection paths (before components for correct z-order) -->
         <path data-edge-from="ui" data-edge-to="tpgw" data-edge-label="HTTPS" data-edge-key="0" data-composition-points="170,332;255,332" d="M 170 332 L 255 332" class="a-emphasis" stroke-width="1.8" marker-end="url(#arrowhead-emphasis)"/>
-        <path data-edge-from="tpgw" data-edge-to="keycloak" data-edge-label="mTLS: Route A cert / Route B cert + PKJWT" data-edge-key="1" data-composition-points="355,296;355,116;495,116" d="M 355 296 L 355 124 Q 355 116 363 116 L 495 116" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
+        <path data-edge-from="tpgw" data-edge-to="keycloak" data-edge-label="AS back-channel: mTLS必須" data-edge-key="1" data-composition-points="355,296;355,116;495,116" d="M 355 296 L 355 124 Q 355 116 363 116 L 495 116" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="tpgw" data-edge-to="apigw" data-edge-label="mTLS 同じRoute別cert + Bearer" data-edge-key="2" data-composition-points="455,332;740,332" d="M 455 332 L 740 332" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="apigw" data-edge-to="keycloak" data-edge-label="mTLS introspection cert" data-edge-key="3" data-composition-points="835,296;835,116;695,116" d="M 835 296 L 835 124 Q 835 116 827 116 L 695 116" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
         <path data-edge-from="apigw" data-edge-to="upstream" data-edge-label="mTLS upstream cert + X-Client-Cert" data-edge-key="4" data-composition-points="930,332;1115,332" d="M 930 332 L 1115 332" class="a-security" stroke-width="1.5" marker-end="url(#arrowhead-security)"/>
@@ -5188,8 +5188,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="context" x="100" y="346" class="t-muted" font-size="9" text-anchor="middle">3rd Party UI :3443</text>
         </g>
 
-        <g id="node-tpgw" data-node-id="tpgw" data-node-label="3rd Party Gateway" tabindex="0" role="button" aria-label="Focus 3rd Party Gateway, FAPI client · bridge · iss guard, 3rd Party" aria-pressed="false" data-node-kind="security" data-node-sublabel="FAPI client · bridge · iss guard" data-node-context="3rd Party">
-          <title>3rd Party Gateway · FAPI client · bridge · iss guard · 3rd Party</title>
+        <g id="node-tpgw" data-node-id="tpgw" data-node-label="3rd Party Gateway" tabindex="0" role="button" aria-label="Focus 3rd Party Gateway, Client · bridge + AS transport, 3rd Party" aria-pressed="false" data-node-kind="security" data-node-sublabel="Client · bridge + AS transport" data-node-context="3rd Party">
+          <title>3rd Party Gateway · Client · bridge + AS transport · 3rd Party</title>
           <rect x="255" y="296" width="200" height="72" rx="6" class="c-mask"/>
           <rect x="255" y="296" width="200" height="72" rx="6" class="c-security" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="security" class="semantic-sigil s-security" transform="translate(261 302) scale(0.6875)">
@@ -5197,7 +5197,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
             <path d="m5.8 8 1.5 1.5 3-3"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="355" y="330" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">3rd Party Gateway</text>
-        <text data-detail="context" x="355" y="346" class="t-muted" font-size="9" text-anchor="middle">FAPI client · bridge · iss guard</text>
+        <text data-detail="context" x="355" y="346" class="t-muted" font-size="9" text-anchor="middle">Client · bridge + AS transport</text>
         </g>
 
         <g id="node-keycloak" data-node-id="keycloak" data-node-label="Keycloak 26.7.4" tabindex="0" role="button" aria-label="Focus Keycloak 26.7.4, PAR · token · introspection, Authorization Server" aria-pressed="false" data-node-kind="external" data-node-sublabel="PAR · token · introspection" data-node-context="Authorization Server">
@@ -5262,9 +5262,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="195.5" y="312" width="34" height="14" rx="3" class="c-mask"/>
           <text x="212.5" y="322" class="t-backend" font-size="8" text-anchor="middle">HTTPS</text>
         </g>
-        <g data-detail="context" data-edge-from="tpgw" data-edge-to="keycloak" data-edge-label="mTLS: Route A cert / Route B cert + PKJWT" data-edge-key="1">
-          <rect x="136.60000000000002" y="190" width="206.79999999999998" height="14" rx="3" class="c-mask"/>
-          <text x="240" y="200" class="t-security" font-size="8" text-anchor="middle">mTLS: Route A cert / Route B cert + PKJWT</text>
+        <g data-detail="context" data-edge-from="tpgw" data-edge-to="keycloak" data-edge-label="AS back-channel: mTLS必須" data-edge-key="1">
+          <rect x="175" y="190" width="130" height="14" rx="3" class="c-mask"/>
+          <text x="240" y="200" class="t-security" font-size="8" text-anchor="middle">AS back-channel: mTLS必須</text>
         </g>
         <g data-detail="context" data-edge-from="tpgw" data-edge-to="apigw" data-edge-label="mTLS 同じRoute別cert + Bearer" data-edge-key="2">
           <rect x="522.9" y="312" width="149.2" height="14" rx="3" class="c-mask"/>
@@ -5512,17 +5512,18 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>証明書の一貫性</h3>
         </div>
         <ul>
-          <li>&bull; Keycloakへの提示cert = cnf.x5t#S256 = API Gatewayのpeer cert</li>
+          <li>&bull; token取得時の提示cert = cnf.x5t#S256 = API Gatewayのpeer cert</li>
         </ul>
       </div>
 
       <div class="card">
         <div class="card-header">
           <div class="card-dot amber"></div>
-          <h3>設計（未実装）</h3>
+          <h3>デモ目標（未実装）</h3>
         </div>
         <ul>
-          <li>&bull; 目標設計であり、live検証は実装後に行う</li>
+          <li>&bull; PAR・revokeもPKJWT + mTLS（ADR 0012 / 未実装）</li>
+          <li>&bull; metadataは専用cert。完全適合の認定ではない</li>
         </ul>
       </div>
     </div>

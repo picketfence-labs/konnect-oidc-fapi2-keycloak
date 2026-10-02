@@ -114,7 +114,7 @@
       "col": 2,
       "type": "backend",
       "label": "Callbackを検証",
-      "sublabel": "state・PKCE・iss必須",
+      "sublabel": "state・PKCE・提示issの一致",
       "width": 170
     },
     {
@@ -208,8 +208,9 @@
       "dot": "cyan",
       "title": "Route Aの要点",
       "items": [
-        "PAR・token・revocationはstock OIDCのtls_client_auth",
-        "iss欠落の認可レスポンスはOIDC plugin前に400で拒否"
+        "client認証・certはstock tls_client_auth",
+        "送信guard・metadata mTLSはcustom transport",
+        "iss欠落guard・開始CSRF追加防御は将来対応"
       ]
     }
   ]

@@ -30,7 +30,7 @@
       "id": "tpgw",
       "type": "security",
       "label": "3rd Party Gateway",
-      "sublabel": "FAPI client · bridge · iss guard",
+      "sublabel": "Client · bridge + AS transport",
       "pos": [
         255,
         296
@@ -158,7 +158,7 @@
     {
       "from": "tpgw",
       "to": "keycloak",
-      "label": "mTLS: Route A cert / Route B cert + PKJWT",
+      "label": "AS back-channel: mTLS必須",
       "variant": "security",
       "fromSide": "top",
       "toSide": "left",
@@ -236,14 +236,15 @@
       "dot": "violet",
       "title": "証明書の一貫性",
       "items": [
-        "Keycloakへの提示cert = cnf.x5t#S256 = API Gatewayのpeer cert"
+        "token取得時の提示cert = cnf.x5t#S256 = API Gatewayのpeer cert"
       ]
     },
     {
       "dot": "amber",
-      "title": "設計（未実装）",
+      "title": "デモ目標（未実装）",
       "items": [
-        "目標設計であり、live検証は実装後に行う"
+        "PAR・revokeもPKJWT + mTLS（ADR 0012 / 未実装）",
+        "metadataは専用cert。完全適合の認定ではない"
       ]
     }
   ]

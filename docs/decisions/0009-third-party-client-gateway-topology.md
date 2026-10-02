@@ -6,9 +6,11 @@
 
 ## Context
 
-追加要件として、ClientとKong Gatewayの間に3rd Partyを置く。3rd PartyはKeycloakとの認可コードフローでtokenを取得し、Kong Gateway経由でUpstream APIへアクセスする。3rd Party側にもFAPI 2.0への対応が必要で、そのためのKong Gatewayを、API向けとは別に立てる（3rd PartyでKongを使うことは必須ではない）。
+追加要件として、ClientとKong Gatewayの間に3rd Partyを置く。3rd PartyはKeycloakとの認可コードフローでtokenを取得し、Kong Gateway経由でUpstream APIへアクセスする。3rd Partyを含むmTLS/PKJWTの顧客向け動作デモのため、Kong GatewayをAPI向けとは別に立てる（3rd PartyでKongを使うことは必須ではない）。
 
 v1（現行main）のKong Gatewayは、FAPI client（PAR、client認証、code exchange、session）と、Upstreamの前段の両方を担っている。3rd Partyを追加すると、この2つの役割は別々の組織に属する。
+
+目的・優先順位は[ADR 0011](0011-customer-demo-scope.md)で更新した。完全適合を完成条件にはしない。
 
 ## Decision
 
@@ -16,10 +18,10 @@ v1（現行main）のKong Gatewayは、FAPI client（PAR、client認証、code e
 2. 既存のKong Gatewayは**API Gateway**（Resource Server）とし、clientとしての機能を持たせない。
 3. UIからKongへの直接経路は残さず、3rd Party経由の経路で置き換える。
 4. 2つのGatewayは、別々のKonnect control planeで管理する。既存のcontrol planeはAPI Gateway用として再利用し、3rd Party用のcontrol planeをTerraformで追加する。
-5. sender constraintは、両区間ともmTLS certificate-bound tokenで統一する。DPoPは使わない。
-6. 3rd Party GatewayはRoute別のclient certificateを、Keycloak token endpointとAPI Gatewayの両方へ提示する。両者は同じcertificateであること。
-7. 3rd PartyのFAPI 2.0必須要件は、実装に依存しない形で[conformance文書](../design/third-party-fapi2-conformance.md)へ定義する。3rd Party GatewayはそのKongによる実装例と位置付ける。
-8. Kong stockで充足しない`iss`（RFC 9207）の欠落検査は、3rd Party Gatewayで補完する。開始のCSRF防御は、デモの既知のgapとして文書化する。
+5. sender constraintは、両区間ともmTLS certificate-bound tokenで統一する。必須経路にDPoPは使わない。追加候補の設計調査はDP1で分ける。
+6. 3rd Party GatewayはRoute別のclient certificateを、KeycloakのPAR/token/refresh/revoke endpointとAPI Gatewayへ提示する。metadata取得は専用certでmTLS化する（DP0/ADR 0012）。認証POSTとAPI呼出しは同じRoute certificateであり、metadata certとは別にする。
+7. 本来のFAPI 2.0要件と今回の優先度は、実装に依存しない形で[conformance文書](../design/third-party-fapi2-conformance.md)へ定義する。3rd Party GatewayはそのKongによる実装例と位置付ける。
+8. Kong stockで充足しない`iss`欠落検査と開始CSRF追加防御は将来対応として開示する。提示されたissの不一致検査とstate/PKCEは維持する。
 
 ## 両Routeを維持する理由
 
@@ -34,7 +36,7 @@ client認証は、3rd Party GatewayとKeycloakの間で閉じる。API Gateway�
 - Konnect control plane、data plane certificate、decK stateがそれぞれ2つになる。`make`の各targetは対象Gatewayを明示する必要がある。
 - Keycloak clientのIDを、3rd Partyを表す名前へ置き換える（`third-party-fapi-mtls`、`third-party-fapi-pkj-mtls`）。
 - v1の受入シナリオのうち、PoP verifierでの検証（`A-POP-01`、`B-POP-01`、`POP-01`、`POP-02`）は、API Gatewayでの検証へ移る。
-- custom plugin（`fapi-client-auth-bridge`）の契約は変えない。実行場所だけが3rd Party Gatewayへ移る。
+- custom pluginの単純移設ではAS全back-channel mTLSを満たせない。DP0/ADR 0012で専用AS transportとbridge送信時delegateを選択した。独立レビュー・merge後にWP5で実装する。
 
 ## Alternatives considered
 

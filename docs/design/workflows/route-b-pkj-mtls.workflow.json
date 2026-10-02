@@ -10,7 +10,7 @@
   "lanes": [
     {
       "id": "tpgw",
-      "label": "3rd Party Gateway + bridge plugin（UIからRoute Bを選択）"
+      "label": "3rd Party Gateway + custom plugins（UIからRoute Bを選択）"
     },
     {
       "id": "keycloak",
@@ -97,7 +97,7 @@
       "col": 0,
       "type": "security",
       "label": "PARを送信",
-      "sublabel": "PKCE S256 + stock private_key_jwt",
+      "sublabel": "PKCE S256 + PKJWT + mTLS補完",
       "width": 205
     },
     {
@@ -115,7 +115,7 @@
       "col": 2,
       "type": "backend",
       "label": "Callbackを検証",
-      "sublabel": "state・PKCE・iss必須",
+      "sublabel": "state・PKCE・提示issの一致",
       "width": 170
     },
     {
@@ -124,7 +124,7 @@
       "col": 3,
       "type": "security",
       "label": "PS256 PKJWTを生成",
-      "sublabel": "bridge・aud=issuer・一回限りのjti",
+      "sublabel": "bridge送信時delegate・aud=issuer・新規jti",
       "width": 205
     },
     {
@@ -219,15 +219,15 @@
       "dot": "amber",
       "title": "設計（未実装）",
       "items": [
-        "目標設計。live検証はB-E2E-01・B-CNF-01で行う"
+        "目標設計。方式確定（ADR 0012）、実装はWP5"
       ]
     },
     {
       "dot": "violet",
-      "title": "Endpoint別の責任分担",
+      "title": "PKJWT + mTLSの補完範囲",
       "items": [
-        "PAR・revocation：stock private_key_jwt",
-        "token・refresh：bridgeがPKJWTを生成しstock mTLSへ渡す"
+        "token・refresh：bridge送信時署名 + stock TLS",
+        "PAR・revoke・metadata：専用AS transport"
       ]
     }
   ]

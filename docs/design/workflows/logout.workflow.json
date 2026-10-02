@@ -2,7 +2,7 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route別LogoutとToken失効（設計）",
+    "title": "次ケースへ進むLogout / Reset（デモ設計）",
     "animation": "none",
     "quality_profile": "showcase",
     "output": "logout.workflow.html"
@@ -19,11 +19,6 @@
     {
       "id": "keycloak",
       "label": "Keycloak"
-    },
-    {
-      "id": "apigw",
-      "label": "API Gateway",
-      "variant": "exception"
     }
   ],
   "phases": [
@@ -35,7 +30,7 @@
     },
     {
       "id": "revoke",
-      "label": "Token失効とlocal session破棄",
+      "label": "Stock revokeとlocal session破棄",
       "fromCol": 2,
       "toCol": 3,
       "variant": "security"
@@ -63,8 +58,7 @@
       "click_logout"
     ],
     "allowedTerminals": [
-      "return_ui",
-      "replay_reject"
+      "return_ui"
     ],
     "requiredPaths": [
       {
@@ -78,10 +72,6 @@
       {
         "from": "keycloak_logout",
         "to": "return_ui"
-      },
-      {
-        "from": "revoke_ok",
-        "to": "replay_reject"
       }
     ]
   },
@@ -109,8 +99,8 @@
       "lane": "tpgw",
       "col": 2,
       "type": "security",
-      "label": "Tokenを失効",
-      "sublabel": "refresh + access token",
+      "label": "Revokeを要求",
+      "sublabel": "refresh → access token",
       "width": 175
     },
     {
@@ -157,15 +147,6 @@
       "label": "Route selectorへ戻る",
       "sublabel": "反対Routeは新しい認可フロー",
       "width": 180
-    },
-    {
-      "id": "replay_reject",
-      "lane": "apigw",
-      "col": 3,
-      "type": "security",
-      "label": "失効tokenの再送を拒否",
-      "sublabel": "active=false → 401",
-      "width": 185
     }
   ],
   "edges": [
@@ -186,14 +167,14 @@
     {
       "from": "revoke_token",
       "to": "revoke_ok",
-      "label": "A: tls_client_auth / B: private_key_jwt",
+      "label": "mTLS + Route別client認証",
       "variant": "security",
       "role": "main"
     },
     {
       "from": "revoke_ok",
       "to": "destroy_session",
-      "label": "revoked",
+      "label": "HTTP 200",
       "variant": "emphasis",
       "role": "return"
     },
@@ -214,29 +195,23 @@
       "label": "redirect",
       "variant": "emphasis",
       "role": "return"
-    },
-    {
-      "from": "revoke_ok",
-      "to": "replay_reject",
-      "label": "introspection",
-      "variant": "dashed",
-      "role": "branch"
     }
   ],
   "cards": [
     {
       "dot": "amber",
-      "title": "設計（未実装）",
+      "title": "デモ運用（未実装）",
       "items": [
-        "目標設計。LOGOUT-A/B-01・REVOKE-RS-01で検証する"
+        "通常経路はstock logout。次ケースの新規loginを確認",
+        "HTTP 200やreset成功からtoken個別失効を保証しない"
       ]
     },
     {
-      "dot": "rose",
-      "title": "RS側の失効反映",
+      "dot": "cyan",
+      "title": "Resetの合格条件",
       "items": [
-        "introspection cacheは無効化またはTTL 30秒以下",
-        "正しいcertで再送しても401（WWW-Authenticate付き）"
+        "Route cookie/SSOをresetし別Route・userへ切替",
+        "revoke失敗はcertなし再送せず対象user限定reset"
       ]
     }
   ]

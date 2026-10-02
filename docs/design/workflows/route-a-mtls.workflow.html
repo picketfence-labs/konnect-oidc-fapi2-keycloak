@@ -5206,15 +5206,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <text data-detail="context" x="143" y="131" class="t-muted" font-size="8" text-anchor="middle">PKCE S256 + tls_client_auth</text>
         </g>
 
-        <g id="node-callback_a" data-node-id="callback_a" data-node-label="Callbackを検証" tabindex="0" role="button" aria-label="Focus Callbackを検証, state・PKCE・iss必須, 3rd Party Gateway（UIからRoute Aを選択） › ユーザー認証とCallback" aria-pressed="false" data-node-kind="backend" data-node-sublabel="state・PKCE・iss必須" data-node-context="3rd Party Gateway（UIからRoute Aを選択） › ユーザー認証とCallback">
-          <title>Callbackを検証 · state・PKCE・iss必須 · 3rd Party Gateway（UIからRoute Aを選択） › ユーザー認証とCallback</title>
+        <g id="node-callback_a" data-node-id="callback_a" data-node-label="Callbackを検証" tabindex="0" role="button" aria-label="Focus Callbackを検証, state・PKCE・提示issの一致, 3rd Party Gateway（UIからRoute Aを選択） › ユーザー認証とCallback" aria-pressed="false" data-node-kind="backend" data-node-sublabel="state・PKCE・提示issの一致" data-node-context="3rd Party Gateway（UIからRoute Aを選択） › ユーザー認証とCallback">
+          <title>Callbackを検証 · state・PKCE・提示issの一致 · 3rd Party Gateway（UIからRoute Aを選択） › ユーザー認証とCallback</title>
           <rect x="298" y="93" width="170" height="52" rx="6" class="c-mask"/>
           <rect x="298" y="93" width="170" height="52" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(304 99) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="383" y="114" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">Callbackを検証</text>
-          <text data-detail="context" x="383" y="131" class="t-muted" font-size="8" text-anchor="middle">state・PKCE・iss必須</text>
+          <text data-detail="context" x="383" y="131" class="t-muted" font-size="8" text-anchor="middle">state・PKCE・提示issの一致</text>
         </g>
 
         <g id="node-call_a" data-node-id="call_a" data-node-label="API Gatewayを呼出し" tabindex="0" role="button" aria-label="Focus API Gatewayを呼出し, Bearer header + 同じRoute A cert, 3rd Party Gateway（UIからRoute Aを選択） › API Gatewayでの検証" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="Bearer header + 同じRoute A cert" data-node-context="3rd Party Gateway（UIからRoute Aを選択） › API Gatewayでの検証">
@@ -5523,8 +5523,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <h3>Route Aの要点</h3>
         </div>
         <ul>
-          <li>&bull; PAR・token・revocationはstock OIDCのtls_client_auth</li>
-          <li>&bull; iss欠落の認可レスポンスはOIDC plugin前に400で拒否</li>
+          <li>&bull; client認証・certはstock tls_client_auth</li>
+          <li>&bull; 送信guard・metadata mTLSはcustom transport</li>
+          <li>&bull; iss欠落guard・開始CSRF追加防御は将来対応</li>
         </ul>
       </div>
     </div>
