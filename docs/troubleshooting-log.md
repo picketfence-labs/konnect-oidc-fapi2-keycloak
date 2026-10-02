@@ -23,6 +23,7 @@
 - 対処: PyJWTを[公式2.14.0](https://github.com/jpadilla/pyjwt/releases/tag/2.14.0)へ固定し、builderからruntime依存だけをコピーしてpip/ensurepip等をruntimeから除去。PS256、issuer/audience/scope/cnf検査に加え、unknown critical header、JWKS redirect、unknown-kid refresh制限と鍵rotation復旧の回帰検査を追加した。
 - Kong: 3.16.0.0の公式multi-platform digest `sha256:e2678b4cb534fc9d6a17288d83457d6cbea235a6331dc4982e021300ccb668c4`を固定し、UbuntuのOpenSSL packageだけを更新する。公式amd64 imageのdigest検証済みlayerを読み取り調査したところ、PebbleはUbuntu base layerに存在し、entrypoint、Kong CLI、shell/Lua計2,313ファイルに参照なし。entrypointはOpenRestyを直接実行するため、当imageでは未使用と判断してPebbleを除去する。Pebbleがprocess supervisorであることは[公式資料](https://ubuntu.com/docs/pebble/explanation/security/)で確認した。これは調査からの判断であり、AS runtimeの動作証明ではない。
 - 再確認: 更新依存のPoP回帰検査とlocal静的検査が成功。CIへnetwork noneの`kong prepare`とNGINX設定検査を追加し、build/test/SBOM/scanを修正commitで再実行する。live DP起動・接続・worker可視性はWP5で未実施。
+- CI追記: run `36985754948`のPoP test起動が`PYTHONPATH=/app`でimageの依存pathを上書きし、`jwt` importに失敗。test起動のpathへ`/opt/python-deps`も含めて再実行する。validate workflowは成功し、Kong jobはmatrixのfail-fastでcancelされたため未判定。
 
 ## 2026-10-02: foundation templateをsemantic YAML validatorで読めなかった
 
