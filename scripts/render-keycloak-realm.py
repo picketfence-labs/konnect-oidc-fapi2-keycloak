@@ -32,6 +32,10 @@ substitutions = {
 }
 
 realm = replace(json.loads(template.read_text()), substitutions)
+rotation_setting = os.environ.get("KEYCLOAK_REFRESH_TOKEN_ROTATION", "true").lower()
+if rotation_setting not in {"true", "false"}:
+    raise SystemExit("KEYCLOAK_REFRESH_TOKEN_ROTATION must be true or false")
+realm["revokeRefreshToken"] = rotation_setting == "true"
 output.parent.mkdir(parents=True, exist_ok=True)
 output.write_text(json.dumps(realm, indent=2) + "\n")
 output.chmod(0o600)

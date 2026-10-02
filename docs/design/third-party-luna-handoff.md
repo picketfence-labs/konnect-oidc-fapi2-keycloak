@@ -1,17 +1,17 @@
-# Luna / High向けEnhancement開発移譲契約
+# Luna / xHigh向けEnhancement開発移譲契約
 
-開発担当はIssueを1つずつ実装し、受入条件と証跡を対応付けたPRを提出する。設定は **Codex / gpt-6-luna / high**。この文書は実装開始・環境変更の承認を含まない。
+開発担当はIssueを1つずつ実装し、受入条件と証跡を対応付けたPRを提出する。現在のWP2担当設定は、利用者の最新指示による **Codex / gpt-6-luna / xhigh**。WP1はLuna / Highで実施した。個別の開始・環境変更承認はIssueへ記録する。
 
 ## 基準と現在地
 
 - 対象: [Epic #6](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/6)、WP1〜WP6（#7〜#12）。
 - 設計baseline: [PR #5](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/pull/5)、main merge commit `bc4a063df75ac28d29c33299b90deac3bd1ebe98`（レビュー対象head `3a41ebceb9183f80702c1f898c83991d102fe61e`）。
 - 2026-10-02: Design ownerレビューはmerge blocker 0。`make validate`、`make test`、差分空白検査、変更Markdownのローカルリンク、図JSON解析と4図PNG目視が完了。
-- PR #5は初回の自動承認レビュー拒否後、利用者が本PR限定の規則の例外を明示承認し、2026-10-02にmergeした。PR #13の詳細設計とWP1実装・空schema応答の修正は、利用者がPR #13／#15／#16でmainへmerge済み。PR #5の例外を他PRへ適用しない。
-- main `ccd0d3c`のvalidate、image build/test/SBOM/scan/publishは成功。承認済みapplyと2schema登録も成功した。foundation syncはAPI Certificate 2件とthird-party 4件が成功したが、APIの重複CA createが409で拒否された。[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)の既存CA再利用修正案をレビューし、mainで両diff=0を確認するまでWP1受入・後続WP開始は保留。最新証跡は[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)を参照する。
+- PR #5は初回の自動承認レビュー拒否後、利用者が本PR限定の規則の例外を明示承認し、2026-10-02にmergeした。設計・WP1実装・修正のPR #13／#15／#16／#17は利用者がmainへmerge済み。PR #5の例外を他PRへ適用しない。
+- main `4ce796d`で独立検証した両foundation diff=0、既存14 entity不変、API共有CA再利用・schema hash照合、19 tests、main CIはpass。[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)にTechnical Completion Reportを記録し、利用者がWP1受入・close・WP2着手を承認した。利用者の代理close承認に基づき#7はclosed。[Issue #8](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/8)をLuna / xHighで開始する。
 - 実TLS、JWT署名、Keycloak observer build、transport lifecycle、introspectionの実行証跡は今回取得していない。
 
-着手前にremoteを同期し、設計合意・依存WP受入・開始条件をIssueで確認する。baselineの差分があれば、再確認してからbranchを作る。設計はADR 0009〜0013とCA再利用修正案ADR 0014、実装要件、DP0と[WP1詳細設計](third-party-foundation-design.md)を正本とする。Workerは方式を選び直さない。
+着手前にremoteを同期し、設計合意・依存WP受入・開始条件をIssueで確認する。baselineの差分があれば、再確認してからbranchを作る。設計はADR 0009〜0014、実装要件、DP0と[WP1詳細設計](third-party-foundation-design.md)を正本とする。Workerは方式を選び直さない。
 
 ## 成果と範囲
 
@@ -40,6 +40,8 @@
 WP4はWP1受入後に別branchで進められる。依存受入と実装着手承認をIssueに記録する。移譲準備は、実際のWorker起動や実装着手を意味しない。
 
 2026-10-02、利用者の「良いです。進めてください。」を設計補足の合意とWP1実装着手の指示として記録した。最初のWorkerはLuna / HighでWP1だけを担当した。初回は合意済み設計branchをbaseにしたが、設計merge後はPR #15で実装をmainへ載せ直した。以後の修正PRは最新mainをbaseにする。環境変更とWP2以降の着手承認は別に扱う。
+
+同日、利用者の「承認しますが、Luna | xHighで実施してください」をWP1受入・#7 close・WP2コード/fixture/検証計画/PR準備への着手承認として記録した。WP2のbaselineはmain `4ce796d08c02b623d71c8ad10d245a61af70c83a`。Docker build/up、realm適用、runtime投入、通常入口開放は、具体的previewと別承認の後に行う。
 
 ## WP1: 基盤・schema・CI
 
@@ -70,7 +72,11 @@ runtime stateはAPIがWP3、third-partyがWP5で完成させ、foundation全enti
 - **A-CERT-01/02、B-AUD-01、B-JTI-01、B-CERT-01**を新client IDで再実行する。AS拒否と送信guard拒否を別fixtureにする。
 - 必須claimが欠ければWP3へ進まず`needs-design`。audience checkの無効化やbearerへの独断切替はしない。
 
-Keycloak 26.7.4の[公開source](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/protocol/oidc/AccessTokenIntrospectionProvider.java)は、認証したintrospection clientのaudience照合と`cnf`保持を示す。mapperはintrospection responseにも適用されるため、namespaced claimの宣言だけで返却成功と推定せず、実応答を確認する。
+Keycloak 26.7.4の[公開source](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/protocol/oidc/AccessTokenIntrospectionProvider.java)は、認証したintrospection clientのaudience照合と`cnf`保持を示す。audienceが元tokenに存在すれば、その値を判定に使う。RS-INT-AUD-01ではAPI audienceを残し、同一realm/client/sessionのpositive referenceと比較する。server-wideのbypassと、[client属性](https://github.com/keycloak/keycloak/blob/26.7.4/server-spi-private/src/main/java/org/keycloak/protocol/oidc/OIDCConfigAttributes.java) `allow.token.introspection.without.audience.check`の両方を無効のまま検証する。mapperはintrospection responseにも適用されるため、namespaced claimの宣言だけで返却成功と推定せず、実応答を確認する。
+
+組込み[FAPI 2 profile](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/resources/keycloak-default-client-profiles.json)は`secure-client-authentication-assertion`を含む。[同executor](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/services/clientpolicy/executor/SecureClientAuthenticationAssertionExecutor.java)はback-channelでissuer URLへのaudience一致を要求する。B-AUD-01はprofileの適用を確認してから、有効なgrantと署名を保ち、audだけtoken endpoint URLへ変更する。認可fixtureはprofileのconsent要件も維持する。sourceの実装確認はASの拒否応答の証跡を代替しない。
+
+namespaced claimのmapper設定ではURI内のdotをescapeする。Keycloakの[claim path処理](https://github.com/keycloak/keycloak/blob/26.7.4/server-spi-private/src/main/java/org/keycloak/utils/JsonUtils.java)はunescaped dotを階層の区切りとして扱い、escapeを除いてJSON keyへ写す。templateのescape表現を維持し、実token/introspectionでは`https://fapi-demo.example.com/department`と`https://fapi-demo.example.com/route`の完全一致keyを検証する。
 
 ## WP3: API Gateway Resource Server
 
@@ -141,11 +147,15 @@ AS証跡はrequest ID、method、queryなしpathで実Keycloak observerへ1:1 jo
 
 Design ownerは実装merge後のmainで主要positive/negativeを独立再実行し、Technical Completion ReportをIssueへ記録する。利用者が受入結果を記録し、Issueをcloseする。設計ready、PR merge、mock成功をruntime完成と同一視しない。
 
-## 最初の開発sessionへ渡す指示
+## WP1の初回開発指示（履歴）
 
 > Codex / gpt-6-luna / highでWP1 #7のみを担当してください。remoteと必須Vault文脈を読み、PR #5のmerge、ADR 0013の分担合意、Issueの開始状態を確認してください。`feat/wp1-dual-gateway-foundation`で基盤・schema・CIを実装し、既存CP/DP resourceを保全してください。通常入口は閉鎖を維持し、transport handlerは実装しません。未承認の環境変更は行わず、必要なpreviewと承認対象を具体化してください。WP1受入IDの対応表と検証結果を付け、`Refs #7`のPRを提出してください。設計不成立はDesign ownerへ戻し、merge/Issue closeは行わないでください。
 
 WP1の最初の成果は詳細設計のresource/output/identityとfoundation stateである。`STAGE=foundation`で両diffを取得し、runtimeの空stateを作って旧v1を削除しない。schemaの登録とhandler実装、CPのmetadata照会と通信前入力検査を分けて報告する。
+
+## WP2の開発sessionへ渡す指示
+
+> Codex / gpt-6-luna / xhighでWP2 #8だけを担当する。main `4ce796d`をbaselineにremoteと必須文脈を確認し、`feat/wp2-keycloak-clients`で最小のrealm/client候補とRS-INT-AUD-02/01 fixture・harnessを準備する。新client IDと既存Route certificate subjectを明示対応し、introspection専用identityと両audienceを維持する。意味あるnegative testsと隔離環境previewを提示し、未承認のDocker/realm/runtime操作は行わない。mock/static成功は実TLS/token成功に読み替えず、必須claimが欠けたらDesign ownerへ戻す。PRはRefs #8、受入ID・検証層・証跡・未検証を明記する。WP3以降と通常入口を開始しない。
 
 ## 参照
 
@@ -155,5 +165,6 @@ WP1の最初の成果は詳細設計のresource/output/identityとfoundation sta
 - [DP0 transport契約](third-party-as-mtls-transport.md)
 - [AS peer証跡契約](third-party-as-peer-evidence.md)
 - [ADR 0013: schemaと受入分担](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)
-- [ADR 0014: APIの既存CA再利用修正案](../decisions/0014-reuse-existing-api-ca.md)
+- [ADR 0014: APIの既存CA再利用](../decisions/0014-reuse-existing-api-ca.md)
 - [WP1詳細設計: address、PKI、identity、state、schema](third-party-foundation-design.md)
+- [WP2隔離検証preview](third-party-wp2-validation-preview.md)

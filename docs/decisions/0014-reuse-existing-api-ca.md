@@ -1,6 +1,6 @@
 # ADR 0014: API foundationは既存CAを変更せず再利用する
 
-- Status: Proposed（承認済みsyncで判明した制約への修正。実装PRのレビュー・利用者merge後にmainで再検証する）
+- Status: Accepted（PR #17を利用者がmerge。main `4ce796d`の独立再検証後、利用者がWP1受入とIssue #7 closeを承認）
 - Date: 2026-10-02
 - Amends: [ADR 0013](0013-work-package-schema-and-acceptance-boundaries.md)のAPI foundation CA所有範囲
 - Preserves: 既存v1のupdate/delete=0、用途別の鍵分離、P0、stage/tag限定、runtime受入と環境承認の境界
@@ -13,7 +13,7 @@ API CPにはv1 CA `33333333-3333-4333-8333-333333333333`が既にあり、tags�
 
 承認済みのthird-party側4件は作成され、設定照合とpost-sync diff=0に成功した。APIの残差は上記CA create1だけ。sync前に取得した両CPの既存Service、Route、Plugin、Certificate、CAのID集合・canonical hashは、適用後も不変だった。raw API body、証明書、秘密値は公開しない。
 
-## 決定案
+## 決定
 
 1. API foundationはintrospection Certificate `44444444-4444-4444-8444-444444444444`とupstream Certificate `55555555-5555-4555-8555-555555555555`だけを管理する。両entityのタグ、公開証明書のrole入力、env Vault key参照は維持する。CA `77777777-7777-4777-8777-777777777777`は宣言しない。
 2. APIの既存CA `33333333-3333-4333-8333-333333333333`を、WP1が変更しない外部前提として検証する。foundation stateへ含めず、foundationタグ追加・更新・削除・別ID検索・自動createを行わない。

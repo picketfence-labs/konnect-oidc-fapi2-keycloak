@@ -12,7 +12,7 @@
   "ssoSessionMaxLifespan": 3600,
   "clients": [
     {
-      "clientId": "kong-fapi-mtls",
+      "clientId": "third-party-fapi-mtls",
       "name": "Route A: TLS client authentication",
       "enabled": true,
       "protocol": "openid-connect",
@@ -22,7 +22,9 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["https://localhost:8443/api/fapi/mtls"],
+      "redirectUris": [
+        "https://localhost:8443/api/fapi/mtls"
+      ],
       "webOrigins": [],
       "attributes": {
         "x509.subjectdn": "CN=kong-fapi-mtls",
@@ -31,7 +33,8 @@
         "tls.client.certificate.bound.access.tokens": "true",
         "use.refresh.tokens": "true",
         "post.logout.redirect.uris": "https://localhost:3443/?logout=route-a",
-        "id.token.signed.response.alg": "PS256"
+        "id.token.signed.response.alg": "PS256",
+        "x509.allow.regex.pattern.comparison": "false"
       },
       "protocolMappers": [
         {
@@ -43,7 +46,8 @@
             "claim.name": "https://fapi-demo\\.example\\.com/department",
             "jsonType.label": "String",
             "id.token.claim": "true",
-            "access.token.claim": "true"
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
           }
         },
         {
@@ -55,7 +59,8 @@
             "claim.name": "https://fapi-demo\\.example\\.com/route",
             "jsonType.label": "String",
             "id.token.claim": "true",
-            "access.token.claim": "true"
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
           }
         },
         {
@@ -63,15 +68,29 @@
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
           "config": {
-            "included.custom.audience": "pop-verifier",
+            "included.custom.audience": "fapi-demo-api",
             "access.token.claim": "true",
-            "id.token.claim": "false"
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "api-gateway-introspection-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "api-gateway-introspection",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
           }
         }
-      ]
+      ],
+      "consentRequired": true,
+      "fullScopeAllowed": false
     },
     {
-      "clientId": "kong-fapi-pkj-mtls",
+      "clientId": "third-party-fapi-pkj-mtls",
       "name": "Route B: Private Key JWT with mTLS binding",
       "enabled": true,
       "protocol": "openid-connect",
@@ -81,7 +100,9 @@
       "implicitFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
-      "redirectUris": ["https://localhost:8443/api/fapi/pkj-mtls"],
+      "redirectUris": [
+        "https://localhost:8443/api/fapi/pkj-mtls"
+      ],
       "webOrigins": [],
       "attributes": {
         "jwt.credential.public.key": "__ROUTE_B_PUBLIC_KEY__",
@@ -104,7 +125,8 @@
             "claim.name": "https://fapi-demo\\.example\\.com/department",
             "jsonType.label": "String",
             "id.token.claim": "true",
-            "access.token.claim": "true"
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
           }
         },
         {
@@ -116,7 +138,8 @@
             "claim.name": "https://fapi-demo\\.example\\.com/route",
             "jsonType.label": "String",
             "id.token.claim": "true",
-            "access.token.claim": "true"
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
           }
         },
         {
@@ -124,43 +147,102 @@
           "protocol": "openid-connect",
           "protocolMapper": "oidc-audience-mapper",
           "config": {
-            "included.custom.audience": "pop-verifier",
+            "included.custom.audience": "fapi-demo-api",
             "access.token.claim": "true",
-            "id.token.claim": "false"
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "api-gateway-introspection-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "config": {
+            "included.custom.audience": "api-gateway-introspection",
+            "access.token.claim": "true",
+            "id.token.claim": "false",
+            "introspection.token.claim": "true"
           }
         }
-      ]
+      ],
+      "consentRequired": true,
+      "fullScopeAllowed": false
+    },
+    {
+      "clientId": "api-gateway-introspection",
+      "name": "API Gateway introspection mTLS client",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "clientAuthenticatorType": "client-x509",
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [],
+      "webOrigins": [],
+      "attributes": {
+        "x509.subjectdn": "CN=api-gateway-introspection",
+        "allow.token.introspection.without.audience.check": "false",
+        "tls.client.certificate.bound.access.tokens": "true",
+        "x509.allow.regex.pattern.comparison": "false"
+      },
+      "protocolMappers": [],
+      "consentRequired": true,
+      "fullScopeAllowed": false
     }
   ],
   "users": [
     {
       "username": "sales.user@fapi-demo.invalid",
+      "email": "sales.user@fapi-demo.invalid",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Demo",
       "lastName": "Sales",
       "attributes": {
-        "department": ["sales"],
-        "departement": ["sales"],
-        "route": ["sales-route"]
+        "department": [
+          "sales"
+        ],
+        "departement": [
+          "sales"
+        ],
+        "route": [
+          "sales-route"
+        ]
       },
       "credentials": [
-        {"type": "password", "value": "__SALES_PASSWORD__", "temporary": false}
+        {
+          "type": "password",
+          "value": "__SALES_PASSWORD__",
+          "temporary": false
+        }
       ]
     },
     {
       "username": "engineering.user@fapi-demo.invalid",
+      "email": "engineering.user@fapi-demo.invalid",
       "enabled": true,
       "emailVerified": true,
       "firstName": "Demo",
       "lastName": "Engineering",
       "attributes": {
-        "department": ["engineering"],
-        "departement": ["engineering"],
-        "route": ["engineering-route"]
+        "department": [
+          "engineering"
+        ],
+        "departement": [
+          "engineering"
+        ],
+        "route": [
+          "engineering-route"
+        ]
       },
       "credentials": [
-        {"type": "password", "value": "__ENGINEERING_PASSWORD__", "temporary": false}
+        {
+          "type": "password",
+          "value": "__ENGINEERING_PASSWORD__",
+          "temporary": false
+        }
       ]
     }
   ],
@@ -175,13 +257,19 @@
             "condition": "client-access-type",
             "configuration": {
               "is-negative-logic": false,
-              "type": ["confidential"]
+              "type": [
+                "confidential"
+              ]
             }
           }
         ],
-        "profiles": ["fapi-2-security-profile"]
+        "profiles": [
+          "fapi-2-security-profile"
+        ]
       }
     ]
   },
-  "clientProfiles": {"profiles": []}
+  "clientProfiles": {
+    "profiles": []
+  }
 }

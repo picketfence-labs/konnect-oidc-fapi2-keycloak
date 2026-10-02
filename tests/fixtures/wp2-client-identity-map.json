@@ -1,0 +1,25 @@
+{
+  "third-party-fapi-mtls": {
+    "client_authentication": "tls_client_auth",
+    "keycloak_authenticator": "client-x509",
+    "certificate_file": "route-a.crt",
+    "certificate_subject": "CN=kong-fapi-mtls",
+    "purpose": "Route A token endpoint client authentication and certificate binding"
+  },
+  "third-party-fapi-pkj-mtls": {
+    "client_authentication": "private_key_jwt",
+    "assertion_algorithm": "PS256",
+    "keycloak_authenticator": "client-jwt",
+    "signing_key_file": "route-b-pkj.key",
+    "certificate_file": "route-b.crt",
+    "certificate_subject": "CN=kong-fapi-pkj-mtls",
+    "purpose": "Route B assertion authentication and distinct mTLS token binding"
+  },
+  "api-gateway-introspection": {
+    "client_authentication": "tls_client_auth",
+    "keycloak_authenticator": "client-x509",
+    "certificate_file": "api-introspection.crt",
+    "certificate_subject": "CN=api-gateway-introspection",
+    "purpose": "Dedicated API Gateway mTLS introspection client"
+  }
+}

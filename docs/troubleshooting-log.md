@@ -2,6 +2,13 @@
 
 予期しない動作、失敗した操作、原因、対処、再確認事項を記録します。認証情報や token の実値は記載しません。
 
+## 2026-10-02: WP2検証のprovider取得がsandbox内で失敗した
+
+- 期待: 隔離worktreeの`make validate`が静的検証を完了する。
+- 実際: `terraform init`が`registry.terraform.io`のDNS/network制限で失敗し、後続の検証へ到達しなかった。
+- 対処: provider取得と静的検証だけを許可する実行で再試行した。Terraform apply、Docker起動、Konnect変更は行っていない。
+- 再確認: `make validate`はTerraform、静的チェック、JWK export、runtime secret renderingを含め成功した。実TLS/token受入試験は未実施で、別の隔離環境previewに記録する。
+
 ## 2026-10-02: API foundationのCA作成が既存CAとの一意制約で拒否された
 
 - 期待: 承認済みpreviewのAPI create3／third-party create4、update/delete=0を適用し、両post-sync diff=0になる。

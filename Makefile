@@ -55,6 +55,7 @@ test:
 	python3 tests/test_jwk_export.py
 	python3 tests/test_runtime_secrets.py
 	python3 tests/test_wp1.py
+	python3 tests/test_wp2.py
 	python3 tests/test_pki_generation.py
 	python3 tests/test_up_guard.py
 	luajit tests/test_wp1_schema.lua

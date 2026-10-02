@@ -51,15 +51,40 @@ assert "PRIVATE KEY" not in state
 
 realm = json.loads((ROOT / "keycloak" / "realm-template.json").read_text())
 clients = {client["clientId"]: client for client in realm["clients"]}
-assert set(clients) == {"kong-fapi-mtls", "kong-fapi-pkj-mtls"}
-assert clients["kong-fapi-mtls"]["clientAuthenticatorType"] == "client-x509"
-assert clients["kong-fapi-pkj-mtls"]["clientAuthenticatorType"] == "client-jwt"
-for client in clients.values():
+assert set(clients) == {
+    "third-party-fapi-mtls",
+    "third-party-fapi-pkj-mtls",
+    "api-gateway-introspection",
+}
+route_a = clients["third-party-fapi-mtls"]
+route_b = clients["third-party-fapi-pkj-mtls"]
+introspection = clients["api-gateway-introspection"]
+assert route_a["clientAuthenticatorType"] == "client-x509"
+assert route_a["attributes"]["x509.subjectdn"] == "CN=kong-fapi-mtls"
+assert route_b["clientAuthenticatorType"] == "client-jwt"
+assert route_b["attributes"]["jwt.credential.public.key"] == "__ROUTE_B_PUBLIC_KEY__"
+assert route_b["attributes"]["token.endpoint.auth.signing.alg"] == "PS256"
+assert route_b["attributes"]["token.endpoint.auth.signing.max.exp"] == "60"
+assert introspection["clientAuthenticatorType"] == "client-x509"
+assert introspection["attributes"]["x509.subjectdn"] == "CN=api-gateway-introspection"
+assert introspection["attributes"]["tls.client.certificate.bound.access.tokens"] == "true"
+assert introspection["attributes"]["allow.token.introspection.without.audience.check"] == "false"
+assert introspection["attributes"]["x509.allow.regex.pattern.comparison"] == "false"
+assert introspection["standardFlowEnabled"] is False
+assert introspection["directAccessGrantsEnabled"] is False
+assert introspection["serviceAccountsEnabled"] is False
+assert introspection["redirectUris"] == []
+for client in (route_a, route_b, introspection):
+    assert client["consentRequired"] is True
+    assert client["fullScopeAllowed"] is False
     assert client["webOrigins"] == []
+for client in (route_a, route_b):
     attributes = client["attributes"]
     assert attributes["pkce.code.challenge.method"] == "S256"
     assert attributes["require.pushed.authorization.requests"] == "true"
     assert attributes["tls.client.certificate.bound.access.tokens"] == "true"
+    if client is route_a:
+        assert attributes["x509.allow.regex.pattern.comparison"] == "false"
     routing_mappers = {
         mapper["name"]: mapper for mapper in client["protocolMappers"]
     }
@@ -69,20 +94,44 @@ for client in clients.values():
     assert routing_mappers["logical-route"]["config"]["claim.name"] == (
         "https://fapi-demo\\.example\\.com/route"
     )
-assert clients["kong-fapi-pkj-mtls"]["attributes"]["token.endpoint.auth.signing.alg"] == "PS256"
-assert clients["kong-fapi-mtls"]["attributes"]["post.logout.redirect.uris"] == (
+    audience_mappers = {
+        mapper["config"].get("included.custom.audience")
+        for mapper in client["protocolMappers"]
+        if mapper["protocolMapper"] == "oidc-audience-mapper"
+    }
+    assert audience_mappers == {"fapi-demo-api", "api-gateway-introspection"}
+    assert all(
+        mapper["config"].get("introspection.token.claim") == "true"
+        for mapper in client["protocolMappers"]
+    )
+assert route_a["attributes"]["post.logout.redirect.uris"] == (
     "https://localhost:3443/?logout=route-a"
 )
-assert clients["kong-fapi-pkj-mtls"]["attributes"]["post.logout.redirect.uris"] == (
+assert route_b["attributes"]["post.logout.redirect.uris"] == (
     "https://localhost:3443/?logout=route-b"
 )
 assert realm["accessCodeLifespan"] <= 60
+assert realm["revokeRefreshToken"] is True
+assert realm["refreshTokenMaxReuse"] == 0
 assert realm["clientPolicies"]["policies"][0]["profiles"] == ["fapi-2-security-profile"]
+identity_map = json.loads(
+    (ROOT / "tests/fixtures/wp2-client-identity-map.json").read_text()
+)
+assert identity_map["third-party-fapi-mtls"]["certificate_subject"] == "CN=kong-fapi-mtls"
+assert identity_map["third-party-fapi-pkj-mtls"]["certificate_subject"] == "CN=kong-fapi-pkj-mtls"
+assert identity_map["api-gateway-introspection"]["certificate_subject"] == "CN=api-gateway-introspection"
+pkigen = (ROOT / "scripts/generate-pki.py").read_text()
+assert '("route-a", "kong-fapi-mtls", "clientAuth", "")' in pkigen
+assert '("route-b", "kong-fapi-pkj-mtls", "clientAuth", "")' in pkigen
+assert clients["third-party-fapi-mtls"]["attributes"]["x509.subjectdn"] == (
+    identity_map["third-party-fapi-mtls"]["certificate_subject"]
+)
 assert {user["attributes"]["department"][0] for user in realm["users"]} == {
     "sales",
     "engineering",
 }
 assert all(user.get("firstName") and user.get("lastName") for user in realm["users"])
+assert all(user.get("email") == user["username"] for user in realm["users"])
 
 user_profile = json.loads((ROOT / "keycloak" / "user-profile.json").read_text())
 profile_attributes = {attribute["name"] for attribute in user_profile["attributes"]}
@@ -187,6 +236,12 @@ assert "./ui/default.conf:/etc/nginx/conf.d/default.conf:ro" in compose
 assert "./.generated/pki/ui.crt:/etc/nginx/tls/tls.crt:ro" in compose
 assert '"3443:443"' in compose
 assert "profiles: [demo]" in compose
+wp2_compose = (ROOT / "tests/harness/docker-compose.wp2.yml").read_text()
+assert "quay.io/keycloak/keycloak:26.7.4@sha256:" in wp2_compose
+assert '"127.0.0.1:18444:8443"' in wp2_compose
+assert "wp2-isolated-keycloak-data" in wp2_compose
+assert '    user: "0:0"' in wp2_compose
+assert 'KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK: "false"' in wp2_compose
 service_matches = list(re.finditer(r"^  ([a-z][a-z0-9-]*):\s*$", compose, re.MULTILINE))
 service_blocks = {
     match.group(1): compose[match.start() : (service_matches[index + 1].start() if index + 1 < len(service_matches) else len(compose))]
@@ -231,6 +286,10 @@ assert 'rsa_keygen_bits:3072' in generator
 assert '"third-party-metadata", "third-party-metadata", "clientAuth"' in generator
 assert '"api-introspection", "api-gateway-introspection", "clientAuth"' in generator
 assert '"api-upstream", "api-gateway-upstream", "clientAuth"' in generator
+assert '("route-a", "kong-fapi-mtls", "clientAuth", "")' in generator
+assert '("route-b", "kong-fapi-pkj-mtls", "clientAuth", "")' in generator
+assert "KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK: \"false\"" in compose
+assert "KEYCLOAK_REFRESH_TOKEN_ROTATION=true" in (ROOT / ".env.example").read_text()
 
 versions = (ROOT / "infra" / "versions.tf").read_text()
 assert "auth0/auth0" not in versions
@@ -245,6 +304,7 @@ assert "sha-${{ github.sha }}" in workflow
 assert "python3 -m pip install --requirement requirements-dev.txt" in workflow
 assert "python3 -m pip install --requirement requirements-dev.txt" in (ROOT / ".github" / "workflows" / "validate.yml").read_text()
 assert "PyYAML==6.0.2" in (ROOT / "requirements-dev.txt").read_text()
+assert "PyJWT[crypto]==2.14.0" in (ROOT / "requirements-dev.txt").read_text()
 
 schema_script = (ROOT / "scripts" / "plugin-schema.sh").read_text()
 assert 'check) OPERATION="schema-check"' in schema_script
@@ -259,7 +319,7 @@ private_key_markers = (
 )
 
 for path in ROOT.rglob("*"):
-    if not path.is_file() or any(part in {".git", ".generated", ".terraform"} for part in path.parts):
+    if not path.is_file() or any(part in {".git", ".generated", ".terraform", "__pycache__"} for part in path.parts):
         continue
     if ".tfstate" in path.name:
         continue

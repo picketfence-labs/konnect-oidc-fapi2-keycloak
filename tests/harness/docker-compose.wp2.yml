@@ -1,0 +1,32 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
+    user: "0:0"
+    restart: "no"
+    command:
+      - start-dev
+      - --import-realm
+      - --https-port=8443
+    env_file:
+      - ./.generated/wp2-preview/bootstrap.env
+    environment:
+      KC_HOSTNAME: https://localhost:18444
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "false"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/tls/tls.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/tls/tls.key
+      KC_HTTPS_CLIENT_AUTH: request
+      KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK: "false"
+      KC_TRUSTSTORE_PATHS: /opt/keycloak/conf/trust/ca.crt
+    volumes:
+      - ./.generated/wp2-preview/realm-import/fapi-demo-realm.json:/opt/keycloak/data/import/fapi-demo-realm.json:ro
+      - ./.generated/wp2-preview/pki/keycloak.crt:/opt/keycloak/conf/tls/tls.crt:ro
+      - ./.generated/wp2-preview/pki/keycloak.key:/opt/keycloak/conf/tls/tls.key:ro
+      - ./.generated/wp2-preview/pki/ca.crt:/opt/keycloak/conf/trust/ca.crt:ro
+      - wp2-keycloak-data:/opt/keycloak/data/h2
+    ports:
+      - "127.0.0.1:18444:8443"
+
+volumes:
+  wp2-keycloak-data:
+    name: wp2-isolated-keycloak-data
