@@ -32,7 +32,7 @@ services:
     environment:
       OIDC_ISSUER: https://localhost:8444/realms/fapi-demo
       OIDC_JWKS_URL: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/certs
-      OIDC_AUDIENCE: pop-verifier
+      OIDC_AUDIENCE: fapi-demo-api
       OIDC_REQUIRED_SCOPES: openid
       OIDC_ALLOWED_ALGORITHMS: PS256
       SSL_CERT_FILE: /etc/fapi/ca.crt
@@ -40,6 +40,7 @@ services:
       - ./.generated/pki/ca.crt:/etc/fapi/ca.crt:ro
       - ./.generated/pki/pop-verifier.crt:/etc/fapi/tls.crt:ro
       - ./.generated/pki/pop-verifier.key:/etc/fapi/tls.key:ro
+      - ./.generated/pki/api-upstream.crt:/etc/fapi/api-upstream.crt:ro
     depends_on:
       - keycloak
 

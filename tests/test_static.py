@@ -195,15 +195,26 @@ assert "route_id: 0f45debe-a3a6-5207-aea3-637227fb96f2" in third_party_foundatio
 
 verifier = (ROOT / "pop-verifier" / "app.py").read_text()
 assert '"verify_nbf": True' in verifier
-assert '"require": ["exp", "iat", "iss", "aud", "cnf"]' in verifier
+assert '"require": ["exp", "iat", "iss", "aud", "cnf", "scope", "azp"]' in verifier
 assert "hmac.compare_digest" in verifier
-assert 'claims.get("cnf", {}).get("x5t#S256")' in verifier
-assert 'os.environ.get("OIDC_ALLOWED_ALGORITHMS", "PS256")' in verifier
+assert 'os.environ.get("OIDC_AUDIENCE", "fapi-demo-api")' in verifier
+assert 'if AUDIENCE != "fapi-demo-api":' in verifier
+assert 'if ALLOWED_ALGORITHMS != ("PS256",):' in verifier
+assert 'API_UPSTREAM_COMMON_NAME = "api-gateway-upstream"' in verifier
+assert '"third-party-fapi-mtls": ("route-a", "tls_client_auth")' in verifier
+assert '"third-party-fapi-pkj-mtls": ("route-b", "private_key_jwt")' in verifier
+assert "load_pinned_gateway_certificate" in verifier
+assert "verify_api_gateway_peer" in verifier
+assert 'headers.get_all("X-Client-Cert")' in verifier
+assert "unquote_to_bytes(encoded)" in verifier
+assert "constant_time_text_equal(token_thumbprint, forwarded_thumbprint)" in verifier
+assert '"forwarded_client_certificate_thumbprint": forwarded_thumbprint' in verifier
+assert '"api_gateway_tls_peer_certificate_thumbprint": tls_peer_thumbprint' in verifier
 assert "algorithms=list(ALLOWED_ALGORITHMS)" in verifier
 assert "context.verify_mode = ssl.CERT_REQUIRED" in verifier
 assert "context.verify_flags &= ~ssl.VERIFY_X509_STRICT" in verifier
 assert "ssl_context=verified_ssl_context()" in verifier
-assert "raw tokens" not in verifier.lower()
+assert 'return\n\n\ndef create_server_context' in verifier
 assert '"department_header": department_header' in verifier
 assert '"logical_route_header": logical_route_header' in verifier
 assert '"header_claims_match": header_claims_match' in verifier
@@ -250,6 +261,12 @@ service_blocks = {
 for gateway_name in ("kong-api", "kong-third-party"):
     block = service_blocks[gateway_name]
     assert "ports:" not in block
+pop_verifier_block = service_blocks["pop-verifier"]
+pop_verifier_mounts = pop_verifier_block.split("volumes:", 1)[1]
+assert ".generated/pki/api-upstream.crt:/etc/fapi/api-upstream.crt:ro" in pop_verifier_mounts
+assert ".generated/pki/api-upstream.key:" not in pop_verifier_mounts
+assert "OIDC_AUDIENCE: fapi-demo-api" in pop_verifier_block
+assert "OIDC_AUDIENCE: pop-verifier" not in pop_verifier_block
 api_mounts = service_blocks["kong-api"].split("volumes:", 1)[1]
 third_party_mounts = service_blocks["kong-third-party"].split("volumes:", 1)[1]
 assert ".generated/pki/api-introspection.key:/etc/kong/fapi/api-introspection.key:ro" in api_mounts
@@ -274,7 +291,30 @@ assert 'id="header-match"' in ui
 
 makefile = (ROOT / "Makefile").read_text()
 assert "./scripts/sync-keycloak-demo-data.py" in makefile
+assert "python3 tests/test_pop_verifier.py" in makefile
+assert "WP4_UPSTREAM01_RECEIPT ?= .generated/evidence/wp4-upstream01.json" in makefile
+assert 'test-upstream01:\n\tpython3 tests/harness/upstream01.py --receipt "$(WP4_UPSTREAM01_RECEIPT)"' in makefile
 assert "up:\n\t./scripts/require-wp5-readiness.sh" in makefile
+
+upstream01 = (ROOT / "tests" / "harness" / "upstream01.py").read_text()
+assert 'PORT = 19443' in upstream01
+assert 'os.O_CREAT | os.O_EXCL | os.O_WRONLY' in upstream01
+assert 'mode=0o600' in upstream01
+assert 'os.chmod(fixture_dir, 0o700)' in upstream01
+assert '"scenario": "UPSTREAM-01"' in upstream01
+assert 'shutil.rmtree(fixture_dir)' in upstream01
+assert '"protected_evidence_status": status' in upstream01
+assert '"jwt_signature_verification_method": "actual PyJWT PS256 verification"' in upstream01
+assert '"protected_evidence_validation": "not_run"' in upstream01
+assert '"authorization_server_issued_token": False' in upstream01
+assert '"keycloak_or_gateway_integration": "not exercised"' in upstream01
+assert "x509.AuthorityKeyIdentifier.from_issuer_subject_key_identifier" in upstream01
+assert '"same_cn_different_key_peer_status": same_cn_different_key_status' in upstream01
+assert '"CERTIFICATE_REQUIRED" in reason or "HANDSHAKE_FAILURE" in reason' in upstream01
+assert 'os.path.lexists(receipt_path)' in upstream01
+assert 'os.fchmod(descriptor, 0o600)' in upstream01
+assert 'thread.is_alive()' in upstream01
+assert 'check_port_released()' in upstream01
 
 asset_script = (ROOT / "scripts" / "generate-dev-assets.sh").read_text()
 assert 'generate-pki.py' in asset_script

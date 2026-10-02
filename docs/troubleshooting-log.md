@@ -289,3 +289,20 @@
 - 原因: Keycloak 26.7.4の[AuthorizationCodeGrantType](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/protocol/oidc/grants/AuthorizationCodeGrantType.java#L177-L185)はcode、session、redirect URI、PKCE検査後にtoken-request client policyを実行し、`ClientPolicyException`を外側の`invalid_grant`へ包む。[SecureClientAuthenticationAssertionExecutor](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/services/clientpolicy/executor/SecureClientAuthenticationAssertionExecutor.java#L112-L116)の誤ったassertion audience拒否と[HolderOfKeyEnforcerExecutor](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/services/clientpolicy/executor/HolderOfKeyEnforcerExecutor.java#L96)の証明書欠落拒否は、内部で`invalid_request`を使うため、外側codeだけでは正常なgrant失敗と区別できない。
 - 対処: HTTP 400かつerror codeが`invalid_grant`の場合だけ、response descriptionをmemory内でsourceの完全一致allowlistと比較し、`client_assertion_audience`または`mtls_client_certificate_missing`という固定enumへ変換する。raw descriptionは例外、stdout、receiptへ渡さない。B-AUD-01とB-CERT-01はHTTP status、code、enumの正確な組だけをpassにし、HTTP 401、generic `invalid_grant`、未知detail、誤ったenum、TLS失敗はfailのままにする。受入fixtureとREADMEに有効な事前positive controlsとこの分類規則を記録した。
 - 再確認: 2つの既知detailとenum変換、wrong outer code、欠落・未知・相互に誤った理由・誤statusの拒否をunit testした。修正後のfresh attempt 04でB-AUD-01/B-CERT-01のHTTP 400・`invalid_grant`・対応する固定enumを実確認し、全9結果が成功した。attempt 03のfail receiptは保持する。独立`make validate`、`make test`（WP1 19件、WP2 26件）も成功。PR merge・main検証・利用者受入は別途必要である。
+
+
+## 2026-10-03: WP4検証の初回実行でPython依存とprovider取得が止まった
+
+- 期待: `make test`と`make validate`をWP4 worktreeで完了する。
+- 実際: 初回`make test`はsystem `python3`にPyJWTがなく、`tests/test_pop_verifier.py`のimportで停止した。`make validate`も最初のTerraform initがsandbox内のregistry DNS制限でprovider一覧を取得できず、後続へ進まなかった。
+- 原因: system Pythonと検証用Python環境が異なり、sandboxからregistry.terraform.ioへのnetwork accessもなかった。実装不具合や自動レビュー拒否ではない。
+- 対処: 既存WP2 venvをPATH先頭にしてtestを再実行した。Terraform providerの取得・validateだけをnarrow escalationで再実行し、applyは行っていない。
+- 再確認: `make test`はWP1 19件、WP2 26件、WP4 12件を含め成功し、`make validate`も成功した。UPSTREAM-01の実TLS試験は、別途previewを共有するまで起動していない。
+
+## 2026-10-03: UPSTREAM-01のfresh TLS fixtureがclient側strict検証で止まった
+
+- 期待: `127.0.0.1:19443`で専用API upstream identity、保護`/evidence`、peer pin拒否、client cert必須、credential非漏えいを確認し、sanitized receiptだけを残す。
+- 実際: 初回sandbox内実行はloopback bindで停止した。承認済みのnarrow escalation後はTLS listenerを開始できたが、Python strict clientがfixture server証明書を検証コード85で拒否した。失敗receiptは上書きせず保持した。
+- 原因: fresh CAにはSubject Key Identifierがあった一方、発行したleafにAuthority Key Identifierを付けていなかった。server側verify flagを緩めても、client側の既定strict検証には影響しない。
+- 対処: fixture leafへCAのSubject Key Identifierから導くAuthority Key Identifierを追加し、CA chainとhostname検証を保った。no-client-cert試験は`ssl.SSLError`の`CERTIFICATE_REQUIRED`または`HANDSHAKE_FAILURE`だけを期待拒否とし、他のnetwork/TLS errorをpassにしない。receipt先の既存file・symlinkはTLS起動前に拒否し、各試験のreceiptはexclusive createする。
+- 再確認: fresh attemptではhealthzとprotected `/evidence`が別々にHTTP 200となり、PyJWTの実PS256検証、Route Aの`cnf` binding、固定`azp` mappingを確認した。同一CA Route peerと同CN・別鍵peerは同一のvalid requestで401、証明書なしTLSは`TLSV13_ALERT_CERTIFICATE_REQUIRED`で拒否された。sentinel response/log漏えいなし、cleanup完了、port 19443解放を確認した。証跡は`.generated/evidence/wp4-upstream01-retry5.json`であり、fresh in-memory署名鍵によるfixture tokenを使った。Keycloak発行tokenやGateway統合の成功とは扱わない。
