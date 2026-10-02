@@ -25,8 +25,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
       - name: Run unit and static tests
-        run: make test
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes luajit
+          python3 -m pip install --requirement requirements-dev.txt
+          make test
 
       - uses: docker/setup-buildx-action@v3
 
@@ -39,7 +47,9 @@ jobs:
 
       - name: Run Kong plugin unit tests
         if: matrix.image.name == 'kong'
-        run: docker run --rm --entrypoint luajit -v "$PWD:/src:ro" -w /src local/kong:test tests/test_plugin.lua
+        run: |
+          docker run --rm --entrypoint luajit -v "$PWD:/src:ro" -w /src local/kong:test tests/test_plugin.lua
+          docker run --rm --entrypoint luajit -v "$PWD:/src:ro" -w /src local/kong:test tests/test_wp1_schema.lua
 
       - name: Run PoP verifier unit tests
         if: matrix.image.name == 'pop-verifier'
@@ -55,7 +65,7 @@ jobs:
           artifact-name: ${{ matrix.image.name }}-sbom.spdx.json
 
       - name: Scan image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
         with:
           image-ref: local/${{ matrix.image.name }}:test
           severity: CRITICAL,HIGH

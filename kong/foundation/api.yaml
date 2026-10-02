@@ -1,0 +1,20 @@
+_format_version: "3.0"
+_info:
+  select_tags:
+    - fapi2-demo
+    - fapi2-foundation
+
+certificates:
+  - id: 44444444-4444-4444-8444-444444444444
+    cert: "${{ env "DECK_API_INTROSPECTION_CERT_YAML" }}"
+    key: "{vault://env/API_INTROSPECTION_KEY}"
+    tags: [fapi2-demo, fapi2-foundation]
+  - id: 55555555-5555-4555-8555-555555555555
+    cert: "${{ env "DECK_API_UPSTREAM_CERT_YAML" }}"
+    key: "{vault://env/API_UPSTREAM_KEY}"
+    tags: [fapi2-demo, fapi2-foundation]
+
+ca_certificates:
+  - id: 77777777-7777-4777-8777-777777777777
+    cert: "${{ env "DECK_FAPI_CA_CERT_YAML" }}"
+    tags: [fapi2-demo, fapi2-foundation]

@@ -10,6 +10,19 @@
 - 対処: WP1 #7へ参照修復と独立validate/test checkを引き継ぐ。CI成功とは扱わない。
 - 再確認: ローカル`make validate`と`make test`は成功。修復後のGitHub Actionsとimage build/scanは未実施。
 
+## 2026-10-02: foundation templateをsemantic YAML validatorで読めなかった
+
+- 期待: foundationのtemplate値を安全なdummyへ置換し、YAML構造・重複key・entity ID・tag・秘密参照・transport configを検査する。
+- 実際: template式をエスケープしたquoteで記述した初期版は、decKのGo templateとして不正な二重quoteを含んでいた。行単位の文字列検査ではentity構造と重複keyも検出できなかった。
+- 対処: decKが受理するtemplate形式へ直し、PyYAMLの重複key拒否loaderでparseする。placeholderにenv変数名を保持し、証明書とkeyのID対応も比較する。
+- 再確認: `make validate`の`deck file validate`と意味検証、`make test`のpositive/negative fixtureが成功。
+
+## 2026-10-02: worker環境変数の宣言が単一env directiveになっていた
+
+- 実際: `KONG_NGINX_MAIN_ENV`へ複数変数を空白で並べた初期宣言は、各変数のworker引継宣言になっていなかった。
+- 対処: [Kongのtemplate](https://github.com/Kong/kong/blob/master/kong/templates/nginx.lua)のdirective挿入と[NGINXのenv構文](https://nginx.org/en/docs/ngx_core_module.html#env)に従い、固定の`env` directiveを変数ごとに分ける。これら公開sourceからの静的判断であり、exact Kong 3.16.0.0の実worker可視性はWP5の未実施項目。
+- 再確認: 両DPの必要変数集合と、1 directiveあたり1変数の構文を静的testで照合し、`make validate`/`make test`が成功。
+
 ## 2026-10-02: PR #5のmergeが自動承認レビューに拒否された
 
 - 期待: 利用者の「PRの確認とマージ」指示に従い、レビュー済み設計PRをmergeする。

@@ -11,6 +11,27 @@ Kong Gateway 3.16 を Konnect の data plane として動かし、同じ Keycloa
 
 > このリポジトリは FAPI 2.0 の学習・比較用デモです。認定試験への適合を主張するものではありません。
 
+## Enhancementの現在地: WP1 foundation
+
+現在のEnhancementブランチは、APIとthird-partyの二つのKonnect CP、用途別の基盤証明書、foundation decK state、custom schema、静的検証までを扱います。runtime Route stateとtransport handlerは後続WPの範囲です。通常起動入口とUIは閉じており、`make up`はWP5のruntime readinessが受け入れられるまで、資材生成やDocker呼び出しより前に失敗します。
+
+開発依存を入れてから、credential-free検証を実行します。
+
+```bash
+python3 -m pip install --requirement requirements-dev.txt
+make validate
+make test
+```
+
+foundationの対象は明示的に選びます。以下は対象CPの作成とschema照合の前提が揃った後に使うlive read-only diffの例です。
+
+```bash
+GATEWAY=api STAGE=foundation make deck-diff
+GATEWAY=third-party STAGE=foundation make deck-diff
+```
+
+`make plan`は適用前のread-only previewです。`make apply`、`make plugin-schema-sync`、`make deck-sync`、Docker起動、realm更新、image公開には別の実施承認が必要です。後続のsetup手順はv1デモの設計記録を含みますが、現在のWP1ブランチでデモが起動できることを示しません。
+
 [![Route A の検証結果。署名済み claim、Kong が設定したヘッダー、証明書束縛を表示](docs/assets/ui-results.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
 
 *検証結果画面。画像をクリックすると Route A のインタラクティブ workflow を開きます。*
