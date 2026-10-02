@@ -25,8 +25,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
       - name: Run unit and static tests
-        run: make test
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes luajit
+          python3 -m pip install --requirement requirements-dev.txt
+          make test
 
       - uses: docker/setup-buildx-action@v3
 
@@ -39,11 +47,26 @@ jobs:
 
       - name: Run Kong plugin unit tests
         if: matrix.image.name == 'kong'
-        run: docker run --rm --entrypoint luajit -v "$PWD:/src:ro" -w /src local/kong:test tests/test_plugin.lua
+        run: |
+          docker run --rm --entrypoint luajit -v "$PWD:/src:ro" -w /src local/kong:test tests/test_plugin.lua
+          docker run --rm --entrypoint luajit -v "$PWD:/src:ro" -w /src local/kong:test tests/test_wp1_schema.lua
+
+      - name: Check Kong startup configuration offline
+        if: matrix.image.name == 'kong'
+        run: |
+          docker run --rm --network none --entrypoint /bin/sh \
+            -e KONG_DATABASE=off -e KONG_PROXY_LISTEN=off -e KONG_ADMIN_LISTEN=off \
+            -e KONG_STATUS_LISTEN=off \
+            local/kong:test -ec '
+              kong version
+              test ! -e /usr/bin/pebble
+              /entrypoint.sh kong prepare -p /tmp/kong-ci
+              /usr/local/openresty/nginx/sbin/nginx -t -p /tmp/kong-ci -c nginx.conf
+            '
 
       - name: Run PoP verifier unit tests
         if: matrix.image.name == 'pop-verifier'
-        run: docker run --rm -v "$PWD:/src:ro" -w /src -e PYTHONPATH=/app local/pop-verifier:test python tests/test_pop_verifier.py
+        run: docker run --rm -v "$PWD:/src:ro" -w /src -e PYTHONPATH=/app:/opt/python-deps local/pop-verifier:test python tests/test_pop_verifier.py
 
       - name: Smoke test image
         run: docker image inspect local/${{ matrix.image.name }}:test >/dev/null
@@ -55,8 +78,9 @@ jobs:
           artifact-name: ${{ matrix.image.name }}-sbom.spdx.json
 
       - name: Scan image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8
         with:
+          version: v0.74.0
           image-ref: local/${{ matrix.image.name }}:test
           severity: CRITICAL,HIGH
           ignore-unfixed: true

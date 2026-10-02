@@ -10,6 +10,34 @@
 - 対処: WP1 #7へ参照修復と独立validate/test checkを引き継ぐ。CI成功とは扱わない。
 - 再確認: ローカル`make validate`と`make test`は成功。修復後のGitHub Actionsとimage build/scanは未実施。
 
+## 2026-10-02: SHA pin修復後もTrivy本体のinstallが失敗した
+
+- 実際: PR #14の初回CIでvalidate、両imageのbuild/unit testは成功したが、Trivy setupがexit 1。scan自体は未実施。Actionの既定binary `v0.65.0`の公式release checksum URLも404だった。
+- 調査: [固定Action source](https://github.com/aquasecurity/trivy-action/blob/b6643a29fecd7f34b3597bc6acb0a98b03d33ff8/action.yaml)で既定versionを確認。[公式事後報告](https://github.com/aquasecurity/trivy/discussions/10462)は旧GitHub releasesの削除を記録する。ActionはSHA pinのまま維持する。
+- 対処: binary versionを[公式immutable release v0.74.0](https://github.com/aquasecurity/trivy/releases/tag/v0.74.0)へ固定。公式checksum assetのHTTP成功を確認。CRITICAL/HIGH、ignore-unfixedとexit-code 1を維持し、scanを省略しない。
+- 再確認: 修正commitでGitHub Actionsを再実行して判定する。image公開と環境適用は未実施。
+
+## 2026-10-02: image scanが既存baseとJWT依存の脆弱性で失敗した
+
+- 実際: PR #14のrun `36984064367`はbuild/unit/SBOMまで成功し、scanで失敗。Kongはsystem OpenSSLと`/usr/bin/pebble`、PoP verifierはPyJWT 2.10.1とpipのvendored packageを検出した。scanのseverityと失敗判定は維持する。
+- 対処: PyJWTを[公式2.14.0](https://github.com/jpadilla/pyjwt/releases/tag/2.14.0)へ固定し、builderからruntime依存だけをコピーしてpip/ensurepip等をruntimeから除去。PS256、issuer/audience/scope/cnf検査に加え、unknown critical header、JWKS redirect、unknown-kid refresh制限と鍵rotation復旧の回帰検査を追加した。
+- Kong: 3.16.0.0の公式multi-platform digest `sha256:e2678b4cb534fc9d6a17288d83457d6cbea235a6331dc4982e021300ccb668c4`を固定し、UbuntuのOpenSSL packageだけを更新する。公式amd64 imageのdigest検証済みlayerを読み取り調査したところ、PebbleはUbuntu base layerに存在し、entrypoint、Kong CLI、shell/Lua計2,313ファイルに参照なし。entrypointはOpenRestyを直接実行するため、当imageでは未使用と判断してPebbleを除去する。Pebbleがprocess supervisorであることは[公式資料](https://ubuntu.com/docs/pebble/explanation/security/)で確認した。これは調査からの判断であり、AS runtimeの動作証明ではない。
+- 再確認: 更新依存のPoP回帰検査とlocal静的検査が成功。CIへnetwork noneの`kong prepare`とNGINX設定検査を追加し、build/test/SBOM/scanを修正commitで再実行する。live DP起動・接続・worker可視性はWP5で未実施。
+- CI追記: run `36985754948`のPoP test起動が`PYTHONPATH=/app`でimageの依存pathを上書きし、`jwt` importに失敗。test起動のpathへ`/opt/python-deps`も含めて再実行する。validate workflowは成功し、Kong jobはmatrixのfail-fastでcancelされたため未判定。
+
+## 2026-10-02: foundation templateをsemantic YAML validatorで読めなかった
+
+- 期待: foundationのtemplate値を安全なdummyへ置換し、YAML構造・重複key・entity ID・tag・秘密参照・transport configを検査する。
+- 実際: template式をエスケープしたquoteで記述した初期版は、decKのGo templateとして不正な二重quoteを含んでいた。行単位の文字列検査ではentity構造と重複keyも検出できなかった。
+- 対処: decKが受理するtemplate形式へ直し、PyYAMLの重複key拒否loaderでparseする。placeholderにenv変数名を保持し、証明書とkeyのID対応も比較する。
+- 再確認: `make validate`の`deck file validate`と意味検証、`make test`のpositive/negative fixtureが成功。
+
+## 2026-10-02: worker環境変数の宣言が単一env directiveになっていた
+
+- 実際: `KONG_NGINX_MAIN_ENV`へ複数変数を空白で並べた初期宣言は、各変数のworker引継宣言になっていなかった。
+- 対処: [Kongのtemplate](https://github.com/Kong/kong/blob/master/kong/templates/nginx.lua)のdirective挿入と[NGINXのenv構文](https://nginx.org/en/docs/ngx_core_module.html#env)に従い、固定の`env` directiveを変数ごとに分ける。これら公開sourceからの静的判断であり、exact Kong 3.16.0.0の実worker可視性はWP5の未実施項目。
+- 再確認: 両DPの必要変数集合と、1 directiveあたり1変数の構文を静的testで照合し、`make validate`/`make test`が成功。
+
 ## 2026-10-02: PR #5のmergeが自動承認レビューに拒否された
 
 - 期待: 利用者の「PRの確認とマージ」指示に従い、レビュー済み設計PRをmergeする。

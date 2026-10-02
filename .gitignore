@@ -8,6 +8,9 @@ infra/tfplan
 infra/crash.log
 infra/certs/*
 !infra/certs/.gitkeep
+!infra/certs/third-party/
+infra/certs/third-party/*
+!infra/certs/third-party/.gitkeep
 .DS_Store
 __pycache__/
 *.py[cod]

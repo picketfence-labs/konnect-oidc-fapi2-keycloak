@@ -42,49 +42,89 @@ services:
     depends_on:
       - keycloak
 
-  kong:
+  kong-api:
+    profiles: [gateway]
     build:
       context: ./kong
     image: ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak:${KONG_IMAGE_TAG:-dev}
     restart: unless-stopped
+    env_file:
+      - path: ./.generated/runtime-api.env
+        required: false
     environment:
       KONG_ROLE: data_plane
       KONG_DATABASE: "off"
       KONG_CLUSTER_MTLS: pki
-      KONG_CLUSTER_CONTROL_PLANE: ${KONNECT_CP_HOST}:443
-      KONG_CLUSTER_SERVER_NAME: ${KONNECT_CP_HOST}
-      KONG_CLUSTER_TELEMETRY_ENDPOINT: ${KONNECT_TP_HOST}:443
-      KONG_CLUSTER_TELEMETRY_SERVER_NAME: ${KONNECT_TP_HOST}
+      KONG_CLUSTER_CONTROL_PLANE: ${KONNECT_API_CP_HOST:?render API Konnect target first}:443
+      KONG_CLUSTER_SERVER_NAME: ${KONNECT_API_CP_HOST:?render API Konnect target first}
+      KONG_CLUSTER_TELEMETRY_ENDPOINT: ${KONNECT_API_TP_HOST:?render API telemetry target first}:443
+      KONG_CLUSTER_TELEMETRY_SERVER_NAME: ${KONNECT_API_TP_HOST:?render API telemetry target first}
       KONG_CLUSTER_CERT: /etc/kong/certs/tls.crt
       KONG_CLUSTER_CERT_KEY: /etc/kong/certs/tls.key
       KONG_LUA_SSL_TRUSTED_CERTIFICATE: system,/etc/kong/fapi/ca.crt
-      KONG_SSL_CERT: /etc/kong/fapi/kong-proxy.crt
-      KONG_SSL_CERT_KEY: /etc/kong/fapi/kong-proxy.key
+      KONG_NGINX_MAIN_ENV: "API_INTROSPECTION_KEY; env API_UPSTREAM_KEY"
+      KONG_SSL_CERT: /etc/kong/fapi/api-gateway.crt
+      KONG_SSL_CERT_KEY: /etc/kong/fapi/api-gateway.key
       KONG_KONNECT_MODE: "on"
       KONG_ROUTER_FLAVOR: expressions
-      KONG_PLUGINS: bundled,fapi-client-auth-bridge
+      KONG_PROXY_LISTEN: "off"
+      KONG_ADMIN_LISTEN: "off"
+      KONG_PLUGINS: bundled
       KONG_LOG_LEVEL: notice
-      ROUTE_B_JWK: ${ROUTE_B_JWK}
-      ROUTE_A_TLS_CERT: ${ROUTE_A_TLS_CERT}
-      ROUTE_A_TLS_KEY: ${ROUTE_A_TLS_KEY}
-      ROUTE_B_TLS_CERT: ${ROUTE_B_TLS_CERT}
-      ROUTE_B_TLS_KEY: ${ROUTE_B_TLS_KEY}
     volumes:
-      - ./infra/certs:/etc/kong/certs:ro
-      - ./.generated/pki:/etc/kong/fapi:ro
-    ports:
-      - "8000:8000"
-      - "8443:8443"
-    healthcheck:
-      test: ["CMD", "kong", "health"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    depends_on:
-      - keycloak
-      - pop-verifier
+      - ./infra/certs/tls.crt:/etc/kong/certs/tls.crt:ro
+      - ./infra/certs/tls.key:/etc/kong/certs/tls.key:ro
+      - ./.generated/pki/ca.crt:/etc/kong/fapi/ca.crt:ro
+      - ./.generated/pki/api-gateway.crt:/etc/kong/fapi/api-gateway.crt:ro
+      - ./.generated/pki/api-gateway.key:/etc/kong/fapi/api-gateway.key:ro
+      - ./.generated/pki/api-introspection.crt:/etc/kong/fapi/api-introspection.crt:ro
+      - ./.generated/pki/api-introspection.key:/etc/kong/fapi/api-introspection.key:ro
+      - ./.generated/pki/api-upstream.crt:/etc/kong/fapi/api-upstream.crt:ro
+      - ./.generated/pki/api-upstream.key:/etc/kong/fapi/api-upstream.key:ro
+
+  kong-third-party:
+    profiles: [gateway]
+    build:
+      context: ./kong
+    image: ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak:${KONG_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    env_file:
+      - path: ./.generated/runtime-third-party.env
+        required: false
+    environment:
+      KONG_ROLE: data_plane
+      KONG_DATABASE: "off"
+      KONG_CLUSTER_MTLS: pki
+      KONG_CLUSTER_CONTROL_PLANE: ${KONNECT_THIRD_PARTY_CP_HOST:?render third-party Konnect target first}:443
+      KONG_CLUSTER_SERVER_NAME: ${KONNECT_THIRD_PARTY_CP_HOST:?render third-party Konnect target first}
+      KONG_CLUSTER_TELEMETRY_ENDPOINT: ${KONNECT_THIRD_PARTY_TP_HOST:?render third-party telemetry target first}:443
+      KONG_CLUSTER_TELEMETRY_SERVER_NAME: ${KONNECT_THIRD_PARTY_TP_HOST:?render third-party telemetry target first}
+      KONG_CLUSTER_CERT: /etc/kong/certs/tls.crt
+      KONG_CLUSTER_CERT_KEY: /etc/kong/certs/tls.key
+      KONG_LUA_SSL_TRUSTED_CERTIFICATE: system,/etc/kong/fapi/ca.crt
+      FAPI_AS_TRANSPORT_ISSUER: https://localhost:8444/realms/fapi-demo
+      FAPI_AS_TRANSPORT_INTERNAL_ORIGIN: https://keycloak:8443
+      KONG_NGINX_MAIN_ENV: "ROUTE_A_TLS_KEY; env ROUTE_B_TLS_KEY; env FAPI_AS_TRANSPORT_ISSUER; env FAPI_AS_TRANSPORT_INTERNAL_ORIGIN"
+      KONG_KONNECT_MODE: "on"
+      KONG_ROUTER_FLAVOR: expressions
+      KONG_PROXY_LISTEN: "off"
+      KONG_ADMIN_LISTEN: "off"
+      KONG_PLUGINS: bundled,fapi-as-mtls-transport,fapi-client-auth-bridge
+      KONG_LOG_LEVEL: notice
+    volumes:
+      - ./infra/certs/third-party/tls.crt:/etc/kong/certs/tls.crt:ro
+      - ./infra/certs/third-party/tls.key:/etc/kong/certs/tls.key:ro
+      - ./.generated/pki/ca.crt:/etc/kong/fapi/ca.crt:ro
+      - ./.generated/pki/third-party-metadata.crt:/etc/kong/fapi/third-party-metadata.crt:ro
+      - ./.generated/pki/third-party-metadata.key:/etc/kong/fapi/third-party-metadata.key:ro
+      - ./.generated/pki/route-a.crt:/etc/kong/fapi/route-a.crt:ro
+      - ./.generated/pki/route-a.key:/etc/kong/fapi/route-a.key:ro
+      - ./.generated/pki/route-b.crt:/etc/kong/fapi/route-b.crt:ro
+      - ./.generated/pki/route-b.key:/etc/kong/fapi/route-b.key:ro
+      - ./.generated/pki/route-b-pkj.key:/etc/kong/fapi/route-b-pkj.key:ro
 
   ui:
+    profiles: [demo]
     image: nginx:1.29-alpine
     restart: unless-stopped
     volumes:

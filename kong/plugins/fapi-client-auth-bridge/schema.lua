@@ -12,6 +12,13 @@ return {
           { tls_certificate_file = { type = "string", required = true } },
           { key_id = { type = "string", required = true } },
           {
+            assertion_delivery = {
+              type = "string",
+              default = "header",
+              one_of = { "header", "transport_delegate" },
+            },
+          },
+          {
             assertion_ttl = {
               type = "integer",
               default = 60,
