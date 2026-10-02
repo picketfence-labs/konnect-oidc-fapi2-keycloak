@@ -99,6 +99,7 @@ namespaced claimのmapper設定ではURI内のdotをescapeする。Keycloakの[c
 - JWT署名、PS256のみ、issuer、`aud=fapi-demo-api`、exp/nbf、scopeを再検証する。`azp`を固定2 client IDへ照合してA/Bを導出し、不明な`azp`やheaderによるRoute偽装を拒否する。
 - unit testはAPI peer不一致、転送cert欠落/不正/binding不一致、aud/scope/algorithm/azpの異常と正常系を確認。**UPSTREAM-01**は実TLSで直接接続拒否を示す。
 - sanitized responseに`azp`、Route、token binding、転送client cert thumbprint、再検証booleanを含める。Gateway→Upstreamのpeer thumbprintと混同しない。**LEAK-01**でtoken/cookie/assertion/秘密鍵/完全certを返さない。
+- この変更はWP3-MIGRATIONで導入するAPI verifier更新であり、既存v1証跡・guardを弱めたり置き換えたりしない。Route A/B証明書を再生成せず、旧runtime entityの除去・切替はWP3の独立previewと受入に従う。WP4のfresh TLS harnessはAPI peer pinとJWT verifierの動作を検証し、Keycloak発行tokenやGateway統合の証明とは扱わない。
 
 ## WP5: spike、transport本体、integration
 
