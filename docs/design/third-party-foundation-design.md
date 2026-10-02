@@ -1,6 +1,6 @@
 # WP1: 2 Gateway基盤と段階別設定の詳細設計
 
-2026-10-02、PR #13の設計補足（`5ab6310`）に利用者が合意し、WP1への実装移譲を指示した。PR #13のmain mergeは未実施。PR #5の認証・PoP・DP0方式を維持し、WP1が後続WPのhandlerやRoute設定なしで検証できる境界を定める。実装・schema登録・環境適用の結果ではない。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[Luna移譲契約](third-party-luna-handoff.md)を正本とする。
+2026-10-02、PR #13の設計補足（`5ab6310`）に利用者が合意し、WP1への実装移譲を指示した。設計と実装・空schema応答の修正はPR #13／#15／#16でmainへmerge済み。PR #5の認証・PoP・DP0方式を維持し、WP1が後続WPのhandlerやRoute設定なしで検証できる境界を定める。承認済みfoundation syncで判明したAPI CAの一意制約への修正案は[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)、WP1の検証結果・受入状態は[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)を参照する。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[Luna移譲契約](third-party-luna-handoff.md)にこの修正を反映する。
 
 ## Terraformと接続先
 
@@ -42,7 +42,7 @@ Route UUIDは次の値を固定する。Certificate entity IDと混同しない�
 | A | `754519ff-b0b9-5ed5-94c0-e453d260c6c4` | `third-party-fapi-mtls` | `/api/fapi/mtls` | `11111111-1111-4111-8111-111111111111` |
 | B | `0f45debe-a3a6-5207-aea3-637227fb96f2` | `third-party-fapi-pkj-mtls` | `/api/fapi/pkj-mtls` | `22222222-2222-4222-8222-222222222222` |
 
-APIの新introspection Certificate IDは`44444444-4444-4444-8444-444444444444`、API-upstreamは`55555555-5555-4555-8555-555555555555`。API基盤用CA entityは`77777777-7777-4777-8777-777777777777`、third-party側CAは既存と同じ`33333333-3333-4333-8333-333333333333`を新CP内で使う。API用CAは既存v1 CA entityへタグを付け足さず追加する。同じ開発CAの公開証明書でもCP内entityを区別する。API server certificateはNGINX listenerのfile設定であり、これらclient Certificate entityの代用にしない。
+APIの新introspection Certificate IDは`44444444-4444-4444-8444-444444444444`、API-upstreamは`55555555-5555-4555-8555-555555555555`。APIのCAは既存v1の`33333333-3333-4333-8333-333333333333`をtags=`[fapi2-demo]`のまま再利用する。WP1はこのCAをfoundationへ含めず、固定ID・タグ・公開DERのrole入力との一致をread-onlyで検証する。CAの新規ID `77777777-7777-4777-8777-777777777777`は、同一CP内の同じCA証明書の追加が409で拒否されるため廃止する。third-party側は別CP内で`33333333-3333-4333-8333-333333333333`をfoundationとして管理する。API server certificateはNGINX listenerのfile設定であり、これらclient Certificate entityの代用にしない。
 
 ## foundationとruntimeのdecK state
 
@@ -50,9 +50,9 @@ WP1が最終Route設定の空の代用品をsyncすると、既存v1の`fapi2-de
 
 | 段階 | file（開発時に作成） | `_info.select_tags` | owner／内容 |
 |---|---|---|---|
-| API foundation | `kong/foundation/api.yaml` | `[fapi2-demo, fapi2-foundation]` | WP1。新CA、introspection/upstream Certificate。Service/Route/OIDC/custom entityなし |
+| API foundation | `kong/foundation/api.yaml` | `[fapi2-demo, fapi2-foundation]` | WP1。introspection/upstream Certificate 2件。CAは既存v1を外部前提として検証。Service/Route/OIDC/custom entityなし |
 | 3rd Party foundation | `kong/foundation/third-party.yaml` | `[fapi2-demo, fapi2-foundation]` | WP1。Route A/B Certificate、CA、有効なglobal transport entity 1件。Service/Route/bridge entityなし |
-| API runtime | `kong/api-gateway.yaml` | `[fapi2-demo]` | WP3。foundationの全entityを同一ID・タグで含め、Resource ServerのService/Route/stock pluginを追加 |
+| API runtime | `kong/api-gateway.yaml` | `[fapi2-demo]` | WP3。foundationの2 Certificateを同一ID・タグで含め、既存CAをID・タグ不変で宣言し、Resource ServerのService/Route/stock pluginを追加 |
 | 3rd Party runtime | `kong/third-party-gateway.yaml` | `[fapi2-demo]` | WP5。同様にfoundation全entityを含め、固定UUIDのRoute A/B、OIDC、bridge delegate等を追加 |
 
 foundationの各entityには両方の管理タグを付ける。runtime追加entityには`fapi2-demo`と必要な論理Routeタグを付ける。decKの複数タグはANDである。[公式tag仕様](https://developer.konghq.com/deck/gateway/tags/)に従い管理範囲をfile内へ保存し、diff/sync時に`--select-tag`で別範囲へ上書きしない。runtime fileからCLIタグだけでfoundationを抜き出す運用はしない。
@@ -63,7 +63,7 @@ foundationはfile内のforeign keyを完結させる。transportの`routes[].rou
 
 WP1のAPI foundation diffはcreateのみ、既存entityへのupdate/deleteは0。third-partyは新CP内の基盤作成のみ。途中でfoundation entityを変更するときも、runtime fileへの反映と新しいpreviewが必要。既存`kong/kong.yaml`はv1記録として保持し、Enhancementの通常コマンドから選ばない。
 
-WP3のAPI runtime diffではv1のService/Route/bridge等の除去が必要になる。この削除はWP1の基盤受入に含めず、停止時間・旧session・再開手順を示すmigration previewで個別にレビューする。他のタグ範囲やCPのentityを削除しない。既存CPにbridge設定が残る間に、API DPを`KONG_PLUGINS=bundled`だけで起動して成功すると推定しない。
+WP3のAPI runtime diffではv1のService/Route/bridge等の除去が必要になる。この削除はWP1の基盤受入に含めず、停止時間・旧session・再開手順を示すmigration previewで個別にレビューする。共有CA `33333333-3333-4333-8333-333333333333`は既存の`[fapi2-demo]`でruntimeに含め、削除・再作成やfoundationタグ追加をしない。他のタグ範囲やCPのentityを削除しない。既存CPにbridge設定が残る間に、API DPを`KONG_PLUGINS=bundled`だけで起動して成功すると推定しない。
 
 ## コマンドとCPの検証順
 
@@ -79,7 +79,7 @@ make deck-sync GATEWAY=api STAGE=runtime
 
 1. mode、GATEWAY、STAGE、fileの存在・完成宣言・タグ、非機密target manifestを検査する。未指定／不正値、ローカルID/name mapping不整合は`.env`読み込み・通信前に非zero。
 2. 妥当な入力に限り認証情報を読み、選択したregion/CP IDのmetadataをread-only取得する。実CP名とmanifestの名前が一致しなければ停止する。remote mismatchを「通信前に判定」とは要求しない。decKのname指定は検証済みの名前を使う。
-3. third-partyの両schemaを照合する。APIではstateに両custom entityがないことを確認する。既存API CPに登録済みのbridge schemaが残っていても削除しない。
+3. third-partyの両schemaを照合する。APIではstateに両custom entityがないことを確認し、既存CAを固定IDでGETしてID・tags=`[fapi2-demo]`・公開DERのrole入力との一致を検査する。CA欠落、HTTPエラー、不正応答、タグ違い、証明書不一致、不正PEMではdecK起動前に停止し、別ID検索・create・retagをしない。既存API CPに登録済みのbridge schemaが残っていても削除しない。
 4. 選択fileだけでdiffを取る。失敗、401/403/404、CP未作成、schema driftは停止し、別CPへfallbackしない。syncは同じtarget/stage/fileのreview済みpreviewと利用者の承認範囲を確認してから実行する。
 
 WP1のmockは呼出し先選択と拒否順を検証する。CP metadata、schema、live diffの証明には数えない。前提のCP作成／schema登録が未承認ならnot_runとし、完全受入を保留する。
@@ -131,6 +131,7 @@ UI停止だけをAS通信の遮断とみなさない。起動直後やplugin欠�
 | WP1-TARGET | WP1 | 不正selectorは認証前に拒否。remote CP名不一致はread-only照会後、decK/schema mutation前に拒否。全CP metadata endpointが選択region/IDに一致 |
 | WP1-SCHEMA-DRIFT | WP1 | 未登録、違うschema、片方欠落を拒否。APIのlegacy schemaを削除せず、API stateのcustom entity追加を拒否 |
 | WP1-IDENTITY | WP1 | Route UUID/client ID/cert pathの正解fixtureと入替・重複negativeを検査。両DPのmountとCP接続先が分離 |
+| WP1-CA-REUSE | WP1 | API foundationは2 Certificateのみ。既存CAのID/タグ/DERが一致する場合だけdecKを起動し、欠落・不一致・不正応答は拒否。既存CA update/delete=0。third-party CAは別CPで従来の所有範囲を維持 |
 | WP3-MIGRATION | WP3 | runtimeへfoundation同一IDを包含。v1除去と入口停止・復旧をpreview。承認後sync、diff=0、RS試験を実行 |
 | WP5-BOOTSTRAP | WP5 | CP設定受領前／transportだけ／両plugin欠落で通常入口閉鎖、AS observer行0。全worker readyの正常系だけ開放。再起動／変更で再閉鎖 |
 

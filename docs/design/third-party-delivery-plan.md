@@ -47,7 +47,7 @@ RS側stock検証とclient側proof生成を分け、Keycloak対応、nonce、repl
 
 ## Work packages
 
-Epic #6とWP #7〜#12はmerge前に起票済み。PR #5は2026-10-02にmergeした。利用者は[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)、[WP1詳細設計](third-party-foundation-design.md)、[Luna / High移譲契約](third-party-luna-handoff.md)を含むPR #13の設計補足へ合意し、WP1移譲を指示した。PR #13のmain mergeは未実施。WP1でschemaとfoundation stateを準備し、最終runtime stateをAPIはWP3、third-partyはWP5で完成させる。後続Issueのready化は依存WPの受入後に判定する。
+Epic #6とWP #7〜#12はmerge前に起票済み。設計PR #5／#13、WP1実装PR #15、空schema応答修正PR #16は利用者がmainへmerge済み。WP1の承認済みfoundation syncでAPI CA一意制約が判明し、[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)の既存CA再利用修正案を準備した。[WP1詳細設計](third-party-foundation-design.md)、[Luna / High移譲契約](third-party-luna-handoff.md)へ反映し、merge後に両diff=0を確認する。後続Issueのready化はWP1受入後に判定する。最終runtime stateはAPIがWP3、third-partyがWP5で完成させる。
 
 依存関係: WP1 → WP2 → WP3 → WP5 → WP6。WP4はWP1の後、WP3と並行して進められる。**DP0 → WP5**も必須。DP1は別枠。
 
@@ -58,6 +58,7 @@ Epic #6とWP #7〜#12はmerge前に起票済み。PR #5は2026-10-02にmergeし�
   - `make validate`が、両foundation stateとcompose/schemaを検証して成功する。Gateway別のtransport/bridgeロード必須・禁止、bootstrap配置、third-party global entity1件と固定identity manifestを照合する（DP0 preflightの静的段階）。runtimeは仮設定で埋めない。
   - `make plan`の差分が、追加のcontrol plane、data plane certificate、local fileだけである。
   - `make deck-diff GATEWAY=api STAGE=foundation`と`make deck-diff GATEWAY=third-party STAGE=foundation`が別CPを対象にし、API既存v1 entityのupdate/delete=0、範囲外変更=0。schemaは両方の内容hashまで確認する。前提未承認ならlive not_run、完全受入保留。
+  - API foundationはCertificate 2件だけを管理し、既存CA333のID・タグ・公開DER一致をdecK起動前にread-only検証する。共有CAのcreate/retag/update/deleteを行わず、欠落・不一致は停止する（WP1-CA-REUSE）。
   - 新しい秘密鍵、certificate、state、tokenがGitに入っていない（`.gitignore`と`git status`で確認）。
   - PRに、Actionsのstatus checkが表示される。
 - **conformance**: —（基盤）
@@ -81,7 +82,7 @@ Epic #6とWP #7〜#12はmerge前に起票済み。PR #5は2026-10-02にmergeし�
   - POP-01、POP-02、POP-03、RS-QUERY-01、RS-AUD-01、RS-SCOPE-01、ERR-01、HEADER-CERT-01、TLS-RS-01、RS-VALID-01が通る。tokenは、curlとtest用certificateで取得してよい。
   - introspectionのcache無効を既定とし、active検査を確認する。RS-REVOKE-01は追加説明用の任意テスト。実施時だけ前後のactive/API応答とcache条件を記録する。個別失効保証・反映SLAを本WPの必須受入にしない。
   - `deck diff`の結果が、意図したtag付きentityだけである。sync後はdiffが無い。
-  - API runtime stateはfoundation全entityを同一ID/タグで含める。v1 entityの除去、入口停止と復旧はWP3-MIGRATIONとして別preview/承認で扱う。
+  - API runtime stateはfoundation全entityを同一ID/タグで含め、既存CA333を`[fapi2-demo]`のまま保持する。CAを除くv1 entityの除去、入口停止と復旧はWP3-MIGRATIONとして別preview/承認で扱う。
 - **conformance**: R-01〜R-06
 
 ### WP4: Upstream API（PoP verifier）の変更

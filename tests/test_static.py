@@ -119,7 +119,8 @@ assert "eq = ngx.null" in transport_schema
 
 api_foundation = (ROOT / "kong" / "foundation" / "api.yaml").read_text()
 third_party_foundation = (ROOT / "kong" / "foundation" / "third-party.yaml").read_text()
-assert api_foundation.count("fapi2-foundation") == 4
+assert api_foundation.count("fapi2-foundation") == 3
+assert "ca_certificates:" not in api_foundation
 assert "DECK_API_INTROSPECTION_KEY_YAML" not in api_foundation
 assert "{vault://env/API_INTROSPECTION_KEY}" in api_foundation
 assert "{vault://env/API_UPSTREAM_KEY}" in api_foundation
@@ -129,9 +130,9 @@ assert "fapi-client-auth-bridge" not in api_foundation
 for entity_id in (
     "44444444-4444-4444-8444-444444444444",
     "55555555-5555-4555-8555-555555555555",
-    "77777777-7777-4777-8777-777777777777",
 ):
     assert entity_id in api_foundation
+assert "77777777-7777-4777-8777-777777777777" not in api_foundation
 assert third_party_foundation.count("fapi2-foundation") == 5
 assert not re.search(r"^(?:services|routes):\s*$", third_party_foundation, re.MULTILINE)
 assert third_party_foundation.count("name: fapi-as-mtls-transport") == 1

@@ -7,11 +7,11 @@
 - 対象: [Epic #6](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/6)、WP1〜WP6（#7〜#12）。
 - 設計baseline: [PR #5](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/pull/5)、main merge commit `bc4a063df75ac28d29c33299b90deac3bd1ebe98`（レビュー対象head `3a41ebceb9183f80702c1f898c83991d102fe61e`）。
 - 2026-10-02: Design ownerレビューはmerge blocker 0。`make validate`、`make test`、差分空白検査、変更Markdownのローカルリンク、図JSON解析と4図PNG目視が完了。
-- PR #5は初回の自動承認レビュー拒否後、利用者が本PR限定の規則の例外を明示承認し、2026-10-02にmergeした。ローカルmainも同期済み。PR #13の詳細設計（`5ab6310`）には利用者が合意し、WP1へ進むよう指示した。PR #13のmain mergeは未実施であり、PR #5の例外を他PRへ適用しない。
-- CIはjob setupで失敗。既存workflowの`aquasecurity/trivy-action@0.33.1`が解決できない。WP1が修復する。CI/build成功として扱わない。
+- PR #5は初回の自動承認レビュー拒否後、利用者が本PR限定の規則の例外を明示承認し、2026-10-02にmergeした。PR #13の詳細設計とWP1実装・空schema応答の修正は、利用者がPR #13／#15／#16でmainへmerge済み。PR #5の例外を他PRへ適用しない。
+- main `ccd0d3c`のvalidate、image build/test/SBOM/scan/publishは成功。承認済みapplyと2schema登録も成功した。foundation syncはAPI Certificate 2件とthird-party 4件が成功したが、APIの重複CA createが409で拒否された。[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)の既存CA再利用修正案をレビューし、mainで両diff=0を確認するまでWP1受入・後続WP開始は保留。最新証跡は[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)を参照する。
 - 実TLS、JWT署名、Keycloak observer build、transport lifecycle、introspectionの実行証跡は今回取得していない。
 
-着手前にremoteを同期し、PR #5のmergeとこの設計補足の合意をIssueで確認する。baselineの差分があれば、再確認してからbranchを作る。設計はADR 0009〜0013、実装要件、DP0と[WP1詳細設計](third-party-foundation-design.md)を正本とする。Workerは方式を選び直さない。
+着手前にremoteを同期し、設計合意・依存WP受入・開始条件をIssueで確認する。baselineの差分があれば、再確認してからbranchを作る。設計はADR 0009〜0013とCA再利用修正案ADR 0014、実装要件、DP0と[WP1詳細設計](third-party-foundation-design.md)を正本とする。Workerは方式を選び直さない。
 
 ## 成果と範囲
 
@@ -39,7 +39,7 @@
 
 WP4はWP1受入後に別branchで進められる。依存受入と実装着手承認をIssueに記録する。移譲準備は、実際のWorker起動や実装着手を意味しない。
 
-2026-10-02、利用者の「良いです。進めてください。」を設計補足の合意とWP1実装着手の指示として記録する。最初のWorkerはLuna / HighでWP1だけを担当する。PR #13が未mergeのため、実装branchは合意済み設計branchを基準とし、実装PRのbaseは`docs/third-party-luna-handoff`とする。PR #13がmainへmergeされた後に実装PRをmainへ載せ直す。環境適用・image公開・WP2以降の着手承認は別に扱う。
+2026-10-02、利用者の「良いです。進めてください。」を設計補足の合意とWP1実装着手の指示として記録した。最初のWorkerはLuna / HighでWP1だけを担当した。初回は合意済み設計branchをbaseにしたが、設計merge後はPR #15で実装をmainへ載せ直した。以後の修正PRは最新mainをbaseにする。環境変更とWP2以降の着手承認は別に扱う。
 
 ## WP1: 基盤・schema・CI
 
@@ -54,10 +54,11 @@ WP4はWP1受入後に別branchで進められる。依存受入と実装着手�
 | WP1-STATIC | `make validate`が両foundation state・compose・schemaを検証。third-party両plugin必須/API両plugin禁止、bootstrap、third-party foundationのglobal transport Entity有効1件、固定Route manifestとidentityのpositive/negative検査。実Route entity一致はWP5 |
 | WP1-STAGE/TARGET | 詳細設計のstage必須、state ownership、CP照合順を検証。WP1はfoundationだけをdiffし、API既存v1 entityのupdate/delete=0。未完成runtimeやタグ範囲改変は拒否 |
 | WP1-SCHEMA-DRIFT/IDENTITY | 両schemaの欠落/drift、UUID/client ID/cert pathの入替・重複、CP/秘密鍵mountの混用を拒否 |
+| WP1-CA-REUSE | API foundationは新Certificate 2件だけ。既存CA333のID・tags=`[fapi2-demo]`・公開DERをrole入力とread-only照合し、不一致／欠落／不正応答ならdecK起動前に停止。CAをcreate/retagせず、既存update/delete=0。third-party CAは別CP内で従来どおり管理 |
 | WP1-CI | credential不要のPR checkで`make validate`と`make test`が成功。既存Trivy参照を公式`v0.33.1`のcommit `b6643a29fecd7f34b3597bc6acb0a98b03d33ff8`へpinし、実行結果を確認。scanを外したり、失敗を成功に変換しない |
 | WP1-SECRETS | `.env`、`.generated`、state/plan、秘密鍵/証明書、token/licenseをGitへ追加しない。PR差分とignoreを確認し、値を表示せず結果だけ記録 |
 
-runtime stateはAPIがWP3、third-partyがWP5で完成させ、foundation全entityを同一ID/タグで包含する。WP1時点で通常入口/UIは閉鎖を維持する。仮handlerを作らず、未実装transportのロードを外して起動を通さない。新CP作成・schema登録の承認がない場合、live diffはnot_run、WP1の完全受入は保留とする。
+runtime stateはAPIがWP3、third-partyがWP5で完成させ、foundation全entityを同一ID/タグで包含する。APIの既存CA333は`[fapi2-demo]`のままruntimeへ含め、migrationでも削除・再作成しない。WP1時点で通常入口/UIは閉鎖を維持する。仮handlerを作らず、未実装transportのロードを外して起動を通さない。新CP作成・schema登録の承認がない場合、live diffはnot_run、WP1の完全受入は保留とする。
 
 ## WP2: Keycloak clientsとintrospection
 
@@ -136,7 +137,7 @@ PRは`Refs #<issue>`を使う。自動close語は使わない。1 Issue、1 bran
 
 AS証跡はrequest ID、method、queryなしpathで実Keycloak observerへ1:1 joinする。peer存在だけでverifiedとしない。PKIX/期限/EKU、listener/truststore receiptとTLS negativeが揃うことを確認する。送信前拒否はAS行なしのnot_sent、cacheによる取得省略はskipとする。
 
-環境変更は、対象、sanitized preview、影響、承認範囲をIssueに記録してから行う。Docker/build、Terraform apply/destroy、decK sync、custom schema sync、realm更新、image公開、入口開放は今回未承認。plan/diffの前提に変更が必要なら承認待ちとして報告する。
+環境変更は、対象、sanitized preview、影響、承認範囲をIssueに記録してから行う。WP1の6件apply、2schema登録、7件foundation createの承認・実施結果はIssue #7へ記録済みであり、別の操作へ承認を拡張しない。Docker起動、realm更新、runtime sync、入口開放は未実施。必要な変更が承認範囲にない場合は具体的previewを用意して報告する。
 
 Design ownerは実装merge後のmainで主要positive/negativeを独立再実行し、Technical Completion ReportをIssueへ記録する。利用者が受入結果を記録し、Issueをcloseする。設計ready、PR merge、mock成功をruntime完成と同一視しない。
 
@@ -154,4 +155,5 @@ WP1の最初の成果は詳細設計のresource/output/identityとfoundation sta
 - [DP0 transport契約](third-party-as-mtls-transport.md)
 - [AS peer証跡契約](third-party-as-peer-evidence.md)
 - [ADR 0013: schemaと受入分担](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)
+- [ADR 0014: APIの既存CA再利用修正案](../decisions/0014-reuse-existing-api-ca.md)
 - [WP1詳細設計: address、PKI、identity、state、schema](third-party-foundation-design.md)

@@ -35,6 +35,25 @@ assert deck_spec.loader is not None
 deck_spec.loader.exec_module(run_deck)
 
 
+def create_test_certificate(common_name: str) -> str:
+    with tempfile.TemporaryDirectory() as temporary:
+        key = Path(temporary) / "test.key"
+        certificate = Path(temporary) / "test.crt"
+        subprocess.run(
+            ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+             "-keyout", str(key), "-out", str(certificate), "-days", "1",
+             "-subj", f"/CN={common_name}"],
+            check=True,
+            capture_output=True,
+        )
+        return certificate.read_text()
+
+
+TEST_CERTIFICATE = create_test_certificate("wp1-ca-fixture")
+TEST_CERTIFICATE_OTHER = create_test_certificate("wp1-ca-other-fixture")
+TEST_PRIVATE_KEY = "-----BEGIN " + "PRIVATE KEY-----\nPRIVATE_SENTINEL\n-----END PRIVATE KEY-----\n"
+
+
 def write_cli_fixture(root: Path, source: Path) -> None:
     (root / "infra").mkdir()
     (root / "kong/foundation").mkdir(parents=True)
@@ -53,7 +72,20 @@ def write_cli_fixture(root: Path, source: Path) -> None:
             "third-party": {"control_plane_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "control_plane_name": "keycloak-fapi2-third-party-demo", "control_plane_endpoint": "https://third.cp.konghq.com", "telemetry_endpoint": "https://third.tp.konghq.com"},
         },
     }))
-    (root / ".generated/runtime-api.json").write_text(json.dumps({"API_INTROSPECTION_KEY": "PRIVATE_SENTINEL"}))
+    (root / ".generated/runtime-api.json").write_text(json.dumps({
+        "DECK_FAPI_CA_CERT_YAML": TEST_CERTIFICATE,
+        "DECK_API_INTROSPECTION_CERT_YAML": TEST_CERTIFICATE,
+        "API_INTROSPECTION_KEY": TEST_PRIVATE_KEY,
+        "DECK_API_UPSTREAM_CERT_YAML": TEST_CERTIFICATE,
+        "API_UPSTREAM_KEY": TEST_PRIVATE_KEY,
+    }))
+    (root / ".generated/runtime-third-party.json").write_text(json.dumps({
+        "DECK_FAPI_CA_CERT_YAML": TEST_CERTIFICATE,
+        "DECK_ROUTE_A_TLS_CERT_YAML": TEST_CERTIFICATE,
+        "ROUTE_A_TLS_KEY": TEST_PRIVATE_KEY,
+        "DECK_ROUTE_B_TLS_CERT_YAML": TEST_CERTIFICATE,
+        "ROUTE_B_TLS_KEY": TEST_PRIVATE_KEY,
+    }))
     (root / ".generated/deck.env").write_text("DECK_API_INTROSPECTION_CERT_YAML=PUBLIC_CERT_SENTINEL\n")
 
 
@@ -392,6 +424,78 @@ class WP1FoundationTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "metadata does not match"):
                     wp1_target.verify_remote_target("https://us.api.konghq.com", target, "token")
 
+    def test_shared_api_ca_requires_fixed_id_demo_tag_and_matching_certificate(self):
+        target = self.targets["api"]
+        url = (
+            "https://us.api.konghq.com/v2/control-planes/"
+            f"{target['control_plane_id']}/core-entities/ca_certificates/"
+            "33333333-3333-4333-8333-333333333333"
+        )
+        remote = {
+            "data": {
+                "id": "33333333-3333-4333-8333-333333333333",
+                "tags": ["fapi2-demo"],
+                "cert": TEST_CERTIFICATE,
+            }
+        }
+        with patch.object(wp1_target, "request_json", return_value=(200, remote)) as request:
+            wp1_target.verify_shared_api_ca("https://us.api.konghq.com", target, "secret-token", TEST_CERTIFICATE)
+        request.assert_called_once_with(url, "secret-token")
+        self.assertEqual(
+            wp1_target.certificate_der(" \r\n" + TEST_CERTIFICATE.replace("\n", "\r\n") + " \n"),
+            wp1_target.certificate_der(TEST_CERTIFICATE),
+        )
+
+        invalid_responses = [
+            (404, remote),
+            (200, None),
+            (200, {"data": {**remote["data"], "id": "77777777-7777-4777-8777-777777777777"}}),
+            (200, {"data": {**remote["data"], "tags": ["fapi2-demo", "fapi2-foundation"]}}),
+            (200, {"data": {**remote["data"], "tags": ["other"]}}),
+            (200, {"data": {**remote["data"], "tags": [None]}}),
+            (200, {"data": {**remote["data"], "cert": "not-a-certificate"}}),
+            (200, {"data": {**remote["data"], "cert": "-----BEGIN CERTIFICATE-----\\nAQID\\n-----END CERTIFICATE-----"}}),
+            (200, {"data": {**remote["data"], "cert": TEST_CERTIFICATE_OTHER}}),
+            (200, {"data": {**remote["data"], "cert": TEST_CERTIFICATE + TEST_CERTIFICATE_OTHER}}),
+            (200, {"data": {**remote["data"], "cert": "untrusted-prefix\n" + TEST_CERTIFICATE}}),
+            (200, {"data": {**remote["data"], "cert": TEST_CERTIFICATE + "untrusted-suffix\n"}}),
+        ]
+        for status, body in invalid_responses:
+            with self.subTest(status=status, body=body), patch.object(
+                wp1_target, "request_json", return_value=(status, body)
+            ), self.assertRaises(ValueError) as raised:
+                wp1_target.verify_shared_api_ca("https://us.api.konghq.com", target, "secret-token", TEST_CERTIFICATE)
+            self.assertNotIn("secret-token", str(raised.exception))
+            self.assertNotIn("BEGIN CERTIFICATE", str(raised.exception))
+
+        with patch.object(wp1_target, "request_json", return_value=(200, remote)):
+            with self.assertRaisesRegex(ValueError, "certificate is malformed"):
+                wp1_target.verify_shared_api_ca("https://us.api.konghq.com", target, "secret-token", "not-a-certificate")
+
+    def test_api_foundation_exactly_owns_two_leaf_certificates_only(self):
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_cli_fixture(root, source)
+            path = root / "kong/foundation/api.yaml"
+            baseline = path.read_text()
+            self.assertEqual(baseline.count("  - id:"), 2)
+            mutations = [baseline + "\nca_certificates: []\n"]
+            for ca_id in (
+                "77777777-7777-4777-8777-777777777777",
+                "33333333-3333-4333-8333-333333333333",
+            ):
+                mutations.append(
+                    baseline + f'\nca_certificates:\n  - id: {ca_id}\n'
+                    '    cert: "${{ env "DECK_FAPI_CA_CERT_YAML" }}"\n'
+                    '    tags: [fapi2-demo, fapi2-foundation]\n'
+                )
+            mutations.append(baseline.replace("tags: [fapi2-demo, fapi2-foundation]", "tags: [fapi2-demo]", 1))
+            for mutation in mutations:
+                path.write_text(mutation)
+                with self.assertRaises(ValueError):
+                    wp1_target.validate_foundation_state(root, "api")
+
     def test_render_then_preflight_keeps_manifest_shape_and_fails_before_token(self):
         source = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as temporary:
@@ -519,19 +623,20 @@ class WP1FoundationTests(unittest.TestCase):
             events = []
             fake_result = subprocess.CompletedProcess(
                 args=["deck"], returncode=7,
-                stdout="public cert -----BEGIN CERTIFICATE-----\nPEM_SENTINEL\n-----END CERTIFICATE----- token-sentinel PRIVATE_SENTINEL",
-                stderr="private PRIVATE_SENTINEL token-sentinel",
+                stdout=f"public cert -----BEGIN CERTIFICATE-----\nPEM_SENTINEL\n-----END CERTIFICATE----- token-sentinel {TEST_PRIVATE_KEY}",
+                stderr=f"private {TEST_PRIVATE_KEY} token-sentinel",
             )
             with patch.object(sys, "argv", [str(RUN_DECK), "diff", "--root", str(root), "--gateway", "api", "--stage", "foundation"]), \
                  patch.object(run_deck, "verify_remote_target", side_effect=lambda *a: events.append("metadata")), \
+                 patch.object(run_deck, "verify_shared_api_ca", side_effect=lambda *a: events.append("shared-ca")), \
                  patch.object(run_deck, "check_schemas", side_effect=lambda *a: events.append("schema")), \
                  patch.object(run_deck.subprocess, "run", side_effect=lambda command, **kwargs: (events.append(("deck", command)), fake_result)[1]), \
                  patch("sys.stdout", new_callable=__import__("io").StringIO) as out, \
                  patch("sys.stderr", new_callable=__import__("io").StringIO) as err:
                 self.assertEqual(run_deck.main(), 7)
-            self.assertEqual(events[0:2], ["metadata", "schema"])
-            self.assertEqual(events[2][0], "deck")
-            command = events[2][1]
+            self.assertEqual(events[0:3], ["metadata", "shared-ca", "schema"])
+            self.assertEqual(events[3][0], "deck")
+            command = events[3][1]
             self.assertEqual(command[3], str((root / "kong/foundation/api.yaml").resolve()))
             self.assertNotIn("--state", command)
             for captured in (out.getvalue(), err.getvalue()):
@@ -546,6 +651,55 @@ class WP1FoundationTests(unittest.TestCase):
                 with self.assertRaises(SystemExit):
                     run_deck.main()
                 metadata.assert_not_called()
+                deck_call.assert_not_called()
+
+    def test_run_deck_validates_role_inputs_before_auth_and_blocks_deck_on_ca_failure(self):
+        source = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_cli_fixture(root, source)
+            (root / ".generated/runtime-api.json").write_text(json.dumps({
+                "DECK_FAPI_CA_CERT_YAML": "invalid-local-certificate-sentinel",
+                "DECK_API_INTROSPECTION_CERT_YAML": TEST_CERTIFICATE,
+                "API_INTROSPECTION_KEY": TEST_PRIVATE_KEY,
+                "DECK_API_UPSTREAM_CERT_YAML": TEST_CERTIFICATE,
+                "API_UPSTREAM_KEY": TEST_PRIVATE_KEY,
+            }))
+            with patch.object(sys, "argv", [str(RUN_DECK), "diff", "--root", str(root), "--gateway", "api", "--stage", "foundation"]), \
+                 patch.object(run_deck, "verify_remote_target") as metadata, \
+                 patch.object(run_deck, "verify_shared_api_ca") as shared_ca, \
+                 patch.object(run_deck, "check_schemas") as schemas, \
+                 patch.object(run_deck.subprocess, "run") as deck_call:
+                with self.assertRaisesRegex(ValueError, "certificate input") as raised:
+                    run_deck.main()
+                self.assertNotIn("invalid-local-certificate-sentinel", str(raised.exception))
+                metadata.assert_not_called()
+                shared_ca.assert_not_called()
+                schemas.assert_not_called()
+                deck_call.assert_not_called()
+
+            (root / ".generated/runtime-api.json").write_text(json.dumps({
+                "DECK_FAPI_CA_CERT_YAML": TEST_CERTIFICATE,
+                "DECK_API_INTROSPECTION_CERT_YAML": TEST_CERTIFICATE,
+                "API_INTROSPECTION_KEY": TEST_PRIVATE_KEY,
+                "DECK_API_UPSTREAM_CERT_YAML": TEST_CERTIFICATE,
+                "API_UPSTREAM_KEY": TEST_PRIVATE_KEY,
+            }))
+            events = []
+
+            def fail_shared_ca(*args):
+                events.append("shared-ca")
+                raise ValueError("required shared API CA does not match")
+
+            with patch.object(sys, "argv", [str(RUN_DECK), "diff", "--root", str(root), "--gateway", "api", "--stage", "foundation"]), \
+                 patch.object(run_deck, "verify_remote_target", side_effect=lambda *a: events.append("metadata")), \
+                 patch.object(run_deck, "verify_shared_api_ca", side_effect=fail_shared_ca), \
+                 patch.object(run_deck, "check_schemas") as schemas, \
+                 patch.object(run_deck.subprocess, "run") as deck_call:
+                with self.assertRaisesRegex(ValueError, "shared API CA"):
+                    run_deck.main()
+                self.assertEqual(events, ["metadata", "shared-ca"])
+                schemas.assert_not_called()
                 deck_call.assert_not_called()
 
 
