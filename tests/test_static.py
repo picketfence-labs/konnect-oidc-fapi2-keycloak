@@ -157,6 +157,14 @@ assert "raw tokens" not in verifier.lower()
 assert '"department_header": department_header' in verifier
 assert '"logical_route_header": logical_route_header' in verifier
 assert '"header_claims_match": header_claims_match' in verifier
+pop_dockerfile = (ROOT / "pop-verifier" / "Dockerfile").read_text()
+assert "FROM python:3.13-alpine AS build" in pop_dockerfile
+assert "pip install --no-cache-dir --target=/opt/python-deps -r requirements.txt" in pop_dockerfile
+runtime_image = pop_dockerfile.split("\nFROM python:3.13-alpine\n", 1)[1]
+assert "COPY --from=build /opt/python-deps /opt/python-deps" in runtime_image
+assert 'shutil.rmtree(stdlib / "ensurepip"' in runtime_image
+assert '"pip-*.dist-info"' in runtime_image and '"setuptools-*.dist-info"' in runtime_image
+assert "RUN pip install" not in runtime_image
 
 compose = (ROOT / "docker-compose.yml").read_text()
 assert "quay.io/keycloak/keycloak:26.7.4" in compose

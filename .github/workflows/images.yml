@@ -51,6 +51,19 @@ jobs:
           docker run --rm --entrypoint luajit -v "$PWD:/src:ro" -w /src local/kong:test tests/test_plugin.lua
           docker run --rm --entrypoint luajit -v "$PWD:/src:ro" -w /src local/kong:test tests/test_wp1_schema.lua
 
+      - name: Check Kong startup configuration offline
+        if: matrix.image.name == 'kong'
+        run: |
+          docker run --rm --network none --entrypoint /bin/sh \
+            -e KONG_DATABASE=off -e KONG_PROXY_LISTEN=off -e KONG_ADMIN_LISTEN=off \
+            -e KONG_STATUS_LISTEN=off \
+            local/kong:test -ec '
+              kong version
+              test ! -e /usr/bin/pebble
+              /entrypoint.sh kong prepare -p /tmp/kong-ci
+              /usr/local/openresty/nginx/sbin/nginx -t -p /tmp/kong-ci -c nginx.conf
+            '
+
       - name: Run PoP verifier unit tests
         if: matrix.image.name == 'pop-verifier'
         run: docker run --rm -v "$PWD:/src:ro" -w /src -e PYTHONPATH=/app local/pop-verifier:test python tests/test_pop_verifier.py
