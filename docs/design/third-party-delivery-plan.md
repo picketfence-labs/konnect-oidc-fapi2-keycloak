@@ -29,7 +29,7 @@ repositoryの`AGENTS.md`に従い、`terraform apply`、`deck gateway sync`、Do
 
 ## Design packages（Design ownerのタスク）
 
-### DP0: AS全back-channelのmTLS補完契約（P0、ローカル設計完了・独立レビュー承認後の補足/merge待ち）
+### DP0: AS全back-channelのmTLS補完契約（P0、設計PR #5 merge済み・runtime未受入）
 
 **担当はDesign owner。Workerへ方式選択を任せない。** 成果は[DP0契約](third-party-as-mtls-transport.md)と[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)。専用transport plugin + bridge送信時signer delegateを選択し、専用metadata cert、endpoint mapping、retry/redirect拒否を固定した。exact image bytecodeのmock probeは42件passだが、実TLS/Keycloak/lifecycle受入ではない。以下は本DPの調査・契約項目であり、runtime確認はWP5へ分ける。
 
@@ -47,15 +47,17 @@ RS側stock検証とclient側proof生成を分け、Keycloak対応、nonce、repl
 
 ## Work packages
 
+Epic #6とWP #7〜#12はmerge前に起票済み。PR #5は2026-10-02にmergeした。利用者は[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)、[WP1詳細設計](third-party-foundation-design.md)、[Luna / High移譲契約](third-party-luna-handoff.md)を含むPR #13の設計補足へ合意し、WP1移譲を指示した。PR #13のmain mergeは未実施。WP1でschemaとfoundation stateを準備し、最終runtime stateをAPIはWP3、third-partyはWP5で完成させる。後続Issueのready化は依存WPの受入後に判定する。
+
 依存関係: WP1 → WP2 → WP3 → WP5 → WP6。WP4はWP1の後、WP3と並行して進められる。**DP0 → WP5**も必須。DP1は別枠。
 
 ### WP1: 2つのGatewayの基盤
 
-- **範囲**: Terraformで3rd Party用のKonnect control planeとdata plane certificateを追加する。composeを`kong-api`と`kong-third-party`へ分ける。開発PKIに新しい鍵材料（専用3rd Party metadata client、API Gateway server TLS、introspection client、upstream client）を追加する。decK stateをGatewayごとに分ける。`make`のtargetで対象Gatewayを指定できるようにする。PRのstatus checkとして`make validate`と`make test`を実行するGitHub Actionsを追加する。
+- **範囲**: Terraformで3rd Party用のKonnect control planeとdata plane certificateを追加する。composeを`kong-api`と`kong-third-party`へ分ける。開発PKIに新しい鍵材料（専用3rd Party metadata client、API Gateway server TLS、introspection client、upstream client）を追加する。Gatewayごとのfoundation state、transport schema、bridge delegate enumを準備する。`make`のtargetで対象Gateway/stageを必須にする。PRのstatus checkとして`make validate`と`make test`を実行するGitHub Actionsを追加する。
 - **受入条件**:
-  - `make validate`が、両方のdecK stateとcompose構成を検証して成功する。Gateway別のtransport/bridgeロード必須・禁止、bootstrap配置とglobal entity1件を照合する（DP0 preflightの静的段階）。
+  - `make validate`が、両foundation stateとcompose/schemaを検証して成功する。Gateway別のtransport/bridgeロード必須・禁止、bootstrap配置、third-party global entity1件と固定identity manifestを照合する（DP0 preflightの静的段階）。runtimeは仮設定で埋めない。
   - `make plan`の差分が、追加のcontrol plane、data plane certificate、local fileだけである。
-  - `make deck-diff GATEWAY=api`と`make deck-diff GATEWAY=third-party`が、それぞれ別のcontrol planeを対象にする。
+  - `make deck-diff GATEWAY=api STAGE=foundation`と`make deck-diff GATEWAY=third-party STAGE=foundation`が別CPを対象にし、API既存v1 entityのupdate/delete=0、範囲外変更=0。schemaは両方の内容hashまで確認する。前提未承認ならlive not_run、完全受入保留。
   - 新しい秘密鍵、certificate、state、tokenがGitに入っていない（`.gitignore`と`git status`で確認）。
   - PRに、Actionsのstatus checkが表示される。
 - **conformance**: —（基盤）
@@ -79,6 +81,7 @@ RS側stock検証とclient側proof生成を分け、Keycloak対応、nonce、repl
   - POP-01、POP-02、POP-03、RS-QUERY-01、RS-AUD-01、RS-SCOPE-01、ERR-01、HEADER-CERT-01、TLS-RS-01、RS-VALID-01が通る。tokenは、curlとtest用certificateで取得してよい。
   - introspectionのcache無効を既定とし、active検査を確認する。RS-REVOKE-01は追加説明用の任意テスト。実施時だけ前後のactive/API応答とcache条件を記録する。個別失効保証・反映SLAを本WPの必須受入にしない。
   - `deck diff`の結果が、意図したtag付きentityだけである。sync後はdiffが無い。
+  - API runtime stateはfoundation全entityを同一ID/タグで含める。v1 entityの除去、入口停止と復旧はWP3-MIGRATIONとして別preview/承認で扱う。
 - **conformance**: R-01〜R-06
 
 ### WP4: Upstream API（PoP verifier）の変更
@@ -96,6 +99,7 @@ RS側stock検証とclient側proof生成を分け、Keycloak対応、nonce、repl
 - **受入条件**:
   - **本体実装前のspike**: AS-MTLS-OBS-01を通す。test-only Keycloak observerのbuild/hook/peer chain/相関/negative TLSとstock PAR/revoke claimを確認。不成立ならneeds-design。計測imageは通常デモへ入れない。stock生成はpeer証跡契約の隔離OIDC fixture/公開endpoint設定で起動し、session作成後のstock logoutで各revokeを採取。harness relayのpeerを実AS証跡に代用せず、実Keycloak observerへjoinする。
   - **入口公開前のpreflight**: WP1の静的照合と設定反映後の全worker loaded/wrapper/registry ready観測がpassするまで、通常3rd Party入口/UIを開かない。transportだけ/両plugin欠落でfailし、入口閉鎖・Route A metadata未送信をAS-TRANSPORT-LIFECYCLE-01で確認。hybrid DPは閉鎖状態でCP設定を受領してよい。restart/設定変更時は再照合する。具体make/compose方式はWorkerが実装し、警告logだけのgateにはしない。
+  - **WP5-BOOTSTRAP**: UI停止だけを遮断とみなさず、全worker ready前はASのpublic/internal originへのstock metadata/background通信も遮断する。CP設定受領は許可する。通常入口・AS通信の開放と再閉鎖を実証し、不成立ならneeds-design。runtime stateにfoundation全entityと固定UUIDの実Routeを包含する。
   - A-PAR-01、B-PAR-01、B-PKJ-01、PAR-01、PAR-02、PKCE-01、A-CNF-01、B-CNF-01、HDR-01、TLS-01が通る。
   - stockのISS-01（提示されたissの不一致拒否）が通る。ISS-02は将来シナリオとして未対応を開示する。
   - META-01、META-02を自動テストで確認する。

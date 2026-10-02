@@ -2,7 +2,7 @@
 
 ## この文書の目的
 
-この文書は、既存の二経路デモ（[Keycloak FAPI 2.0二経路デモ要件](fapi2-keycloak-requirements.md)、以下「v1要件」）に3rd Partyを追加した構成について、実装契約を定義する。顧客向けデモの必須範囲と、本来のFAPI 2.0適合との差分を分ける。補完方式は[DP0契約](third-party-as-mtls-transport.md)と[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)に固定した。ローカル設計完了・レビュー/merge待ちであり、実装・runtime受入とは分ける。Workerへ方式選択を渡さない。
+この文書は、既存の二経路デモ（[Keycloak FAPI 2.0二経路デモ要件](fapi2-keycloak-requirements.md)、以下「v1要件」）に3rd Partyを追加した構成について、実装契約を定義する。顧客向けデモの必須範囲と、本来のFAPI 2.0適合との差分を分ける。補完方式は[DP0契約](third-party-as-mtls-transport.md)と[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)に固定した。設計PR #5はmerge済み。実装・runtime受入とは分ける。Workerへ方式選択を渡さない。
 
 - デモの目的・優先順位: [ADR 0011](../decisions/0011-customer-demo-scope.md)
 - お客様向け説明: [デモ対応範囲と追加実装](third-party-demo-explainer.md)
@@ -197,6 +197,7 @@ v1の「Infrastructure as code」「GHCR」を継続し、次を追加する。
 - Terraformは、API Gateway用と3rd Party Gateway用の2つのKonnect control planeと、それぞれのdata plane certificateを管理すること（MUST）。既存のcontrol planeは、API Gateway用として再利用する（SHOULD）。
 - decK stateは、Gatewayごとに別ファイルとすること（MUST、例: `kong/api-gateway.yaml`、`kong/third-party-gateway.yaml`）。`make deck-diff`と`make deck-sync`は、対象Gatewayを明示して実行できること（MUST）。
 - `make validate`は、両方のdecK stateを検証すること（MUST）。live systemは変更しないこと（MUST NOT）。
+- PR #13の設計補足では[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[WP1詳細設計](third-party-foundation-design.md)に従い、WP1のfoundation stateとWP3/WP5のruntime stateを分ける。diff/syncは`GATEWAY`と`STAGE`を必須にし、未完成runtimeの空stateで既存v1を削除しない。runtimeが完成した段階では両方の最終stateもvalidate対象にする。
 - GitHub Actionsで`make validate`と`make test`をPRのstatus checkとして実行すること（SHOULD）。
 
 ## Observability and evidence
@@ -302,7 +303,7 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 
 ![Logout](workflows/logout.workflow.png)
 
-GitHub Pagesの公開版は、本設計PRのmerge後に更新する。それまでは、Pagesのリンクがv1の図を指す。
+設計PR #5はmerge済み。GitHub Pagesの再公開は未実施のため、Pagesのリンクはv1の図を指す。
 
 ## Primary sources
 

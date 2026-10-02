@@ -1,6 +1,6 @@
 # ADR 0010: API Gatewayはintrospectionとmutual TLSのPoPでtokenを検証する
 
-- Status: Proposed
+- Status: Accepted（設計PR #5、2026-10-02 merge。runtime未受入）
 - Date: 2026-10-01
 
 ## Context

@@ -4,6 +4,8 @@
 
 次の開発では IdP を Keycloak に置き換え、FAPI 2.0 の主要なセキュリティ要素を比較できるデモへ拡張します。実装要件は [Keycloak FAPI 2.0 デモ要件](design/fapi2-keycloak-requirements.md)、設計判断は [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)を正とします。[セッション引き継ぎ](session-handoff.md)は初期デモの実績と注意事項を記録しています。
 
+2026-10-02のEnhancementは、[3rd Party経由デモ要件](design/third-party-fapi2-requirements.md)とADR 0009〜0012へ拡張します。設計PR #5をmergeしました。利用者はPR #13のschemaと段階別stateの補足へ合意し、Luna / HighへのWP1移譲を指示しました。PR #13のmain mergeは未実施です。開発の分担・受入は[Luna / High移譲契約](design/third-party-luna-handoff.md)、分担判断は[ADR 0013](decisions/0013-work-package-schema-and-acceptance-boundaries.md)、基盤の具体形は[WP1詳細設計](design/third-party-foundation-design.md)を参照してください。以下の二経路構成はv1の設計記録として残します。
+
 ## 目的
 
 同じブラウザー向け認可コードフローを使い、token endpoint のクライアント認証方式だけが異なる次の 2 経路を比較します。

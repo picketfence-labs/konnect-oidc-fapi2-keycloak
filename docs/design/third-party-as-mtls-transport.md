@@ -2,7 +2,7 @@
 
 ## 状態と境界
 
-2026-10-02、**方式選択と設計契約のローカル作成を完了、独立差分レビュー承認、nonblocking補足は作者検証済み・merge待ち**。[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)を正本とする。production plugin、設定、realm、実装PRは作っていない。live環境も変更していない。WP5は設計合意・mergeまでreadyにしない。Opusレビューへの補強として[Keycloak側peer証跡契約](third-party-as-peer-evidence.md)を追加し、WP5冒頭のAS-MTLS-OBS-01で計測/claimの成立を確認してから本体実装へ進む。
+2026-10-02、**方式選択と設計契約をレビューし、PR #5としてmerge済み**。[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)を正本とする。production plugin、設定、realm、実装PRは作っていない。live環境も変更していない。WP5の開始には依存WPの受入が必要。Opusレビューへの補強として[Keycloak側peer証跡契約](third-party-as-peer-evidence.md)を追加し、WP5冒頭のAS-MTLS-OBS-01で計測/claimの成立を確認してから本体実装へ進む。
 
 対象はKong 3.16.0.0の**3rd Party GatewayからASへの内部HTTP呼出し**。API Gatewayのstock mTLS introspection、3rd Party → APIのService client certificate、browserのHTTPSは別責務である。DPoP、専用失効制御、完全適合の追加guardは含めない。
 
@@ -75,6 +75,8 @@ discoveryのlocator mappingはissuer・OAuth audience・browser authorization/en
 3. 1・2がpassするまで、通常3rd Party入口とUIは未起動または閉鎖状態を維持する。Workerはmake target/compose依存等の実装方法を選んでよいが、失敗時に非zeroで終了し、入口/UIを開かないことを受入で証明する。再起動/設定変更時はゲートを閉じ、再照合後に開く。新しい管理APIや本番用監視基盤は追加しない。
 
 transport未ロード時、Route Aにbridge access拒否はない。stock POSTにcertが付いてもmetadata mTLSを保証しないので、上の入口ゲートで通常トラフィックを防ぐ。transportだけ/両pluginを外すnegativeでは、入口/UIが開かず、Route AのmetadataがASへ送られないことを確認する。observerのcertなし検出は独立した対照試験であり、既に送った通常トラフィックを事後検出するだけでpassにしない。Route Bでは既存のready context/epoch拒否も維持する。計測spikeは[peer証跡契約](third-party-as-peer-evidence.md)の隔離fixtureからだけ行い、通常デモ入口を開く代わりにしない。
+
+PR #13の[WP1詳細設計](third-party-foundation-design.md)はこの未送信条件を、起動直後のstock background/metadataにも適用する。UI停止だけでは成立と判定せず、CP通信は許可しつつASのpublic/internal origin到達を閉じるbootstrap段階を要求する。全worker generation/ready/configの照合後だけ開放し、変更・再起動で閉鎖する。具体的なmake/compose機構と実証はWP5-BOOTSTRAPの受入対象。不成立ならneeds-designへ戻す。
 
 ### 設定の形（新規schemaの設計、既存設定値ではない）
 

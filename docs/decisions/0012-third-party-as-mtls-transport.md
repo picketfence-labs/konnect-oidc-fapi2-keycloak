@@ -1,6 +1,6 @@
 # ADR 0012: AS mTLS transportを専用custom pluginへ分離する
 
-- Status: Proposed（DP0のローカル設計契約。独立レビュー・merge待ち）
+- Status: Accepted（設計PR #5、2026-10-02 merge。DP0の設計契約でありruntime未受入）
 - Date: 2026-10-02
 - Implements: [ADR 0011](0011-customer-demo-scope.md)のP0
 - Contract: [AS mTLS補完契約](../design/third-party-as-mtls-transport.md)
