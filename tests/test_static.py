@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -105,6 +106,42 @@ assert "supplied_by_client" in bridge
 assert "verify_discovery_issuer" in bridge
 assert "metadata.issuer ~= conf.issuer" in bridge
 assert "ssl_verify = true" in bridge
+assert 'assertion_delivery = {' in bridge_schema
+assert 'default = "header"' in bridge_schema
+assert '"transport_delegate"' in bridge_schema
+
+transport_schema = (ROOT / "kong" / "plugins" / "fapi-as-mtls-transport" / "schema.lua").read_text()
+assert 'name = "fapi-as-mtls-transport"' in transport_schema
+assert "require(" not in transport_schema and 'require "' not in transport_schema
+assert "custom_validator = function(config)" in transport_schema
+assert "exactly the fixed Route A and Route B entries are required" in transport_schema
+assert "eq = ngx.null" in transport_schema
+
+api_foundation = (ROOT / "kong" / "foundation" / "api.yaml").read_text()
+third_party_foundation = (ROOT / "kong" / "foundation" / "third-party.yaml").read_text()
+assert api_foundation.count("fapi2-foundation") == 4
+assert "DECK_API_INTROSPECTION_KEY_YAML" not in api_foundation
+assert "{vault://env/API_INTROSPECTION_KEY}" in api_foundation
+assert "{vault://env/API_UPSTREAM_KEY}" in api_foundation
+assert not re.search(r"^(?:services|routes):\s*$", api_foundation, re.MULTILINE)
+assert "fapi-as-mtls-transport" not in api_foundation
+assert "fapi-client-auth-bridge" not in api_foundation
+for entity_id in (
+    "44444444-4444-4444-8444-444444444444",
+    "55555555-5555-4555-8555-555555555555",
+    "77777777-7777-4777-8777-777777777777",
+):
+    assert entity_id in api_foundation
+assert third_party_foundation.count("fapi2-foundation") == 5
+assert not re.search(r"^(?:services|routes):\s*$", third_party_foundation, re.MULTILINE)
+assert third_party_foundation.count("name: fapi-as-mtls-transport") == 1
+assert "fapi-client-auth-bridge" not in third_party_foundation
+assert "88888888-8888-4888-8888-888888888888" in third_party_foundation
+assert third_party_foundation.count("enabled: true") == 1
+assert "{vault://env/ROUTE_A_TLS_KEY}" in third_party_foundation
+assert "{vault://env/ROUTE_B_TLS_KEY}" in third_party_foundation
+assert "route_id: 754519ff-b0b9-5ed5-94c0-e453d260c6c4" in third_party_foundation
+assert "route_id: 0f45debe-a3a6-5207-aea3-637227fb96f2" in third_party_foundation
 
 verifier = (ROOT / "pop-verifier" / "app.py").read_text()
 assert '"verify_nbf": True' in verifier
@@ -120,26 +157,57 @@ assert "raw tokens" not in verifier.lower()
 assert '"department_header": department_header' in verifier
 assert '"logical_route_header": logical_route_header' in verifier
 assert '"header_claims_match": header_claims_match' in verifier
+pop_dockerfile = (ROOT / "pop-verifier" / "Dockerfile").read_text()
+assert "FROM python:3.13-alpine AS build" in pop_dockerfile
+assert "pip install --no-cache-dir --target=/opt/python-deps -r requirements.txt" in pop_dockerfile
+runtime_image = pop_dockerfile.split("\nFROM python:3.13-alpine\n", 1)[1]
+assert "COPY --from=build /opt/python-deps /opt/python-deps" in runtime_image
+assert 'shutil.rmtree(stdlib / "ensurepip"' in runtime_image
+assert '"pip-*.dist-info"' in runtime_image and '"setuptools-*.dist-info"' in runtime_image
+assert "RUN pip install" not in runtime_image
 
 compose = (ROOT / "docker-compose.yml").read_text()
 assert "quay.io/keycloak/keycloak:26.7.4" in compose
 assert "quay.io/keycloak/keycloak:26.7.4@sha256:" in compose
 assert "KC_HTTPS_CLIENT_AUTH: request" in compose
-assert "KONG_PLUGINS: bundled,fapi-client-auth-bridge" in compose
+assert "kong-api:" in compose and "kong-third-party:" in compose
+assert "KONG_PLUGINS: bundled" in compose
+assert "KONG_PLUGINS: bundled,fapi-as-mtls-transport,fapi-client-auth-bridge" in compose
+assert "KONNECT_API_CP_HOST" in compose and "KONNECT_API_TP_HOST" in compose
+assert "KONNECT_THIRD_PARTY_CP_HOST" in compose and "KONNECT_THIRD_PARTY_TP_HOST" in compose
 assert "KONG_LUA_SSL_TRUSTED_CERTIFICATE: system,/etc/kong/fapi/ca.crt" in compose
-assert "KONG_SSL_CERT: /etc/kong/fapi/kong-proxy.crt" in compose
-assert "KONG_SSL_CERT_KEY: /etc/kong/fapi/kong-proxy.key" in compose
-assert "ROUTE_B_JWK: ${ROUTE_B_JWK}" in compose
-assert "ROUTE_A_TLS_CERT: ${ROUTE_A_TLS_CERT}" in compose
-assert "ROUTE_A_TLS_KEY: ${ROUTE_A_TLS_KEY}" in compose
-assert "ROUTE_B_TLS_CERT: ${ROUTE_B_TLS_CERT}" in compose
-assert "ROUTE_B_TLS_KEY: ${ROUTE_B_TLS_KEY}" in compose
+assert ".generated/pki/third-party-metadata.crt:/etc/kong/fapi/third-party-metadata.crt:ro" in compose
+assert ".generated/pki/api-introspection.key:/etc/kong/fapi/api-introspection.key:ro" in compose
+assert "./.generated/pki:/etc/kong/fapi" not in compose
 assert "./keycloak/data:/opt/keycloak/data/h2" in compose
 assert "./keycloak/data:/opt/keycloak/data\n" not in compose
 assert "KONG_LICENSE_DATA" not in compose
 assert "./ui/default.conf:/etc/nginx/conf.d/default.conf:ro" in compose
 assert "./.generated/pki/ui.crt:/etc/nginx/tls/tls.crt:ro" in compose
 assert '"3443:443"' in compose
+assert "profiles: [demo]" in compose
+service_matches = list(re.finditer(r"^  ([a-z][a-z0-9-]*):\s*$", compose, re.MULTILINE))
+service_blocks = {
+    match.group(1): compose[match.start() : (service_matches[index + 1].start() if index + 1 < len(service_matches) else len(compose))]
+    for index, match in enumerate(service_matches)
+}
+for gateway_name in ("kong-api", "kong-third-party"):
+    block = service_blocks[gateway_name]
+    assert "ports:" not in block
+api_mounts = service_blocks["kong-api"].split("volumes:", 1)[1]
+third_party_mounts = service_blocks["kong-third-party"].split("volumes:", 1)[1]
+assert ".generated/pki/api-introspection.key:/etc/kong/fapi/api-introspection.key:ro" in api_mounts
+assert ".generated/pki/api-upstream.key:/etc/kong/fapi/api-upstream.key:ro" in api_mounts
+assert ".generated/pki/route-a.key:/etc/kong/fapi/route-a.key:ro" not in api_mounts
+assert ".generated/pki/api-introspection.key:/etc/kong/fapi/api-introspection.key:ro" not in third_party_mounts
+assert ".generated/pki/route-a.key:/etc/kong/fapi/route-a.key:ro" in third_party_mounts
+assert ".generated/pki/route-b-pkj.key:/etc/kong/fapi/route-b-pkj.key:ro" in third_party_mounts
+assert "API_INTROSPECTION_KEY; env API_UPSTREAM_KEY" in service_blocks["kong-api"]
+assert "ROUTE_A_TLS_KEY; env ROUTE_B_TLS_KEY" in service_blocks["kong-third-party"]
+assert "FAPI_AS_TRANSPORT_ISSUER" in service_blocks["kong-third-party"]
+assert "KONG_NGINX_MAIN_ENV" in service_blocks["kong-third-party"]
+assert "path: ./.generated/runtime-api.env" in service_blocks["kong-api"]
+assert "path: ./.generated/runtime-third-party.env" in service_blocks["kong-third-party"]
 
 ui = (ROOT / "ui" / "index.html").read_text()
 assert ui.count("https://localhost:8443/api/fapi/") == 6
@@ -150,11 +218,18 @@ assert 'id="header-match"' in ui
 
 makefile = (ROOT / "Makefile").read_text()
 assert "./scripts/sync-keycloak-demo-data.py" in makefile
+assert "up:\n\t./scripts/require-wp5-readiness.sh" in makefile
 
 asset_script = (ROOT / "scripts" / "generate-dev-assets.sh").read_text()
-assert 'issue_certificate kong-proxy localhost serverAuth "DNS:localhost,IP:127.0.0.1"' in asset_script
-assert 'issue_certificate ui localhost serverAuth "DNS:localhost,IP:127.0.0.1"' in asset_script
-assert '-addext "keyUsage=critical,keyCertSign,cRLSign"' in asset_script
+assert 'generate-pki.py' in asset_script
+assert 'if [[ ! -f "$PKI/route-b-pkj.key" ]]' in asset_script
+assert 'openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072' in asset_script
+assert 'chmod 600 "$GENERATED/deck.env" "$GENERATED/runtime.env" "$GENERATED/runtime-api.json" "$GENERATED/runtime-third-party.json" "$GENERATED/runtime-api.env" "$GENERATED/runtime-third-party.env"' in asset_script
+generator = (ROOT / "scripts" / "generate-pki.py").read_text()
+assert 'rsa_keygen_bits:3072' in generator
+assert '"third-party-metadata", "third-party-metadata", "clientAuth"' in generator
+assert '"api-introspection", "api-gateway-introspection", "clientAuth"' in generator
+assert '"api-upstream", "api-gateway-upstream", "clientAuth"' in generator
 
 versions = (ROOT / "infra" / "versions.tf").read_text()
 assert "auth0/auth0" not in versions
@@ -166,11 +241,16 @@ assert "packages: write" in workflow
 assert "sbom" in workflow.lower()
 assert "trivy" in workflow.lower()
 assert "sha-${{ github.sha }}" in workflow
+assert "python3 -m pip install --requirement requirements-dev.txt" in workflow
+assert "python3 -m pip install --requirement requirements-dev.txt" in (ROOT / ".github" / "workflows" / "validate.yml").read_text()
+assert "PyYAML==6.0.2" in (ROOT / "requirements-dev.txt").read_text()
 
 schema_script = (ROOT / "scripts" / "plugin-schema.sh").read_text()
-assert "core-entities/plugin-schemas" in schema_script
-assert 'MODE" != "check"' in schema_script
-assert 'MODE" != "sync"' in schema_script
+assert 'check) OPERATION="schema-check"' in schema_script
+assert 'sync) OPERATION="schema-sync"' in schema_script
+target_cli = (ROOT / "scripts" / "wp1_target.py").read_text()
+assert "core-entities/plugin-schemas" in target_cli
+assert "has_next_page" in target_cli and "next_cursor" in target_cli
 
 private_key_markers = (
     "-----BEGIN " + "PRIVATE KEY-----",

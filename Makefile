@@ -27,23 +27,22 @@ sync-demo-data: generate-dev-assets
 	./scripts/sync-keycloak-demo-data.py
 
 plugin-schema-check:
-	./scripts/plugin-schema.sh check
+	GATEWAY="$(GATEWAY)" ./scripts/plugin-schema.sh check
 
 plugin-schema-sync:
-	./scripts/plugin-schema.sh sync
+	GATEWAY="$(GATEWAY)" ./scripts/plugin-schema.sh sync
 
 deck-validate:
 	./scripts/deck.sh validate
 
 deck-diff:
-	./scripts/deck.sh diff
+	GATEWAY="$(GATEWAY)" STAGE="$(STAGE)" ./scripts/deck.sh diff
 
 deck-sync:
-	./scripts/deck.sh sync
+	GATEWAY="$(GATEWAY)" STAGE="$(STAGE)" ./scripts/deck.sh sync
 
-up: generate-dev-assets render-runtime
-	docker compose --env-file .env --env-file .generated/runtime.env up -d
-	./scripts/sync-keycloak-demo-data.py
+up:
+	./scripts/require-wp5-readiness.sh
 
 down:
 	docker compose --env-file .env --env-file .generated/runtime.env down
@@ -55,6 +54,10 @@ test:
 	python3 tests/test_static.py
 	python3 tests/test_jwk_export.py
 	python3 tests/test_runtime_secrets.py
+	python3 tests/test_wp1.py
+	python3 tests/test_pki_generation.py
+	python3 tests/test_up_guard.py
+	luajit tests/test_wp1_schema.lua
 
 test-plugin:
 	luajit tests/test_plugin.lua
