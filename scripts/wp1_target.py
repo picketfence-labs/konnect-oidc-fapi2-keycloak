@@ -297,6 +297,17 @@ def request_schema_pages(collection_url: str, token: str) -> list[dict]:
         status, page = request_json(f"{collection_url}?{urlencode(params)}", token)
         if status != 200:
             raise ValueError(f"schema list request failed with HTTP {status}")
+        # Konnect may omit both optional `items` and `page` for a brand-new CP
+        # with no schemas. Accept only the literal, initial empty object; all
+        # later or partially populated responses still require full pagination.
+        if not pages and cursor is None and page == {}:
+            return [{
+                "items": [],
+                "page": {"total_count": 0, "has_next_page": False, "next_cursor": None},
+                "request_cursor": None,
+            }]
+        if not isinstance(page, dict):
+            raise ValueError("schema list response is malformed")
         items = page.get("items")
         page_info = page.get("page")
         if not isinstance(items, list) or not isinstance(page_info, dict):

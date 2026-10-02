@@ -2,6 +2,15 @@
 
 予期しない動作、失敗した操作、原因、対処、再確認事項を記録します。認証情報や token の実値は記載しません。
 
+## 2026-10-02: 新規Control Planeの空schema一覧が不完全応答として拒否された
+
+- 期待: schemaがまだ登録されていない新規Control Planeで、HTTP 200の空一覧を0件として扱い、承認済みのschema同期を継続できる。
+- 実際: 一覧APIがJSON literal `{}` を返し、`request_schema_pages`は`items`と`page`がないため拒否した。対象schemaの個別GETは404だった。
+- 原因: Konnect SDKの`ListPluginSchemas`モデルでは`items`と`page`、および`page.total_count`がoptionalであり、空一覧で応答全体が空objectになるケースがある。
+- 対処: HTTP 200の最初のpageでcursor未設定、かつ応答がliteral `{}` の場合だけ、`items: []`とterminal `page.total_count: 0`へ正規化する。次pageの空object、部分応答、null items、pagination不整合、重複やcursor停滞は引き続き拒否し、全inventory検証前に書き込みを行わない。
+- 仕様根拠: [Kong SDKのListPluginSchemas Go model](https://raw.githubusercontent.com/Kong/sdk-konnect-go/main/models/components/listpluginschemas.go)は`Items`と`Page`を`omitempty`として定義し、[対応するSDK model documentation](https://github.com/Kong/sdk-konnect-go/blob/main/docs/models/components/listpluginschemas.md)も両フィールドをoptionalとしている。空objectを空一覧として扱う判断は、この型定義と新規CPの実応答からの判断である。
+- 検証時の補足: 一時的なapply後確認scriptがAPI Control Plane名を既定値へ固定していたためpostcheckが一度失敗した。scriptを設定値参照に直してpostcheckを再実行し成功した。Terraform applyは再実行していない。本体WP1のControl Plane名照合には不具合はなかった。
+
 ## 2026-10-02: stacked実装PRのmerge先がmainではなかった
 
 - 期待: 設計PR #13をmainへmerge後、WP1実装PR #14もmainへ反映する。
