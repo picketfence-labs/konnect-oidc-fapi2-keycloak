@@ -17,6 +17,8 @@ from wp1_target import (  # noqa: E402
     check_schemas,
     local_manifest,
     read_env,
+    validate_role_values,
+    verify_shared_api_ca,
     verify_remote_target,
 )
 
@@ -53,6 +55,7 @@ def main() -> int:
     role_file = root / ".generated" / f"runtime-{args.gateway}.json"
     if not role_file.is_file():
         raise ValueError("role-scoped decK inputs are missing; run make generate-dev-assets")
+    role_values = validate_role_values(args.gateway, json.loads(role_file.read_text()))
 
     config = read_env(root / ".env")
     token = config.get("KONNECT_TOKEN", "")
@@ -62,12 +65,11 @@ def main() -> int:
     base = manifest["konnect_server_url"].rstrip("/")
     target = info["target"]
     verify_remote_target(base, target, token)
+    if args.gateway == "api":
+        verify_shared_api_ca(base, target, token, role_values["DECK_FAPI_CA_CERT_YAML"])
     check_schemas(root, args.gateway, base, target, token)
 
     generated = read_env(root / ".generated/deck.env")
-    role_values = json.loads(role_file.read_text())
-    if not isinstance(role_values, dict):
-        raise ValueError("role-scoped decK input is malformed")
     environment = os.environ.copy()
     environment.update(generated)
     environment.update(role_values)

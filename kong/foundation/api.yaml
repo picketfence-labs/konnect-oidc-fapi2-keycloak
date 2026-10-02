@@ -13,8 +13,3 @@ certificates:
     cert: "${{ env "DECK_API_UPSTREAM_CERT_YAML" }}"
     key: "{vault://env/API_UPSTREAM_KEY}"
     tags: [fapi2-demo, fapi2-foundation]
-
-ca_certificates:
-  - id: 77777777-7777-4777-8777-777777777777
-    cert: "${{ env "DECK_FAPI_CA_CERT_YAML" }}"
-    tags: [fapi2-demo, fapi2-foundation]

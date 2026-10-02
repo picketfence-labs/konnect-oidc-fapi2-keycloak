@@ -1,6 +1,6 @@
 # ADR 0013: schema準備とruntime受入をWP間で分ける
 
-- Status: Accepted（2026-10-02に利用者が設計補足へ合意し、WP1へ進むよう指示。PR #13のmain mergeは未実施）
+- Status: Accepted（2026-10-02に利用者が設計補足へ合意。PR #13はmainへmerge済み。API CA所有範囲の修正案は[ADR 0014](0014-reuse-existing-api-ca.md)）
 - Date: 2026-10-02
 - Amends: [Delivery plan](../design/third-party-delivery-plan.md)のWP1/WP5の成果物分担
 - Preserves: [ADR 0012](0012-third-party-as-mtls-transport.md)の方式、P0、spike、preflightとlive承認ゲート
@@ -15,7 +15,7 @@ WP1はGateway別decK stateと差分確認を担当する。一方、DP0のglobal
 
 1. WP1が、DP0の固定された設定形に従うself-containedな`fapi-as-mtls-transport/schema.lua`を作る。既存bridge schemaにも`assertion_delivery: transport_delegate`を追加する。schemaのdefaultや旧header modeとの互換性を明記する。WP1ではtransport handler、signer delegate、observerを実装しない。
 2. WP1が、`GATEWAY=api|third-party`に基づくCP選択をschema check/syncにも適用する。third-partyでは両schemaを確認し、APIには両custom pluginのEntityを配置しない。登録済みschemaの存在とDPでのpluginロードは別々に判定する。schema syncはKonnectの書き込みであり、利用者の承認後にだけ行う。
-3. WP1はGatewayごとのfoundation stateを作り、`_info.select_tags=[fapi2-demo,fapi2-foundation]`を固定する。APIでは新Certificate/CAだけ、third-partyではCertificate/CAと有効なglobal transport Entity 1件を含める。最終Route/stock plugin/bridge EntityはWP3/WP5がruntime stateへ追加する。runtimeは`[fapi2-demo]`でfoundation全entityを同一ID・タグで包含する。WP1で既存v1の更新/削除をしない。静的検証はthird-partyの両plugin必須、APIの両plugin禁止、bootstrap値と固定Route manifestを照合する。schemaだけのimageや仮handlerは作らず、未実装中は通常入口/UIを開かない。
+3. WP1はGatewayごとのfoundation stateを作り、`_info.select_tags=[fapi2-demo,fapi2-foundation]`を固定する。ADR 0014の修正案ではAPIは新Certificate 2件だけを含め、既存CAを変更しない外部前提として検証する。third-partyはCertificate/CAと有効なglobal transport Entity 1件を含める。最終Route/stock plugin/bridge EntityはWP3/WP5がruntime stateへ追加する。runtimeは`[fapi2-demo]`でfoundation全entityを同一ID・タグで包含し、APIの共有CAも既存ID・タグで維持する。WP1で既存v1の更新/削除をしない。静的検証はthird-partyの両plugin必須、APIの両plugin禁止、bootstrap値と固定Route manifestを照合する。schemaだけのimageや仮handlerは作らず、未実装中は通常入口/UIを開かない。
 4. WP1のplan/diffは、承認済みの基盤適用とschema登録が必要なら、その前提を明記する。mockによる対象CP選択テストをlive diffの成功に置き換えない。未承認の前提は`blocked:environment-approval`、未取得の証跡は`not_run`と記録する。WP1を完全受入済みとは扱わない。
 5. WP5は最初にAS-MTLS-OBS-01を通し、その後にtransport handler、bridge signer delegate、全worker preflight、実TLS/lifecycle/drift検証を実装する。WP1のschemaと本体が一致しない場合はschemaを含む設計差分を明示する。既存のspike停止条件を弱めない。
 6. Issueは設計ready、依存受入、環境承認、実装レビュー、runtime受入を分けて記録する。依存WPの完全受入前に後続WPを開始しない。PR mergeだけでIssueをcloseしない。

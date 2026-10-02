@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import HTTPRedirectHandler, Request, build_opener
+from subprocess import TimeoutExpired, run as subprocess_run
 
 import yaml
 from yaml.constructor import ConstructorError
@@ -159,11 +160,13 @@ def validate_foundation_state(root: Path, gateway: str) -> None:
     }:
         raise ValueError("foundation state select_tags were changed")
     certificates = parsed.get("certificates")
-    ca_certificates = parsed.get("ca_certificates")
+    if gateway == "api" and "ca_certificates" in parsed:
+        raise ValueError("API foundation must not manage the shared API CA")
+    ca_certificates = parsed.get("ca_certificates", []) if gateway == "api" else parsed.get("ca_certificates")
     expected_ids = {
         "api": {
             "certificates": {"44444444-4444-4444-8444-444444444444", "55555555-5555-4555-8555-555555555555"},
-            "ca_certificates": {"77777777-7777-4777-8777-777777777777"},
+            "ca_certificates": set(),
         },
         "third-party": {
             "certificates": {"11111111-1111-4111-8111-111111111111", "22222222-2222-4222-8222-222222222222"},
@@ -181,7 +184,7 @@ def validate_foundation_state(root: Path, gateway: str) -> None:
         },
     }[gateway]
     expected_ca_ref = {
-        "api": ("77777777-7777-4777-8777-777777777777", "DECK_FAPI_CA_CERT_YAML"),
+        "api": None,
         "third-party": ("33333333-3333-4333-8333-333333333333", "DECK_FAPI_CA_CERT_YAML"),
     }[gateway]
     for collection_name, collection in (("certificates", certificates), ("ca_certificates", ca_certificates)):
@@ -203,7 +206,7 @@ def validate_foundation_state(root: Path, gateway: str) -> None:
                 cert_env, key_ref = expected_cert_refs[entity["id"]]
                 if entity["cert"] != f"foundation-template:{cert_env}" or entity.get("key") != key_ref:
                     raise ValueError("foundation certificate identity or secret reference was changed")
-            elif (entity["id"], entity["cert"]) != (
+            elif expected_ca_ref is None or (entity["id"], entity["cert"]) != (
                 expected_ca_ref[0], f"foundation-template:{expected_ca_ref[1]}"
             ):
                 raise ValueError("foundation CA certificate identity or reference was changed")
@@ -282,6 +285,97 @@ def verify_remote_target(base: str, target: dict, token: str) -> None:
         or config.get("telemetry_endpoint") != target["telemetry_endpoint"]
     ):
         raise ValueError("read-only control plane metadata does not match local target ID, name, or endpoints")
+
+
+SHARED_API_CA_ID = "33333333-3333-4333-8333-333333333333"
+SINGLE_CERTIFICATE_PEM = re.compile(
+    r"\s*-----BEGIN CERTIFICATE-----\r?\n"
+    r"[A-Za-z0-9+/=]+(?:\r?\n[A-Za-z0-9+/=]+)*\r?\n"
+    r"-----END CERTIFICATE-----\s*",
+    re.ASCII,
+)
+ROLE_INPUT_FIELDS = {
+    "api": {
+        "certificates": {
+            "DECK_FAPI_CA_CERT_YAML",
+            "DECK_API_INTROSPECTION_CERT_YAML",
+            "DECK_API_UPSTREAM_CERT_YAML",
+        },
+        "keys": {"API_INTROSPECTION_KEY", "API_UPSTREAM_KEY"},
+    },
+    "third-party": {
+        "certificates": {
+            "DECK_FAPI_CA_CERT_YAML",
+            "DECK_ROUTE_A_TLS_CERT_YAML",
+            "DECK_ROUTE_B_TLS_CERT_YAML",
+        },
+        "keys": {"ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY"},
+    },
+}
+
+
+def certificate_der(value: object) -> bytes:
+    if not isinstance(value, str) or not value:
+        raise ValueError("role-scoped certificate input is missing or malformed")
+    pem = value.replace("\\n", "\n")
+    if SINGLE_CERTIFICATE_PEM.fullmatch(pem) is None:
+        raise ValueError("role-scoped certificate input is missing or malformed")
+    try:
+        result = subprocess_run(
+            ["openssl", "x509", "-inform", "PEM", "-outform", "DER"],
+            input=pem.encode("ascii"),
+            capture_output=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, UnicodeEncodeError, TimeoutExpired):
+        raise ValueError("role-scoped certificate input is missing or malformed") from None
+    if result.returncode != 0 or not result.stdout:
+        raise ValueError("role-scoped certificate input is missing or malformed")
+    return result.stdout
+
+
+def validate_role_values(gateway: str, role_values: object) -> dict[str, str]:
+    if not isinstance(role_values, dict):
+        raise ValueError("role-scoped decK input is malformed")
+    fields = ROLE_INPUT_FIELDS[gateway]
+    expected = fields["certificates"] | fields["keys"]
+    if set(role_values) != expected:
+        raise ValueError("role-scoped decK input fields are malformed")
+    for name in fields["certificates"]:
+        certificate_der(role_values[name])
+    for name in fields["keys"]:
+        value = role_values[name]
+        if not isinstance(value, str) or not value.startswith("-----BEGIN ") or "PRIVATE KEY-----" not in value:
+            raise ValueError("role-scoped decK input fields are malformed")
+    return role_values
+
+
+def verify_shared_api_ca(base: str, target: dict, token: str, role_certificate: str) -> None:
+    url = (
+        f"{base}/v2/control-planes/{target['control_plane_id']}"
+        f"/core-entities/ca_certificates/{SHARED_API_CA_ID}"
+    )
+    status, response = request_json(url, token)
+    if status != 200 or not isinstance(response, dict):
+        raise ValueError("required shared API CA could not be verified")
+    remote = response.get("data", response)
+    if (
+        not isinstance(remote, dict)
+        or remote.get("id") != SHARED_API_CA_ID
+        or not isinstance(remote.get("tags"), list)
+        or len(remote["tags"]) != 1
+        or not all(isinstance(tag, str) for tag in remote["tags"])
+        or set(remote["tags"]) != {"fapi2-demo"}
+    ):
+        raise ValueError("required shared API CA metadata does not match")
+    try:
+        remote_der = certificate_der(remote.get("cert"))
+        expected_der = certificate_der(role_certificate)
+    except ValueError:
+        raise ValueError("required shared API CA certificate is malformed") from None
+    if remote_der != expected_der:
+        raise ValueError("required shared API CA certificate does not match runtime input")
 
 
 def request_schema_pages(collection_url: str, token: str) -> list[dict]:

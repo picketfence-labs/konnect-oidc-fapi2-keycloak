@@ -2,6 +2,15 @@
 
 予期しない動作、失敗した操作、原因、対処、再確認事項を記録します。認証情報や token の実値は記載しません。
 
+## 2026-10-02: API foundationのCA作成が既存CAとの一意制約で拒否された
+
+- 期待: 承認済みpreviewのAPI create3／third-party create4、update/delete=0を適用し、両post-sync diff=0になる。
+- 実際: API Certificate 2件は作成されたが、CA `77777777-7777-4777-8777-777777777777`はHTTP409 `unique-certificate-per-entity`。API残差はCA create1。third-partyの4件は独立に成功し、post-sync diff=0、ID・タグ・公開証明書・Vault参照・global plugin設定の一致を確認した。
+- 原因: API CPの既存v1 CA `33333333-3333-4333-8333-333333333333`と同じ公開証明書を異なるIDで登録しようとした。同じCP内でのCA証明書一意制約をread-only decK diffは検出しなかった。既存CAの公開DERとrole入力は一致、tagsは`[fapi2-demo]`だった。
+- 保全確認: sync前後の両CP既存Service／Route／Plugin／Certificate／CAのIDとcanonical hashが不変。APIの成功した2 Certificateもremoteで照合。CA再試行、既存CA変更、削除によるrollbackは行わなかった。Docker、realm、runtimeは未操作。
+- 対処案: [ADR 0014](decisions/0014-reuse-existing-api-ca.md)。API foundationから重複CA宣言を外し、固定ID・タグ・公開DER一致をdecK起動前にread-onlyで確認する。既存CAへfoundationタグを足さず、WP3 runtimeで既存ID・タグを維持する。
+- 再確認: 修正PRのlocal/CI検証、利用者merge後のmainでCA前提照合と両live diff=0を確認する。現mainのAPI diffはCA create1のままであり、WP1完全受入と後続WP開始は保留。
+
 ## 2026-10-02: 新規Control Planeの空schema一覧が不完全応答として拒否された
 
 - 期待: schemaがまだ登録されていない新規Control Planeで、HTTP 200の空一覧を0件として扱い、承認済みのschema同期を継続できる。
