@@ -66,7 +66,8 @@
     "preserved_conditions": ["valid B signing key and PS256", "valid iat/exp", "fresh jti", "valid grant and verifier", "Route B mTLS certificate"],
     "single_mutation": "assertion aud is token endpoint URL instead of issuer URL",
     "expected_layer": "Keycloak FAPI secure client-authentication-assertion executor",
-    "expected_result": "AS rejects; record sanitized HTTP status and OAuth error code",
+    "expected_result": "HTTP 400 invalid_grant only with sanitized oauth_reason client_assertion_audience; other code/reason combinations fail",
+    "positive_control": "RS-INT-AUD-02 B issues a valid token; this fresh code grant passes code, session, redirect URI, and PKCE checks before the token-request client-policy check",
     "guard_result_is_as_rejection": false,
     "execution": "not_run_without_separate_isolated-runtime-approval"
   },
@@ -85,8 +86,10 @@
     "preserved_conditions": ["valid signing key and PS256", "valid iat/exp", "fresh jti", "valid grant and verifier"],
     "single_mutation": "no TLS certificate on B token request",
     "expected_layer": "Keycloak AS holder-of-key requirement",
-    "expected_result": "HTTP 400 invalid_request; distinguish TLS handshake failure from AS response",
-    "other_error_codes_are_failures": ["invalid_client", "invalid_grant"],
+    "expected_result": "HTTP 400 invalid_grant only with sanitized oauth_reason mtls_client_certificate_missing; distinguish TLS handshake failure from AS response",
+    "positive_control": "RS-INT-AUD-02 B issues a valid certificate-bound token; the authorization-code handler checks code, session, redirect URI, and PKCE before the token-request client-policy check",
+    "other_error_codes_are_failures": ["invalid_client", "invalid_request", "unspecified"],
+    "other_oauth_reasons_are_failures": true,
     "execution": "not_run_without_separate_isolated-runtime-approval"
   }
 }

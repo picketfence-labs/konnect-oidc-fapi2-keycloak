@@ -115,6 +115,18 @@ class WP2SyncPlanTests(unittest.TestCase):
         self.assertEqual(mapper_plan[0]["operation"], "update")
         self.assertEqual(set(mapper_plan[0]["payload"]), set(sync.MAPPER_ADMIN_FIELDS))
 
+    def test_route_mappers_declare_keycloak_effective_userinfo_defaults_for_full_sync(self):
+        for client_id in ("third-party-fapi-mtls", "third-party-fapi-pkj-mtls"):
+            desired = CLIENT_BY_ID[client_id]["protocolMappers"]
+            live = []
+            for index, mapper in enumerate(desired):
+                config = mapper["config"]
+                with self.subTest(client=client_id, mapper=mapper["name"]):
+                    self.assertEqual(config["userinfo.token.claim"], config["id.token.claim"])
+                    self.assertEqual(config["introspection.token.claim"], config["access.token.claim"])
+                live.append({"id": f"{client_id}-{index}", **sync.mapper_admin_payload(mapper)})
+            self.assertEqual(sync.plan_mapper_sync(desired, live), [])
+
     def test_legacy_clients_are_never_deleted_or_included_in_updates(self):
         current = {client_id: [] for client_id in sync.CLIENT_IDS}
         current["kong-fapi-mtls"] = [{"id": "legacy-a", "clientId": "kong-fapi-mtls"}]
@@ -352,6 +364,60 @@ class IsolatedHarnessTests(unittest.TestCase):
         received = callback_server.receive("expected-state", "/api/fapi/mtls")
         self.assertEqual(received["path"], "/api/fapi/mtls")
 
+    def test_audience_mapper_guard_accepts_declared_userinfo_default_and_keeps_other_drift_strict(self):
+        client_id = "third-party-fapi-mtls"
+        desired_client = CLIENT_BY_ID[client_id]
+        desired_mapper = next(
+            mapper for mapper in desired_client["protocolMappers"]
+            if mapper["name"] == "api-gateway-introspection-audience"
+        )
+        client_path = "/admin/realms/fapi-demo/clients?clientId=" + client_id
+        mapper_path = "/admin/realms/fapi-demo/clients/client-uuid/protocol-mappers/models"
+        baseline = copy.deepcopy(desired_mapper["config"])
+        calls = []
+        is_updated = False
+        changed = copy.deepcopy(baseline)
+        changed["access.token.claim"] = "false"
+
+        def fake_request(_base, path, _ca, **kwargs):
+            nonlocal is_updated
+            calls.append((path, kwargs))
+            if path == client_path:
+                return [{"id": "client-uuid"}]
+            if kwargs.get("method") == "PUT":
+                self.assertEqual(kwargs["json_body"]["config"], changed)
+                is_updated = True
+                return {}
+            if path == mapper_path:
+                config = changed if is_updated else baseline
+                return [{"id": "mapper-uuid", "name": desired_mapper["name"], "config": config}]
+            return [{"id": "mapper-uuid", "name": desired_mapper["name"], "config": changed}]
+
+        with patch.object(flow, "request_json", side_effect=fake_request):
+            flow.change_audience_mapper(
+                "https://localhost:18444", Path("/unused"), "memory-only-admin-token", "a", False
+            )
+        self.assertEqual([kwargs.get("method", "GET") for _, kwargs in calls], ["GET", "GET", "PUT", "GET"])
+
+        for drift in (
+            {**baseline, "unexpected.key": "true"},
+            {**baseline, "userinfo.token.claim": "true"},
+        ):
+            preflight_calls = []
+
+            def drift_request(_base, path, _ca, **kwargs):
+                preflight_calls.append(path)
+                if path == client_path:
+                    return [{"id": "client-uuid"}]
+                return [{"id": "mapper-uuid", "name": desired_mapper["name"], "config": drift}]
+
+            with patch.object(flow, "request_json", side_effect=drift_request):
+                with self.assertRaisesRegex(flow.ProbeError, "unexpected unmanaged drift"):
+                    flow.change_audience_mapper(
+                        "https://localhost:18444", Path("/unused"), "memory-only-admin-token", "a", False
+                    )
+            self.assertEqual(len(preflight_calls), 2, "unexpected mapper drift stops before any update")
+
     def test_user_profile_sync_merges_managed_attributes_and_preserves_unknowns(self):
         desired = json.loads((ROOT / "keycloak/user-profile.json").read_text())
         live = {
@@ -480,6 +546,7 @@ class IsolatedHarnessTests(unittest.TestCase):
             with self.assertRaises(flow.ProtocolResponseError) as raised:
                 flow.request_json("https://localhost:18444", "/token", Path("/unused"))
         self.assertIsNone(raised.exception.error_code)
+        self.assertIsNone(raised.exception.error_reason)
         self.assertNotIn("opaque-assertion-jti-secret", str(raised.exception))
         self.assertNotIn("raw-error-description-secret", str(raised.exception))
 
@@ -490,6 +557,107 @@ class IsolatedHarnessTests(unittest.TestCase):
             with self.assertRaises(flow.ProtocolResponseError) as raised_known:
                 flow.request_json("https://localhost:18444", "/token", Path("/unused"))
         self.assertEqual(raised_known.exception.error_code, "invalid_request")
+        self.assertIsNone(raised_known.exception.error_reason)
+
+        for description, expected_reason in (
+            ("invalid audience in client assertion", "client_assertion_audience"),
+            ("Client Certification missing for MTLS HoK Token Binding", "mtls_client_certificate_missing"),
+        ):
+            source_error = json.dumps({
+                "error": "invalid_grant",
+                "error_description": description,
+            }).encode()
+            with patch.object(flow, "ssl_context", return_value=object()), patch.object(
+                flow.urllib.request, "build_opener", return_value=FakeOpener(source_error)
+            ):
+                with self.assertRaises(flow.ProtocolResponseError) as source_raised:
+                    flow.request_json("https://localhost:18444", "/token", Path("/unused"))
+            self.assertEqual(source_raised.exception.error_code, "invalid_grant")
+            self.assertEqual(source_raised.exception.error_reason, expected_reason)
+            self.assertNotIn(description, str(source_raised.exception))
+
+        wrong_outer_code = json.dumps({
+            "error": "invalid_request",
+            "error_description": "invalid audience in client assertion",
+        }).encode()
+        with patch.object(flow, "ssl_context", return_value=object()), patch.object(
+            flow.urllib.request, "build_opener", return_value=FakeOpener(wrong_outer_code)
+        ):
+            with self.assertRaises(flow.ProtocolResponseError) as outer_raised:
+                flow.request_json("https://localhost:18444", "/token", Path("/unused"))
+        self.assertEqual(outer_raised.exception.error_code, "invalid_request")
+        self.assertIsNone(outer_raised.exception.error_reason)
+
+        unknown_reason = flow.ProtocolResponseError(400, "invalid_grant", "opaque-private-error-detail")
+        self.assertIsNone(unknown_reason.error_reason)
+        self.assertNotIn("opaque-private-error-detail", str(unknown_reason))
+        self.assertIsNone(flow.case_result(
+            "B-AUD-01", "b", "fail", "AS", 400, "invalid_grant",
+            error_reason="opaque-private-error-detail",
+        )["oauth_reason"])
+
+    def test_policy_wrapped_invalid_grant_passes_only_with_exact_sanitized_reason(self):
+        cases = (
+            ("B-AUD-01", "client_assertion_audience"),
+            ("B-CERT-01", "mtls_client_certificate_missing"),
+        )
+        for case_id, reason in cases:
+            with self.subTest(case_id=case_id), patch.object(
+                flow,
+                "exchange_code",
+                side_effect=flow.ProtocolResponseError(400, "invalid_grant", reason),
+            ), patch("builtins.print"):
+                result = flow.expect_as_rejection(
+                    case_id,
+                    "b",
+                    {},
+                    "https://localhost:18444/realms/fapi-demo",
+                    {},
+                    Path("/unused"),
+                    Path("/unused"),
+                )
+            self.assertEqual(result["status"], "pass")
+            self.assertEqual(result["oauth_error"], "invalid_grant")
+            self.assertEqual(result["oauth_reason"], reason)
+
+        for case_id, error_code, reason in (
+            ("B-AUD-01", "invalid_grant", None),
+            ("B-AUD-01", "invalid_request", "client_assertion_audience"),
+            ("B-CERT-01", "invalid_grant", None),
+            ("B-CERT-01", "invalid_grant", "client_assertion_audience"),
+        ):
+            with self.subTest(case_id=case_id, error_code=error_code, reason=reason), patch.object(
+                flow,
+                "exchange_code",
+                side_effect=flow.ProtocolResponseError(400, error_code, reason),
+            ), patch("builtins.print"):
+                result = flow.expect_as_rejection(
+                    case_id,
+                    "b",
+                    {},
+                    "https://localhost:18444/realms/fapi-demo",
+                    {},
+                    Path("/unused"),
+                    Path("/unused"),
+                )
+            self.assertEqual(result["status"], "fail")
+
+        for case_id, reason in cases:
+            with self.subTest(case_id=case_id, status=401), patch.object(
+                flow,
+                "exchange_code",
+                side_effect=flow.ProtocolResponseError(401, "invalid_grant", reason),
+            ), patch("builtins.print"):
+                result = flow.expect_as_rejection(
+                    case_id,
+                    "b",
+                    {},
+                    "https://localhost:18444/realms/fapi-demo",
+                    {},
+                    Path("/unused"),
+                    Path("/unused"),
+                )
+            self.assertEqual(result["status"], "fail")
 
     def test_b_cert_rejects_invalid_client_and_jti_rejects_invalid_grant_as_false_positives(self):
         for case_id, error_code in (("B-CERT-01", "invalid_client"), ("B-JTI-01", "invalid_grant")):
@@ -579,11 +747,61 @@ class IsolatedHarnessTests(unittest.TestCase):
         client_id = "third-party-fapi-pkj-mtls"
         jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(public_key))
         jwk["kid"] = "wp2-test-key"
+        jwk["alg"] = "PS256"
+        jwk["use"] = "sig"
         jwks = {"keys": [jwk]}
         claims = {"iss": issuer, "iat": int(time.time()), "exp": int(time.time()) + 120, "aud": "fapi-demo-api"}
         valid = jwt.encode(claims, private_key, algorithm="PS256", headers={"kid": "wp2-test-key"})
         _header, verified = flow.verify_ps256(valid, jwks, issuer=issuer, audience="fapi-demo-api")
         self.assertEqual(verified["iss"], issuer)
+
+        stale_calls = []
+        stale_jwks = flow.JwksDocument(
+            {"keys": [{**jwk, "kid": "pre-token-rs256-key", "alg": "RS256"}]},
+            refresh=lambda: stale_calls.append(True) or {"keys": [jwk]},
+        )
+        flow.verify_ps256(valid, stale_jwks, issuer=issuer, audience="fapi-demo-api")
+        flow.verify_ps256(valid, stale_jwks, issuer=issuer, audience="fapi-demo-api")
+        self.assertEqual(stale_calls, [True], "unknown kid refresh is bounded and cached")
+        self.assertEqual(stale_jwks.document, {"keys": [jwk]})
+
+        still_missing_calls = []
+        still_missing = flow.JwksDocument(
+            {"keys": []},
+            refresh=lambda: still_missing_calls.append(True) or {"keys": [{**jwk, "kid": "another-key"}]},
+        )
+        for _ in range(2):
+            with self.assertRaisesRegex(flow.ProbeError, "unique matching PS256"):
+                flow.verify_ps256(valid, still_missing, issuer=issuer, audience="fapi-demo-api")
+        self.assertEqual(still_missing_calls, [True], "a missing key is refreshed only once per run")
+
+        same_kid_wrong_alg_calls = []
+        wrong_jwk_algorithm = flow.JwksDocument(
+            {"keys": [{**jwk, "alg": "RS256"}]},
+            refresh=lambda: same_kid_wrong_alg_calls.append(True) or {"keys": [jwk]},
+        )
+        with self.assertRaisesRegex(flow.ProbeError, "PS256"):
+            flow.verify_ps256(valid, wrong_jwk_algorithm, issuer=issuer, audience="fapi-demo-api")
+        self.assertEqual(same_kid_wrong_alg_calls, [], "a same-kid wrong-alg key is not refreshed or accepted")
+
+        for wrong_metadata in ({"use": "enc"}, {"kty": "EC"}):
+            wrong_metadata_calls = []
+            wrong_jwk_metadata = flow.JwksDocument(
+                {"keys": [{**jwk, **wrong_metadata}]},
+                refresh=lambda: wrong_metadata_calls.append(True) or {"keys": [jwk]},
+            )
+            with self.assertRaisesRegex(flow.ProbeError, "unique matching PS256"):
+                flow.verify_ps256(valid, wrong_jwk_metadata, issuer=issuer, audience="fapi-demo-api")
+            self.assertEqual(wrong_metadata_calls, [], "same-kid wrong-use/type keys are never refreshed or accepted")
+
+        duplicate_ps256 = flow.JwksDocument({"keys": [jwk, dict(jwk)]})
+        with self.assertRaisesRegex(flow.ProbeError, "unique matching PS256"):
+            flow.verify_ps256(valid, duplicate_ps256, issuer=issuer, audience="fapi-demo-api")
+
+        same_kid_other_algorithm = flow.JwksDocument({
+            "keys": [{**jwk, "alg": "RS256"}, jwk],
+        })
+        flow.verify_ps256(valid, same_kid_other_algorithm, issuer=issuer, audience="fapi-demo-api")
 
         parts = valid.split(".")
         tampered_claims = {**claims, "sub": "tampered"}
@@ -591,8 +809,14 @@ class IsolatedHarnessTests(unittest.TestCase):
             json.dumps(tampered_claims, separators=(",", ":")).encode()
         )
         tampered = f"{parts[0]}.{tampered_payload}.{parts[2]}"
+        tampered_calls = []
+        known_key = flow.JwksDocument(
+            jwks,
+            refresh=lambda: tampered_calls.append(True) or {"keys": [jwk]},
+        )
         with self.assertRaisesRegex(flow.ProbeError, "PS256"):
-            flow.verify_ps256(tampered, jwks, issuer=issuer, audience="fapi-demo-api")
+            flow.verify_ps256(tampered, known_key, issuer=issuer, audience="fapi-demo-api")
+        self.assertEqual(tampered_calls, [], "signature failure with a known kid does not trigger JWKS refresh")
 
         wrong_algorithm = jwt.encode(claims, private_key, algorithm="RS256", headers={"kid": "wp2-test-key"})
         with self.assertRaisesRegex(flow.ProbeError, "PS256"):

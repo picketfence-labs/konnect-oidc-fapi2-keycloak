@@ -51,6 +51,8 @@ Epic #6とWP #7〜#12はmerge前に起票済み。設計とWP1実装・修正の
 
 依存関係: WP1 → WP2 → WP3 → WP5 → WP6。WP4はWP1の後、WP3と並行して進められる。**DP0 → WP5**も必須。DP1は別枠。
 
+WP2のPR #18では、利用者が具体的previewの隔離runtimeとcleanupを承認し、[実token/AS試験9結果](third-party-wp2-runtime-evidence.md)を独立実行して成功した。途中のfixture/harness失敗も保持した。PRレビュー・利用者merge・main独立検証・利用者受入は未完了であり、WP3へはまだ進まない。
+
 ### WP1: 2つのGatewayの基盤
 
 - **範囲**: Terraformで3rd Party用のKonnect control planeとdata plane certificateを追加する。composeを`kong-api`と`kong-third-party`へ分ける。開発PKIに新しい鍵材料（専用3rd Party metadata client、API Gateway server TLS、introspection client、upstream client）を追加する。Gatewayごとのfoundation state、transport schema、bridge delegate enumを準備する。`make`のtargetで対象Gateway/stageを必須にする。PRのstatus checkとして`make validate`と`make test`を実行するGitHub Actionsを追加する。

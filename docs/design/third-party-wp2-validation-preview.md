@@ -1,6 +1,6 @@
 # WP2: 隔離Keycloak検証の環境変更preview
 
-Issue #8のコード・fixture・PR準備は利用者承認済み。新規fixture秘密材料のローカル生成と設定previewはこの準備に含む。以下の実TLS/token検証は候補であり、Docker起動・realm適用・token発行は未実施。実装のfreezeと独立レビュー後、利用者がこの範囲を承認してから実行する。
+Issue #8のコード・fixture・PR準備と、このpreviewに記載した隔離起動・realm操作・実TLS/token検証・cleanupは利用者承認済み。修正後の独立実行で9結果すべて成功し、専用container・network・volumeを削除した。[実試験証跡](third-party-wp2-runtime-evidence.md)に失敗履歴・修正・最終結果・制約を記録する。以下は承認したscopeと再現手順である。別環境や通常環境への変更を包括承認する文書ではない。
 
 ## 対象と変更範囲
 
@@ -63,7 +63,7 @@ docker compose --project-directory . --project-name wp2-isolated-keycloak \
   -f tests/harness/docker-compose.wp2.yml down --volumes --remove-orphans
 ```
 
-Composeの`env_file`は当該checkoutの`.generated/wp2-preview/bootstrap.env`に固定する。runnerは`requirements-dev.txt`を導入したPython環境で実行する。専用Composeの`config --quiet`は成功済み。起動・realm変更・token発行は未実施。
+Composeの`env_file`は当該checkoutの`.generated/wp2-preview/bootstrap.env`に固定する。runnerは`requirements-dev.txt`を導入したPython環境で実行する。専用Composeの`config --quiet`と承認済みの起動・realm変更・token検証は成功済み。既存receiptを持つfixtureで再実行しない。
 
 実行後はmapperを復元し、専用projectを停止して専用volumeを削除する。fixture用Compose networkも削除する。取得したimageと`.generated/wp2-preview/`の秘密材料・sanitized receiptは残る。receiptはfixtureへ隔離するため`.generated/wp2-preview/evidence/wp2-receipt.json`（Git外、0600）へ保存し、既存fileは上書きしない。停止・cleanupの失敗は正常終了へ変換せず報告する。追加実行が必要なら、既存receiptを保持し、fresh fixtureの作り直しと再試験範囲を先に整理する。
 

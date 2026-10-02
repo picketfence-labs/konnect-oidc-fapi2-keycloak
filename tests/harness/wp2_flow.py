@@ -65,6 +65,11 @@ OAUTH_ERROR_CODES = {
     "unsupported_grant_type",
     "unsupported_response_type",
 }
+OAUTH_ERROR_REASONS = {
+    "invalid audience in client assertion": "client_assertion_audience",
+    "Client Certification missing for MTLS HoK Token Binding": "mtls_client_certificate_missing",
+}
+SAFE_OAUTH_ERROR_REASONS = frozenset(OAUTH_ERROR_REASONS.values())
 
 
 class ProbeError(RuntimeError):
@@ -72,14 +77,55 @@ class ProbeError(RuntimeError):
 
 
 class ProtocolResponseError(ProbeError):
-    def __init__(self, status, error_code):
+    def __init__(self, status, error_code, error_reason=None):
         self.status = status
         self.error_code = error_code
+        self.error_reason = (
+            error_reason
+            if isinstance(error_reason, str) and error_reason in SAFE_OAUTH_ERROR_REASONS
+            else None
+        )
         super().__init__(f"HTTP {status}; OAuth error={error_code or 'unspecified'}")
 
 
 class TransportError(ProbeError):
     pass
+
+
+class JwksDocument:
+    """Keep one discovery-time JWKS with one bounded unknown-kid refresh."""
+
+    def __init__(self, document, refresh=None):
+        self.document = document
+        self.refresh_callback = refresh
+        self.refresh_attempted = False
+
+    def signing_key(self, kid):
+        keys = self._keys(self.document)
+        matching_kid = [key for key in keys if key.get("kid") == kid]
+        if not matching_kid and self.refresh_callback is not None and not self.refresh_attempted:
+            self.refresh_attempted = True
+            refreshed = self.refresh_callback()
+            self._keys(refreshed)
+            self.document = refreshed
+            keys = self._keys(self.document)
+            matching_kid = [key for key in keys if key.get("kid") == kid]
+
+        candidates = [
+            key for key in matching_kid
+            if key.get("kty") == "RSA" and key.get("use") == "sig" and key.get("alg") == "PS256"
+        ]
+        if len(candidates) != 1:
+            raise ProbeError("Keycloak JWKS has no unique matching PS256 signing key")
+        return candidates[0]
+
+    @staticmethod
+    def _keys(document):
+        if not isinstance(document, dict) or not isinstance(document.get("keys"), list):
+            raise ProbeError("Keycloak JWKS document is malformed")
+        if any(not isinstance(key, dict) for key in document["keys"]):
+            raise ProbeError("Keycloak JWKS document is malformed")
+        return document["keys"]
 
 
 def read_env(path):
@@ -178,17 +224,21 @@ def request_json(base_url, path_or_url, ca_path, certificate=None, private_key=N
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as error:
         status = error.code
+        error_reason = None
         try:
             body = error.read()
             decoded = json.loads(body) if body else {}
             error_code = decoded.get("error") if isinstance(decoded, dict) else None
+            if error_code == "invalid_grant" and isinstance(decoded, dict):
+                error_reason = OAUTH_ERROR_REASONS.get(decoded.get("error_description"))
         except (OSError, ValueError, TypeError):
             error_code = None
         finally:
             error.close()
         if not isinstance(error_code, str) or error_code not in OAUTH_ERROR_CODES:
             error_code = None
-        raise ProtocolResponseError(status, error_code) from None
+            error_reason = None
+        raise ProtocolResponseError(status, error_code, error_reason) from None
     except (urllib.error.URLError, ssl.SSLError, TimeoutError, OSError):
         raise TransportError("TLS or local transport failed before an HTTP response") from None
 
@@ -212,15 +262,16 @@ def jwt_parts(token):
 
 def verify_ps256(token, jwks, issuer=None, audience=None, nonce=None):
     _signed, header, _claims, _signature = jwt_parts(token)
-    if header.get("alg") != "PS256" or not isinstance(header.get("kid"), str):
+    if header.get("alg") != "PS256" or not isinstance(header.get("kid"), str) or not header["kid"]:
         raise ProbeError("token is not signed with the required PS256 key")
-    keys = [key for key in jwks.get("keys", []) if key.get("kid") == header["kid"]]
-    if len(keys) != 1 or keys[0].get("kty") != "RSA":
-        raise ProbeError("token signing key is absent or ambiguous in Keycloak JWKS")
+    if isinstance(jwks, JwksDocument):
+        signing_key = jwks.signing_key(header["kid"])
+    else:
+        signing_key = JwksDocument(jwks).signing_key(header["kid"])
     try:
         import jwt
 
-        public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(keys[0]))
+        public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(signing_key))
         required = ["iss", "exp", "iat"]
         if nonce is not None:
             required.append("nonce")
@@ -909,7 +960,8 @@ def run_audience_negative(base_url, metadata, issuer, pki, callback_server, jwks
     print(f"RS-INT-AUD-01 {client['client_id']}: PASS (audience-only negative; active=false; mapper restored)")
 
 
-def case_result(case_id, route_key, status, layer, http_status=None, error_code=None, observed=None):
+def case_result(case_id, route_key, status, layer, http_status=None, error_code=None, observed=None,
+                error_reason=None):
     return {
         "case_id": case_id,
         "route_client_id": CLIENTS[route_key]["client_id"],
@@ -917,6 +969,11 @@ def case_result(case_id, route_key, status, layer, http_status=None, error_code=
         "layer": layer,
         "http_status": http_status,
         "oauth_error": error_code,
+        "oauth_reason": (
+            error_reason
+            if isinstance(error_reason, str) and error_reason in SAFE_OAUTH_ERROR_REASONS
+            else None
+        ),
         "observed_result": observed,
     }
 
@@ -939,19 +996,25 @@ def expect_as_rejection(case_id, route_key, grant, issuer, metadata, pki, signin
         if not 400 <= error.status < 500:
             print(f"{case_id}: FAIL (AS returned HTTP {error.status})")
             return case_result(case_id, route_key, "fail", "AS", error.status)
-        expected_errors = {
-            "A-CERT-01": {"invalid_client"},
-            "A-CERT-02": {"invalid_client"},
-            "B-AUD-01": {"invalid_request"},
-            "B-CERT-01": {"invalid_request"},
-            "B-JTI-01": {"invalid_client"},
+        expected_responses = {
+            "A-CERT-01": {(None, "invalid_client", None)},
+            "A-CERT-02": {(None, "invalid_client", None)},
+            "B-AUD-01": {(400, "invalid_grant", "client_assertion_audience")},
+            "B-CERT-01": {(400, "invalid_grant", "mtls_client_certificate_missing")},
+            "B-JTI-01": {(None, "invalid_client", None)},
         }
-        if error.error_code not in expected_errors[case_id]:
-            print(f"{case_id}: FAIL (unexpected AS error code: {error.error_code or 'unspecified'})")
-            return case_result(case_id, route_key, "fail", "AS", error.status, error.error_code)
-        print(f"{case_id}: PASS (AS rejected: HTTP {error.status}, error={error.error_code or 'unspecified'})")
+        if not any(
+            (expected_status is None or expected_status == error.status)
+            and (expected_code, expected_reason) == (error.error_code, error.error_reason)
+            for expected_status, expected_code, expected_reason in expected_responses[case_id]
+        ):
+            print(f"{case_id}: FAIL (unexpected AS error: {error.error_code or 'unspecified'})")
+            return case_result(case_id, route_key, "fail", "AS", error.status, error.error_code,
+                               error_reason=error.error_reason)
+        reason = f", reason={error.error_reason}" if error.error_reason else ""
+        print(f"{case_id}: PASS (AS rejected: HTTP {error.status}, error={error.error_code or 'unspecified'}{reason})")
         return case_result(case_id, route_key, "pass", "AS", error.status, error.error_code,
-                           "expected-AS-rejection")
+                           "expected-AS-rejection", error_reason=error.error_reason)
     except TransportError:
         print(f"{case_id}: FAIL (TLS/transport ended before an AS response)")
         return case_result(case_id, route_key, "fail", "TLS/transport")
@@ -979,7 +1042,10 @@ def load_metadata(base_url, pki):
         if (parsed.scheme, parsed.hostname, parsed.port) != (origin.scheme, origin.hostname, origin.port):
             raise ProbeError("Keycloak discovery advertised an endpoint outside the isolated loopback origin")
     jwks = request_json(base_url, discovery["jwks_uri"], pki / "ca.crt")
-    return issuer, discovery, jwks
+    return issuer, discovery, JwksDocument(
+        jwks,
+        refresh=lambda: request_json(base_url, discovery["jwks_uri"], pki / "ca.crt"),
+    )
 
 
 def run_as_negatives(base_url, metadata, issuer, pki, callback_server, signing_key, accounts,

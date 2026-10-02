@@ -47,6 +47,7 @@
             "jsonType.label": "String",
             "id.token.claim": "true",
             "access.token.claim": "true",
+            "userinfo.token.claim": "true",
             "introspection.token.claim": "true"
           }
         },
@@ -60,6 +61,7 @@
             "jsonType.label": "String",
             "id.token.claim": "true",
             "access.token.claim": "true",
+            "userinfo.token.claim": "true",
             "introspection.token.claim": "true"
           }
         },
@@ -71,6 +73,7 @@
             "included.custom.audience": "fapi-demo-api",
             "access.token.claim": "true",
             "id.token.claim": "false",
+            "userinfo.token.claim": "false",
             "introspection.token.claim": "true"
           }
         },
@@ -82,6 +85,7 @@
             "included.custom.audience": "api-gateway-introspection",
             "access.token.claim": "true",
             "id.token.claim": "false",
+            "userinfo.token.claim": "false",
             "introspection.token.claim": "true"
           }
         }
@@ -126,6 +130,7 @@
             "jsonType.label": "String",
             "id.token.claim": "true",
             "access.token.claim": "true",
+            "userinfo.token.claim": "true",
             "introspection.token.claim": "true"
           }
         },
@@ -139,6 +144,7 @@
             "jsonType.label": "String",
             "id.token.claim": "true",
             "access.token.claim": "true",
+            "userinfo.token.claim": "true",
             "introspection.token.claim": "true"
           }
         },
@@ -150,6 +156,7 @@
             "included.custom.audience": "fapi-demo-api",
             "access.token.claim": "true",
             "id.token.claim": "false",
+            "userinfo.token.claim": "false",
             "introspection.token.claim": "true"
           }
         },
@@ -161,6 +168,7 @@
             "included.custom.audience": "api-gateway-introspection",
             "access.token.claim": "true",
             "id.token.claim": "false",
+            "userinfo.token.claim": "false",
             "introspection.token.claim": "true"
           }
         }
