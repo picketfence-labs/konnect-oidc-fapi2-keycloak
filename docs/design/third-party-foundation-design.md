@@ -1,6 +1,6 @@
 # WP1: 2 Gateway基盤と段階別設定の詳細設計
 
-2026-10-02、PR #13でレビューする設計補足。PR #5の認証・PoP・DP0方式を維持し、WP1が後続WPのhandlerやRoute設定なしで検証できる境界を定める。実装・schema登録・環境適用の結果ではない。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[Luna移譲契約](third-party-luna-handoff.md)と一緒にレビューする。
+2026-10-02、PR #13の設計補足（`5ab6310`）に利用者が合意し、WP1への実装移譲を指示した。PR #13のmain mergeは未実施。PR #5の認証・PoP・DP0方式を維持し、WP1が後続WPのhandlerやRoute設定なしで検証できる境界を定める。実装・schema登録・環境適用の結果ではない。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[Luna移譲契約](third-party-luna-handoff.md)を正本とする。
 
 ## Terraformと接続先
 

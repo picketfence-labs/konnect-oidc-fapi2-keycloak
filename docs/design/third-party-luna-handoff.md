@@ -7,7 +7,7 @@
 - 対象: [Epic #6](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/6)、WP1〜WP6（#7〜#12）。
 - 設計baseline: [PR #5](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/pull/5)、main merge commit `bc4a063df75ac28d29c33299b90deac3bd1ebe98`（レビュー対象head `3a41ebceb9183f80702c1f898c83991d102fe61e`）。
 - 2026-10-02: Design ownerレビューはmerge blocker 0。`make validate`、`make test`、差分空白検査、変更Markdownのローカルリンク、図JSON解析と4図PNG目視が完了。
-- PR #5は初回の自動承認レビュー拒否後、利用者が本PR限定の規則の例外を明示承認し、2026-10-02にmergeした。ローカルmainも同期済み。PR #13のschema分担補足はレビュー待ち。Issueのready化は補足合意と依存受入を確認してから行う。
+- PR #5は初回の自動承認レビュー拒否後、利用者が本PR限定の規則の例外を明示承認し、2026-10-02にmergeした。ローカルmainも同期済み。PR #13の詳細設計（`5ab6310`）には利用者が合意し、WP1へ進むよう指示した。PR #13のmain mergeは未実施であり、PR #5の例外を他PRへ適用しない。
 - CIはjob setupで失敗。既存workflowの`aquasecurity/trivy-action@0.33.1`が解決できない。WP1が修復する。CI/build成功として扱わない。
 - 実TLS、JWT署名、Keycloak observer build、transport lifecycle、introspectionの実行証跡は今回取得していない。
 
@@ -38,6 +38,8 @@
 | [WP6 #12](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/12) | `feat/wp6-demo-evidence` | WP4とWP5受入 | UI、E2E、negative、reset、再現手順 |
 
 WP4はWP1受入後に別branchで進められる。依存受入と実装着手承認をIssueに記録する。移譲準備は、実際のWorker起動や実装着手を意味しない。
+
+2026-10-02、利用者の「良いです。進めてください。」を設計補足の合意とWP1実装着手の指示として記録する。最初のWorkerはLuna / HighでWP1だけを担当する。PR #13が未mergeのため、実装branchは合意済み設計branchを基準とし、実装PRのbaseは`docs/third-party-luna-handoff`とする。PR #13がmainへmergeされた後に実装PRをmainへ載せ直す。環境適用・image公開・WP2以降の着手承認は別に扱う。
 
 ## WP1: 基盤・schema・CI
 

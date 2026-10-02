@@ -47,7 +47,7 @@ RS側stock検証とclient側proof生成を分け、Keycloak対応、nonce、repl
 
 ## Work packages
 
-Epic #6とWP #7〜#12はmerge前に起票済み。PR #5は2026-10-02にmergeした。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)、[WP1詳細設計](third-party-foundation-design.md)、[Luna / High移譲契約](third-party-luna-handoff.md)はPR #13の設計補足としてレビュー待ち。WP1でschemaとfoundation stateを準備し、最終runtime stateをAPIはWP3、third-partyはWP5で完成させる分担を提案する。Issueのready化は補足合意と依存受入を確認してから行う。
+Epic #6とWP #7〜#12はmerge前に起票済み。PR #5は2026-10-02にmergeした。利用者は[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)、[WP1詳細設計](third-party-foundation-design.md)、[Luna / High移譲契約](third-party-luna-handoff.md)を含むPR #13の設計補足へ合意し、WP1移譲を指示した。PR #13のmain mergeは未実施。WP1でschemaとfoundation stateを準備し、最終runtime stateをAPIはWP3、third-partyはWP5で完成させる。後続Issueのready化は依存WPの受入後に判定する。
 
 依存関係: WP1 → WP2 → WP3 → WP5 → WP6。WP4はWP1の後、WP3と並行して進められる。**DP0 → WP5**も必須。DP1は別枠。
 

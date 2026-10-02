@@ -1,6 +1,6 @@
 # ADR 0013: schema準備とruntime受入をWP間で分ける
 
-- Status: Proposed（PR #5 merge済み。PR #13で開発移譲用の分担補足をレビュー）
+- Status: Accepted（2026-10-02に利用者が設計補足へ合意し、WP1へ進むよう指示。PR #13のmain mergeは未実施）
 - Date: 2026-10-02
 - Amends: [Delivery plan](../design/third-party-delivery-plan.md)のWP1/WP5の成果物分担
 - Preserves: [ADR 0012](0012-third-party-as-mtls-transport.md)の方式、P0、spike、preflightとlive承認ゲート
