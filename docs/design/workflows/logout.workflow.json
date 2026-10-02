@@ -2,7 +2,7 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route別LogoutとRefresh Token失効",
+    "title": "次ケースへ進むLogout / Reset（デモ設計）",
     "animation": "none",
     "quality_profile": "showcase",
     "output": "logout.workflow.html"
@@ -10,20 +10,15 @@
   "lanes": [
     {
       "id": "browser",
-      "label": "利用者・ブラウザー"
+      "label": "Browser / 3rd Party UI"
     },
     {
-      "id": "kong",
-      "label": "Kong Gateway"
+      "id": "tpgw",
+      "label": "3rd Party Gateway"
     },
     {
       "id": "keycloak",
       "label": "Keycloak"
-    },
-    {
-      "id": "evidence",
-      "label": "受入証跡",
-      "variant": "exception"
     }
   ],
   "phases": [
@@ -35,14 +30,14 @@
     },
     {
       "id": "revoke",
-      "label": "Refresh Token失効とlocal session破棄",
+      "label": "Stock revokeとlocal session破棄",
       "fromCol": 2,
       "toCol": 3,
       "variant": "security"
     },
     {
       "id": "sso",
-      "label": "Keycloak SSO終了と再ログイン",
+      "label": "Keycloak SSO終了とUIへ復帰",
       "fromCol": 4,
       "toCol": 5,
       "variant": "emphasis"
@@ -63,8 +58,7 @@
       "click_logout"
     ],
     "allowedTerminals": [
-      "return_ui",
-      "wire_pending"
+      "return_ui"
     ],
     "requiredPaths": [
       {
@@ -89,11 +83,11 @@
       "type": "frontend",
       "label": "対象Routeからログアウト",
       "sublabel": "Route A / Route B",
-      "width": 165
+      "width": 190
     },
     {
       "id": "route_logout",
-      "lane": "kong",
+      "lane": "tpgw",
       "col": 1,
       "type": "backend",
       "label": "Route sessionを解決",
@@ -102,13 +96,12 @@
     },
     {
       "id": "revoke_token",
-      "lane": "kong",
+      "lane": "tpgw",
       "col": 2,
       "type": "security",
-      "label": "Refresh Tokenを失効",
-      "sublabel": "A=mTLS／B=stock PKJWT",
-      "tag": "設定済み",
-      "width": 185
+      "label": "Revokeを要求",
+      "sublabel": "refresh → access token",
+      "width": 175
     },
     {
       "id": "revoke_ok",
@@ -121,16 +114,16 @@
     },
     {
       "id": "destroy_session",
-      "lane": "kong",
+      "lane": "tpgw",
       "col": 3,
       "type": "database",
-      "label": "Kong sessionを破棄",
+      "label": "Local sessionを破棄",
       "sublabel": "Route専用cookieを失効",
       "width": 175
     },
     {
       "id": "redirect_logout",
-      "lane": "kong",
+      "lane": "tpgw",
       "col": 4,
       "type": "cloud",
       "label": "Keycloakへredirect",
@@ -154,16 +147,6 @@
       "label": "Route selectorへ戻る",
       "sublabel": "反対Routeは新しい認可フロー",
       "width": 180
-    },
-    {
-      "id": "wire_pending",
-      "lane": "evidence",
-      "col": 3,
-      "type": "security",
-      "label": "Wire-level証跡を取得",
-      "sublabel": "refresh replay・cookie・SSO・Route切替",
-      "tag": "未完了",
-      "width": 200
     }
   ],
   "edges": [
@@ -177,21 +160,21 @@
     {
       "from": "route_logout",
       "to": "revoke_token",
-      "label": "session内refresh token",
+      "label": "session内token",
       "variant": "security",
       "role": "main"
     },
     {
       "from": "revoke_token",
       "to": "revoke_ok",
-      "label": "A: tls_client_auth / B: private_key_jwt",
+      "label": "mTLS + Route別client認証",
       "variant": "security",
       "role": "main"
     },
     {
       "from": "revoke_ok",
       "to": "destroy_session",
-      "label": "revoked",
+      "label": "HTTP 200",
       "variant": "emphasis",
       "role": "return"
     },
@@ -212,41 +195,23 @@
       "label": "redirect",
       "variant": "emphasis",
       "role": "return"
-    },
-    {
-      "from": "destroy_session",
-      "to": "wire_pending",
-      "label": "自動受入テスト未実施",
-      "variant": "dashed",
-      "role": "branch"
     }
   ],
   "cards": [
     {
-      "dot": "emerald",
-      "title": "実装済み設定",
-      "items": [
-        "Routeごとのlogout URL・cookie・session secretを分離",
-        "Route AはmTLS、Route Bはstock private_key_jwtでrevocation",
-        "Keycloak end_session_endpointからUIへ復帰"
-      ]
-    },
-    {
       "dot": "amber",
-      "title": "未完了の受入証跡",
+      "title": "デモ運用（未実装）",
       "items": [
-        "古いrefresh tokenで再発行できないこと",
-        "Kong cookieとKeycloak SSO sessionの終了",
-        "logout後に反対Routeで新しい認可が始まること"
+        "通常経路はstock logout。次ケースの新規loginを確認",
+        "HTTP 200やreset成功からtoken個別失効を保証しない"
       ]
     },
     {
-      "dot": "rose",
-      "title": "判定上の注意",
+      "dot": "cyan",
+      "title": "Resetの合格条件",
       "items": [
-        "confirmation画面の有無は合格条件にしない",
-        "token値をログへ出さずRouteとphaseだけを記録",
-        "失効失敗時の継続動作もwire-levelで確認する"
+        "Route cookie/SSOをresetし別Route・userへ切替",
+        "revoke失敗はcertなし再送せず対象user限定reset"
       ]
     }
   ]

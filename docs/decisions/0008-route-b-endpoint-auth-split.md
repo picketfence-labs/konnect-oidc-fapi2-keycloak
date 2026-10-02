@@ -3,6 +3,8 @@
 - Status: Accepted
 - Date: 2026-09-23
 
+> v1のAccepted判断。3rd Party追加では、ASのPAR/revokeにもmTLSを必須とする[ADR 0011](0011-customer-demo-scope.md)で変更する。以下を新構成の単純移設契約として使わない。
+
 ## Context
 
 Route Bは、Keycloak token endpointへの`private_key_jwt`とTLS client certificateの同時提示が必要である。Kong Gateway 3.16.0.0のOpenID Connect pluginは、単一のendpoint requestで`private_key_jwt`生成分岐とmTLS transport分岐を同時には選択しない。

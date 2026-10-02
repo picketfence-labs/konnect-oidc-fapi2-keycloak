@@ -1,5 +1,8 @@
 # Keycloak FAPI 2.0二経路デモ要件
 
+> [!NOTE]
+> 本文書はv1（UIからKongへの直接経路）の実装契約である。3rd Partyを追加した構成では、[3rd Party経由FAPI 2.0デモ要件](third-party-fapi2-requirements.md)が本文書を修正し、優先する。「Workflow diagrams」節の画像は、3rd Party構成の設計図へ置き換わっている。v1時点の図は、各画像のリンク先（GitHub Pages）で参照できる。
+
 ## この文書の目的
 
 この文書は、実装担当者が設計判断を再検討せずに開発を開始できるよう、FAPI 2.0二経路デモの要件、境界、受入条件を定義する。実装の正本はこの文書と[ADR 0007](../decisions/0007-keycloak-only-fapi2-demo.md)である。
