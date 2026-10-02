@@ -256,6 +256,36 @@ class WP1FoundationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "cursor"):
                 wp1_target.request_schema_pages("https://example.test/schemas", "secret")
 
+        # The SDK model omits optional `items` and `page` for an empty first
+        # inventory. Only a literal first-page {} is normalized to zero items.
+        with patch.object(wp1_target, "request_json", return_value=(200, {})):
+            pages = wp1_target.request_schema_pages("https://example.test/schemas", "secret")
+        self.assertEqual(pages, [{
+            "items": [],
+            "page": {"total_count": 0, "has_next_page": False, "next_cursor": None},
+            "request_cursor": None,
+        }])
+
+        for partial in (
+            {"items": None},
+            {"items": []},
+            {"page": {}},
+            {"items": [], "page": None},
+            {"items": [], "page": {"total_count": 0, "has_next_page": True}},
+        ):
+            with self.subTest(partial=partial), patch.object(
+                wp1_target, "request_json", return_value=(200, partial)
+            ), self.assertRaises(ValueError):
+                wp1_target.request_schema_pages("https://example.test/schemas", "secret")
+
+        later_empty = [
+            (200, {"items": [{"name": "unrelated", "lua_schema": "return {}"}], "page": {"total_count": 2, "has_next_page": True, "next_cursor": "opaque-next"}}),
+            (200, {}),
+        ]
+        with patch.object(wp1_target, "request_json", side_effect=later_empty):
+            with self.assertRaises(ValueError):
+                wp1_target.request_schema_pages("https://example.test/schemas", "secret")
+
         empty = {"items": [], "page": {"total_count": 0, "has_next_page": False}}
         with patch.object(wp1_target, "request_json", return_value=(200, empty)):
             pages = wp1_target.request_schema_pages("https://example.test/schemas", "secret")
@@ -272,7 +302,7 @@ class WP1FoundationTests(unittest.TestCase):
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_text("return { fields = {} }\n")
             target = {"control_plane_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"}
-            empty = {"items": [], "page": {"total_count": 0, "next_cursor": None, "has_next_page": False}}
+            empty = {}
             writes = []
 
             def request(url, token, *, method="GET", body=None):
@@ -284,6 +314,24 @@ class WP1FoundationTests(unittest.TestCase):
             with patch.object(wp1_target, "request_json", side_effect=request):
                 wp1_target.sync_schemas(root, "https://us.api.konghq.com", target, "token")
             self.assertEqual([write[0] for write in writes], ["POST", "POST"])
+
+            # A malformed later page must be rejected before schema-sync writes.
+            writes.clear()
+            later_pages = [
+                (200, {"items": [{"name": "unrelated", "lua_schema": "return {}"}], "page": {"total_count": 2, "has_next_page": True, "next_cursor": "opaque-next"}}),
+                (200, {}),
+            ]
+
+            def later_page_request(url, token, *, method="GET", body=None):
+                if method == "GET":
+                    return later_pages.pop(0)
+                writes.append((method, url, body))
+                return 201, {}
+
+            with patch.object(wp1_target, "request_json", side_effect=later_page_request):
+                with self.assertRaises(ValueError):
+                    wp1_target.sync_schemas(root, "https://us.api.konghq.com", target, "token")
+            self.assertEqual(writes, [])
 
             malformed_rows = [
                 [{"name": None, "lua_schema": "return {}"}],
