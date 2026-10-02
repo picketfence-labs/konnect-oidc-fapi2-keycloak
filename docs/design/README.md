@@ -12,9 +12,10 @@ Demonstrate mTLS and private_key_jwt, not full FAPI 2.0 compliance. DP0 selects 
 - [FAPI 2.0要件と顧客向けデモ対応範囲](third-party-fapi2-conformance.md): implementation-agnostic FAPI 2.0 client and resource server requirements, mapped to Kong Gateway 3.16, with demo priorities and future work.
 - [Delivery plan](third-party-delivery-plan.md): work packages (Issue drafts), roles, and verification method.
 
-- [Luna / High開発移譲契約](third-party-luna-handoff.md): Issue #6〜#12の実装境界、開始条件、受入IDと証跡。設計とWP1実装はmainへmerge済み。既存CA再利用修正案のレビューとWP1受入は保留。
+- [Luna / xHigh開発移譲契約](third-party-luna-handoff.md): Issue #6〜#12の実装境界、開始条件、受入IDと証跡。設計とWP1実装はmainへmerge・受入済み。WP2を利用者指定のLuna / xHighで開始。
+- [WP2隔離検証preview](third-party-wp2-validation-preview.md): Keycloakだけを専用projectで起動する候補、token/introspectionの判定条件と停止範囲。環境変更の承認待ち。
 - [ADR 0013: schema準備とruntime受入の分担](../decisions/0013-work-package-schema-and-acceptance-boundaries.md): WP1のschema準備とWP5の本体実装を分ける設計補足。
-- [ADR 0014: APIの既存CA再利用](../decisions/0014-reuse-existing-api-ca.md): CA一意制約への修正案。API foundationは既存CAを変更せず、decK起動前にID・タグ・公開DERを照合する。
+- [ADR 0014: APIの既存CA再利用](../decisions/0014-reuse-existing-api-ca.md): 受入済みのCA一意制約への対応。API foundationは既存CAを変更せず、decK起動前にID・タグ・公開DERを照合する。
 - [WP1詳細設計](third-party-foundation-design.md): resource address、接続output、PKI/Route UUID、foundation/runtime state、schema driftとCP検証順。2026-10-02に利用者が合意したPR #13の補足。
 
 ## v1: direct dual-route demo (implemented on main)

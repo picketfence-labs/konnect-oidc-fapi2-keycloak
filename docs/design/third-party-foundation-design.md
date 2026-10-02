@@ -1,6 +1,6 @@
 # WP1: 2 Gateway基盤と段階別設定の詳細設計
 
-2026-10-02、PR #13の設計補足（`5ab6310`）に利用者が合意し、WP1への実装移譲を指示した。設計と実装・空schema応答の修正はPR #13／#15／#16でmainへmerge済み。PR #5の認証・PoP・DP0方式を維持し、WP1が後続WPのhandlerやRoute設定なしで検証できる境界を定める。承認済みfoundation syncで判明したAPI CAの一意制約への修正案は[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)、WP1の検証結果・受入状態は[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)を参照する。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[Luna移譲契約](third-party-luna-handoff.md)にこの修正を反映する。
+2026-10-02、PR #13の設計補足（`5ab6310`）に利用者が合意し、WP1への実装移譲を指示した。設計・実装・修正はPR #13／#15／#16／#17でmainへmerge済み。PR #5の認証・PoP・DP0方式を維持し、WP1が後続WPのhandlerやRoute設定なしで検証できる境界を定める。API CAの一意制約は[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)の既存CA再利用で解決した。main `4ce796d`で独立検証し、利用者がWP1受入とcloseを承認した。[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)のTechnical Completion Reportを参照する。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[Luna移譲契約](third-party-luna-handoff.md)を正本とする。
 
 ## Terraformと接続先
 

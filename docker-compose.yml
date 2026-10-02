@@ -12,6 +12,7 @@ services:
       KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/tls/tls.crt
       KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/tls/tls.key
       KC_HTTPS_CLIENT_AUTH: request
+      KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK: "false"
       KC_TRUSTSTORE_PATHS: /opt/keycloak/conf/trust/ca.crt
       KC_HEALTH_ENABLED: "true"
     volumes:

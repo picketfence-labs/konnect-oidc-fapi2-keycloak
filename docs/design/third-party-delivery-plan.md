@@ -47,9 +47,11 @@ RS側stock検証とclient側proof生成を分け、Keycloak対応、nonce、repl
 
 ## Work packages
 
-Epic #6とWP #7〜#12はmerge前に起票済み。設計PR #5／#13、WP1実装PR #15、空schema応答修正PR #16は利用者がmainへmerge済み。WP1の承認済みfoundation syncでAPI CA一意制約が判明し、[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)の既存CA再利用修正案を準備した。[WP1詳細設計](third-party-foundation-design.md)、[Luna / High移譲契約](third-party-luna-handoff.md)へ反映し、merge後に両diff=0を確認する。後続Issueのready化はWP1受入後に判定する。最終runtime stateはAPIがWP3、third-partyがWP5で完成させる。
+Epic #6とWP #7〜#12はmerge前に起票済み。設計とWP1実装・修正のPR #5／#13／#15／#16／#17は利用者がmainへmerge済み。[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)の既存CA再利用を反映したmain `4ce796d`で両diff=0と既存entity不変を独立確認し、利用者がWP1受入・#7 close・WP2着手を承認した。[Luna / xHigh移譲契約](third-party-luna-handoff.md)に従いWP2 #8を開始する。環境変更は具体的preview後の別承認。最終runtime stateはAPIがWP3、third-partyがWP5で完成させる。
 
 依存関係: WP1 → WP2 → WP3 → WP5 → WP6。WP4はWP1の後、WP3と並行して進められる。**DP0 → WP5**も必須。DP1は別枠。
+
+WP2のPR #18では、利用者が具体的previewの隔離runtimeとcleanupを承認し、[実token/AS試験9結果](third-party-wp2-runtime-evidence.md)を独立実行して成功した。途中のfixture/harness失敗も保持した。PRレビュー・利用者merge・main独立検証・利用者受入は未完了であり、WP3へはまだ進まない。
 
 ### WP1: 2つのGatewayの基盤
 

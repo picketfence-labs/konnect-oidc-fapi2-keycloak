@@ -1,0 +1,95 @@
+{
+  "RS-INT-AUD-02": {
+    "routes": ["third-party-fapi-mtls", "third-party-fapi-pkj-mtls"],
+    "fixture": "fresh PAR + PKCE S256 authorization-code grant for each route; introspection uses api-gateway-introspection certificate",
+    "required_token_claims": [
+      "iss",
+      "sub:nonempty",
+      "sid_or_session_state:nonempty",
+      "exp",
+      "iat",
+      "azp:route-client",
+      "aud:fapi-demo-api",
+      "aud:api-gateway-introspection",
+      "scope:openid",
+      "scope:profile",
+      "cnf.x5t#S256",
+      "https://fapi-demo.example.com/department",
+      "https://fapi-demo.example.com/route"
+    ],
+    "expected_layer": "Keycloak certificate-bound access token and dedicated-client introspection",
+    "expected_result": "active=true",
+    "execution": "not_run_without_separate_isolated-runtime-approval"
+  },
+  "RS-INT-AUD-01": {
+    "routes": ["third-party-fapi-mtls", "third-party-fapi-pkj-mtls"],
+    "fixture": "same isolated realm, same route client, same browser SSO session and route certificate as active=true control; fresh PAR, authorization code and PKCE verifier; disable only that route's api-gateway-introspection-audience access-token mapper, then restore it in finally",
+    "preserved_conditions": [
+      "valid PS256 signature",
+      "valid issuer and times",
+      "active user session",
+      "same nonempty sid or session_state as the active=true control",
+      "route certificate binding",
+      "fapi-demo-api audience",
+      "scope and namespaced claims"
+    ],
+    "controls": [
+      "active=true introspection immediately before mapper change",
+      "active=true introspection after mapper restoration"
+    ],
+    "single_mutation": "omit api-gateway-introspection from aud",
+    "expected_layer": "Keycloak introspection audience verification",
+    "expected_result": "active=false",
+    "execution": "not_run_without_separate_isolated-runtime-approval"
+  },
+  "A-CERT-01": {
+    "route_client_id": "third-party-fapi-mtls",
+    "fixture": "valid A PAR and fresh authorization-code/PKCE grant; omit TLS client certificate only on token request",
+    "preserved_conditions": ["valid grant", "valid code verifier", "correct A client_id"],
+    "single_mutation": "no certificate on A token request",
+    "expected_layer": "Keycloak AS client authentication",
+    "expected_result": "reject; record sanitized HTTP status and OAuth error code",
+    "execution": "not_run_without_separate_isolated-runtime-approval"
+  },
+  "A-CERT-02": {
+    "route_client_id": "third-party-fapi-mtls",
+    "fixture": "valid A PAR and fresh authorization-code/PKCE grant; present Route B TLS certificate on token request",
+    "preserved_conditions": ["valid grant", "valid code verifier", "correct A client_id"],
+    "single_mutation": "Route B certificate used for A",
+    "expected_layer": "Keycloak AS x509 client authentication",
+    "expected_result": "reject; record sanitized HTTP status and OAuth error code",
+    "execution": "not_run_without_separate_isolated-runtime-approval"
+  },
+  "B-AUD-01": {
+    "route_client_id": "third-party-fapi-pkj-mtls",
+    "fixture": "valid B PAR and fresh authorization-code/PKCE grant; otherwise-valid short-lived PS256 assertion with fresh jti",
+    "preserved_conditions": ["valid B signing key and PS256", "valid iat/exp", "fresh jti", "valid grant and verifier", "Route B mTLS certificate"],
+    "single_mutation": "assertion aud is token endpoint URL instead of issuer URL",
+    "expected_layer": "Keycloak FAPI secure client-authentication-assertion executor",
+    "expected_result": "HTTP 400 invalid_grant only with sanitized oauth_reason client_assertion_audience; other code/reason combinations fail",
+    "positive_control": "RS-INT-AUD-02 B issues a valid token; this fresh code grant passes code, session, redirect URI, and PKCE checks before the token-request client-policy check",
+    "guard_result_is_as_rejection": false,
+    "execution": "not_run_without_separate_isolated-runtime-approval"
+  },
+  "B-JTI-01": {
+    "route_client_id": "third-party-fapi-pkj-mtls",
+    "fixture": "two fresh authorization-code grants and distinct PKCE verifiers created after two PAR requests; submit first token exchange successfully, then reuse exactly the same still-valid assertion with the second fresh grant",
+    "preserved_conditions": ["same assertion bytes and jti", "assertion remains within TTL", "second code and verifier are fresh and unconsumed", "Route B mTLS certificate"],
+    "single_mutation": "reuse assertion jti",
+    "expected_layer": "Keycloak AS client assertion replay detection",
+    "expected_result": "first grant succeeds; second is rejected; consumed-code invalid_grant does not count",
+    "execution": "not_run_without_separate_isolated-runtime-approval"
+  },
+  "B-CERT-01": {
+    "route_client_id": "third-party-fapi-pkj-mtls",
+    "fixture": "valid B PAR and fresh authorization-code/PKCE grant plus otherwise-valid PS256 assertion; omit TLS client certificate only on token request",
+    "preserved_conditions": ["valid signing key and PS256", "valid iat/exp", "fresh jti", "valid grant and verifier"],
+    "single_mutation": "no TLS certificate on B token request",
+    "expected_layer": "Keycloak AS holder-of-key requirement",
+    "expected_result": "HTTP 400 invalid_grant only with sanitized oauth_reason mtls_client_certificate_missing; distinguish TLS handshake failure from AS response",
+    "positive_control": "RS-INT-AUD-02 B issues a valid certificate-bound token; the authorization-code handler checks code, session, redirect URI, and PKCE before the token-request client-policy check",
+    "other_error_codes_are_failures": ["invalid_client", "invalid_request", "unspecified"],
+    "other_oauth_reasons_are_failures": true,
+    "execution": "not_run_without_separate_isolated-runtime-approval"
+  }
+}

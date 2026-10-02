@@ -2,6 +2,20 @@
 
 予期しない動作、失敗した操作、原因、対処、再確認事項を記録します。認証情報や token の実値は記載しません。
 
+## 2026-10-02: `gh pr edit`がProjects classic互換エラーで失敗した
+
+- 期待: WP2のDraft PR本文へCI成功結果を追記する。
+- 実際: `gh pr edit --body-file`のGraphQL queryが`pullRequest.projectCards`で拒否された。PRのcodeとCIは成功済み。
+- 対処: 同じ本文をJSON fileの`body`へ格納し、`gh api repos/<owner>/<repo>/pulls/<number> --method PATCH --input <file>`で更新した。
+- 再確認: REST APIの本文更新は成功。merge、Issue close、runtime変更は行っていない。
+
+## 2026-10-02: WP2検証のprovider取得がsandbox内で失敗した
+
+- 期待: 隔離worktreeの`make validate`が静的検証を完了する。
+- 実際: `terraform init`が`registry.terraform.io`のDNS/network制限で失敗し、後続の検証へ到達しなかった。
+- 対処: provider取得と静的検証だけを許可する実行で再試行した。Terraform apply、Docker起動、Konnect変更は行っていない。
+- 再確認: `make validate`はTerraform、静的チェック、JWK export、runtime secret renderingを含め成功した。実TLS/token受入試験は未実施で、別の隔離環境previewに記録する。
+
 ## 2026-10-02: API foundationのCA作成が既存CAとの一意制約で拒否された
 
 - 期待: 承認済みpreviewのAPI create3／third-party create4、update/delete=0を適用し、両post-sync diff=0になる。
@@ -259,3 +273,19 @@
 
   `apply`でKonnect control planeとdata plane証明書を再作成し、`generate-dev-assets`が新しい`infra/certs/tls.crt`・`tls.key`を`.generated/runtime.env`経由でKongへ渡す。`deck-sync`は新しいcontrol planeに対して14エンティティ全件を作成し直す(destroy前の登録内容は残らない)。
 - 再確認: 上記手順を実行後、`docker compose ps`でKongが`healthy`になることを確認した。UIからRoute A/Bともにログイン画面まで到達可能になった。なお`apply`後に`.generated/demo-users.txt`のパスワードが再生成されるため、destroy前に控えたデモユーザーの資格情報は無効になる。
+
+## 2026-10-03: WP2 harnessが初回PS256鍵をJWKSから見つけられなかった
+
+- 期待: 隔離KeycloakでPS256 access tokenを発行し、発行者の公開鍵で署名とclaimsを検証した後、専用mTLS clientでintrospectionする。
+- 実際: 初回の認可済みfixture runでは、token headerのkidに対応する鍵が事前取得済みJWKSに見つからず、RS-INT-AUD-02 Aをharnessが拒否した。sanitizedな事前JWKS概要にはRSA/RS256署名鍵とRSA-OAEP暗号化鍵があり、PS256署名鍵はなかった。修正後の2回目runではRS-INT-AUD-02 A/Bがともに成功し、`active=true`と必須claimを確認した。その後RS-INT-AUD-01 Aのmapper事前検査が停止した。Keycloakのlive mapperにはtemplateにない`userinfo.token.claim=false`があり、guardはPUT前に拒否した。他のoptional flowは未実行だった。
+- 原因: Keycloak 26.7.4の[DefaultKeyManager](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/keys/DefaultKeyManager.java#L54-L78)は、要求されたuse/algorithmの有効鍵がない場合にfallback鍵の生成を試みるため、初回PS256署名鍵がdiscovery時のJWKS取得後に作られる場合がある。また、[AbstractOIDCProtocolMapper.getEffectiveModel](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/protocol/oidc/mappers/AbstractOIDCProtocolMapper.java#L159-L170)は`userinfo.token.claim`未設定時に`id.token.claim`の値を返す。audience mapperはID tokenを無効にしているため、live表現に`userinfo.token.claim=false`が追加された。
+- 対処: tokenのkidが取得済みJWKSにない場合だけ、同じdiscovery `jwks_uri`をTLS検証・同一origin制約・redirect拒否のまま1回再取得する。再取得後も`kid`、RSA、署名用途、PS256が一致する公開鍵が一意でなければ拒否し、PyJWTによる署名・issuer・時間・audience・nonce検証を行う。token requestは再送しない。全Route mapperにKeycloakのeffective defaultsを明記し、attribute mapperの`userinfo.token.claim=true`とaudience mapperの`userinfo.token.claim=false`を宣言する。audience guardは他の差分を引き続き拒否する。初回・2回目のfixtureとsanitized receiptはGit外に保管し、次の確認は専用project/volumeのcleanup後に新しい`.generated/wp2-preview/`を生成して行う。
+- 再確認: JWKS欠落/再取得とmapper既定値/strict driftの回帰testが成功した。2回目runのRS-INT-AUD-02 A/Bは実fixtureで成功した。その後のfresh attempt 04ではRS-INT-AUD-01とAS negativeを含む9結果すべて成功し、専用環境をcleanupした。[実試験履歴](design/third-party-wp2-runtime-evidence.md)へ初回の失敗も残す。
+
+## 2026-10-03: B-AUD-01とB-CERT-01のclient-policy拒否が`invalid_grant`で返った
+
+- 期待: 9ケースのfixture runでRS-INT-AUD-02 A/B、RS-INT-AUD-01 A/B、A-CERT-01/02、B-JTI-01を通過し、B-AUD-01とB-CERT-01も狙ったAS拒否として分類する。
+- 実際: attempt 03では上記7ケースが成功した。B-AUD-01とB-CERT-01はともにHTTP 400 `invalid_grant`を返し、当時のハーネスが期待する外側error codeと異なるためfailになった。raw response bodyやerror descriptionは表示・保存していない。
+- 原因: Keycloak 26.7.4の[AuthorizationCodeGrantType](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/protocol/oidc/grants/AuthorizationCodeGrantType.java#L177-L185)はcode、session、redirect URI、PKCE検査後にtoken-request client policyを実行し、`ClientPolicyException`を外側の`invalid_grant`へ包む。[SecureClientAuthenticationAssertionExecutor](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/services/clientpolicy/executor/SecureClientAuthenticationAssertionExecutor.java#L112-L116)の誤ったassertion audience拒否と[HolderOfKeyEnforcerExecutor](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/services/clientpolicy/executor/HolderOfKeyEnforcerExecutor.java#L96)の証明書欠落拒否は、内部で`invalid_request`を使うため、外側codeだけでは正常なgrant失敗と区別できない。
+- 対処: HTTP 400かつerror codeが`invalid_grant`の場合だけ、response descriptionをmemory内でsourceの完全一致allowlistと比較し、`client_assertion_audience`または`mtls_client_certificate_missing`という固定enumへ変換する。raw descriptionは例外、stdout、receiptへ渡さない。B-AUD-01とB-CERT-01はHTTP status、code、enumの正確な組だけをpassにし、HTTP 401、generic `invalid_grant`、未知detail、誤ったenum、TLS失敗はfailのままにする。受入fixtureとREADMEに有効な事前positive controlsとこの分類規則を記録した。
+- 再確認: 2つの既知detailとenum変換、wrong outer code、欠落・未知・相互に誤った理由・誤statusの拒否をunit testした。修正後のfresh attempt 04でB-AUD-01/B-CERT-01のHTTP 400・`invalid_grant`・対応する固定enumを実確認し、全9結果が成功した。attempt 03のfail receiptは保持する。独立`make validate`、`make test`（WP1 19件、WP2 26件）も成功。PR merge・main検証・利用者受入は別途必要である。

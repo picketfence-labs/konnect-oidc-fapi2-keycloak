@@ -4,7 +4,7 @@
 
 次の開発では IdP を Keycloak に置き換え、FAPI 2.0 の主要なセキュリティ要素を比較できるデモへ拡張します。実装要件は [Keycloak FAPI 2.0 デモ要件](design/fapi2-keycloak-requirements.md)、設計判断は [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)を正とします。[セッション引き継ぎ](session-handoff.md)は初期デモの実績と注意事項を記録しています。
 
-2026-10-02のEnhancementは、[3rd Party経由デモ要件](design/third-party-fapi2-requirements.md)とADR 0009〜0012へ拡張します。設計PR #5／#13、WP1実装PR #15、空schema応答修正PR #16は利用者がmainへmergeしました。承認済みfoundation syncでAPI CA一意制約が判明し、既存CAを変更しない再利用修正案を[ADR 0014](decisions/0014-reuse-existing-api-ca.md)へ記録しました。WP1受入と後続WP開始は保留です。開発の分担・受入は[Luna / High移譲契約](design/third-party-luna-handoff.md)、分担判断は[ADR 0013](decisions/0013-work-package-schema-and-acceptance-boundaries.md)、基盤の具体形は[WP1詳細設計](design/third-party-foundation-design.md)を参照してください。以下の二経路構成はv1の設計記録として残します。
+2026-10-02のEnhancementは、[3rd Party経由デモ要件](design/third-party-fapi2-requirements.md)とADR 0009〜0012へ拡張します。設計とWP1実装・修正は利用者がPR #5／#13／#15／#16／#17でmainへmergeしました。API CAの一意制約には[ADR 0014](decisions/0014-reuse-existing-api-ca.md)の既存CA再利用で対応し、main `4ce796d`で両diff=0、既存entity不変、tests/CIを独立検証しました。利用者はWP1受入・Issue #7 close・WP2着手を承認し、WP2をLuna / xHighで開始しました。開発の分担・受入は[Luna / xHigh移譲契約](design/third-party-luna-handoff.md)、分担判断は[ADR 0013](decisions/0013-work-package-schema-and-acceptance-boundaries.md)、基盤の具体形は[WP1詳細設計](design/third-party-foundation-design.md)を参照してください。以下の二経路構成はv1の設計記録として残します。
 
 ## 目的
 
