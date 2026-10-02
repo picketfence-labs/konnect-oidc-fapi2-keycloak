@@ -29,7 +29,7 @@ repositoryの`AGENTS.md`に従い、`terraform apply`、`deck gateway sync`、Do
 
 ## Design packages（Design ownerのタスク）
 
-### DP0: AS全back-channelのmTLS補完契約（P0、ローカル設計完了・独立レビュー承認後の補足/merge待ち）
+### DP0: AS全back-channelのmTLS補完契約（P0、設計PR #5 merge済み・runtime未受入）
 
 **担当はDesign owner。Workerへ方式選択を任せない。** 成果は[DP0契約](third-party-as-mtls-transport.md)と[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)。専用transport plugin + bridge送信時signer delegateを選択し、専用metadata cert、endpoint mapping、retry/redirect拒否を固定した。exact image bytecodeのmock probeは42件passだが、実TLS/Keycloak/lifecycle受入ではない。以下は本DPの調査・契約項目であり、runtime確認はWP5へ分ける。
 
@@ -46,6 +46,8 @@ repositoryの`AGENTS.md`に従い、`terraform apply`、`deck gateway sync`、Do
 RS側stock検証とclient側proof生成を分け、Keycloak対応、nonce、replay、mTLS transportとの共存、追加client/BFF/customの要否を調べる。追加経路と検証案を提示するまでが設計タスクであり、実装開始や必須mTLS経路の置換は含めない。
 
 ## Work packages
+
+Epic #6とWP #7〜#12はmerge前に起票済み。PR #5は2026-10-02にmergeした。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[Luna / High移譲契約](third-party-luna-handoff.md)はPR #13の設計補足としてレビュー待ち。WP1でtransport schemaとbridge delegate enumを準備し、WP5で本体を実装する分担を提案する。Issueのready化は補足合意と依存受入を確認してから行う。
 
 依存関係: WP1 → WP2 → WP3 → WP5 → WP6。WP4はWP1の後、WP3と並行して進められる。**DP0 → WP5**も必須。DP1は別枠。
 

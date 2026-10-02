@@ -2,7 +2,7 @@
 
 ## この文書の目的
 
-この文書は、既存の二経路デモ（[Keycloak FAPI 2.0二経路デモ要件](fapi2-keycloak-requirements.md)、以下「v1要件」）に3rd Partyを追加した構成について、実装契約を定義する。顧客向けデモの必須範囲と、本来のFAPI 2.0適合との差分を分ける。補完方式は[DP0契約](third-party-as-mtls-transport.md)と[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)に固定した。ローカル設計完了・レビュー/merge待ちであり、実装・runtime受入とは分ける。Workerへ方式選択を渡さない。
+この文書は、既存の二経路デモ（[Keycloak FAPI 2.0二経路デモ要件](fapi2-keycloak-requirements.md)、以下「v1要件」）に3rd Partyを追加した構成について、実装契約を定義する。顧客向けデモの必須範囲と、本来のFAPI 2.0適合との差分を分ける。補完方式は[DP0契約](third-party-as-mtls-transport.md)と[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)に固定した。設計PR #5はmerge済み。実装・runtime受入とは分ける。Workerへ方式選択を渡さない。
 
 - デモの目的・優先順位: [ADR 0011](../decisions/0011-customer-demo-scope.md)
 - お客様向け説明: [デモ対応範囲と追加実装](third-party-demo-explainer.md)
@@ -302,7 +302,7 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 
 ![Logout](workflows/logout.workflow.png)
 
-GitHub Pagesの公開版は、本設計PRのmerge後に更新する。それまでは、Pagesのリンクがv1の図を指す。
+設計PR #5はmerge済み。GitHub Pagesの再公開は未実施のため、Pagesのリンクはv1の図を指す。
 
 ## Primary sources
 

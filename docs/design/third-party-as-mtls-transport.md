@@ -2,7 +2,7 @@
 
 ## 状態と境界
 
-2026-10-02、**方式選択と設計契約のローカル作成を完了、独立差分レビュー承認、nonblocking補足は作者検証済み・merge待ち**。[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)を正本とする。production plugin、設定、realm、実装PRは作っていない。live環境も変更していない。WP5は設計合意・mergeまでreadyにしない。Opusレビューへの補強として[Keycloak側peer証跡契約](third-party-as-peer-evidence.md)を追加し、WP5冒頭のAS-MTLS-OBS-01で計測/claimの成立を確認してから本体実装へ進む。
+2026-10-02、**方式選択と設計契約をレビューし、PR #5としてmerge済み**。[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)を正本とする。production plugin、設定、realm、実装PRは作っていない。live環境も変更していない。WP5の開始には依存WPの受入が必要。Opusレビューへの補強として[Keycloak側peer証跡契約](third-party-as-peer-evidence.md)を追加し、WP5冒頭のAS-MTLS-OBS-01で計測/claimの成立を確認してから本体実装へ進む。
 
 対象はKong 3.16.0.0の**3rd Party GatewayからASへの内部HTTP呼出し**。API Gatewayのstock mTLS introspection、3rd Party → APIのService client certificate、browserのHTTPSは別責務である。DPoP、専用失効制御、完全適合の追加guardは含めない。
 

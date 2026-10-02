@@ -5,9 +5,9 @@
 ## 基準と現在地
 
 - 対象: [Epic #6](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/6)、WP1〜WP6（#7〜#12）。
-- 設計baseline: [PR #5](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/pull/5)、head `3a41ebceb9183f80702c1f898c83991d102fe61e`。
+- 設計baseline: [PR #5](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/pull/5)、main merge commit `bc4a063df75ac28d29c33299b90deac3bd1ebe98`（レビュー対象head `3a41ebceb9183f80702c1f898c83991d102fe61e`）。
 - 2026-10-02: Design ownerレビューはmerge blocker 0。`make validate`、`make test`、差分空白検査、変更Markdownのローカルリンク、図JSON解析と4図PNG目視が完了。
-- PR #5のmerge操作は自動承認レビューがリポジトリの代理merge禁止規則を理由に拒否した。mergeは未完了。Issueは設計merge待ちを維持し、readyにしない。
+- PR #5は初回の自動承認レビュー拒否後、利用者が本PR限定の規則の例外を明示承認し、2026-10-02にmergeした。ローカルmainも同期済み。PR #13のschema分担補足はレビュー待ち。Issueのready化は補足合意と依存受入を確認してから行う。
 - CIはjob setupで失敗。既存workflowの`aquasecurity/trivy-action@0.33.1`が解決できない。WP1が修復する。CI/build成功として扱わない。
 - 実TLS、JWT署名、Keycloak observer build、transport lifecycle、introspectionの実行証跡は今回取得していない。
 

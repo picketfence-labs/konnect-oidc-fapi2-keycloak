@@ -1,6 +1,6 @@
 # ADR 0009: 3rd Partyをclient Gatewayとして分離する
 
-- Status: Proposed
+- Status: Accepted（設計PR #5、2026-10-02 merge。runtime未受入）
 - Date: 2026-10-01
 - Amends: [ADR 0007](0007-keycloak-only-fapi2-demo.md)の決定7・8（KongがRelying PartyとPoP検証の前段を兼ねる構成）
 

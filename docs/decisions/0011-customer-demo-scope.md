@@ -1,6 +1,6 @@
 # ADR 0011: 完全適合ではなく顧客必須要件を示す動作デモを作る
 
-- Status: Proposed
+- Status: Accepted（設計PR #5、2026-10-02 merge。runtime未受入）
 - Date: 2026-10-02
 - Amends: [ADR 0009](0009-third-party-client-gateway-topology.md)、[ADR 0010](0010-api-gateway-resource-server-validation.md)。[ADR 0008](0008-route-b-endpoint-auth-split.md)のendpoint分担は、v1の記録として保持し、3rd Party構成では変更する。
 
@@ -25,9 +25,9 @@
 ## Consequences
 
 - FAPIの仕様要件、顧客必須、標準機能の追加価値、デモ運用、将来対応を別々に説明できる。
-- AS全back-channel mTLSの方式は[ADR 0012](0012-third-party-as-mtls-transport.md)とDP0契約へ固定した（ローカル設計完了、独立レビュー・merge待ち）。合意・mergeまでWP5をreadyにしない。実装可否が未確認の方法を「対応済み」と表現しない。
+- AS全back-channel mTLSの方式は[ADR 0012](0012-third-party-as-mtls-transport.md)とDP0契約へ固定した（設計PR #5、merge済み）。WP5の開始には依存WPの受入が必要。実装可否が未確認の方法を「対応済み」と表現しない。
 - strictな失効/CSRF/iss欠落シナリオは将来・任意に分類する。P0のmTLS/PKJWT、token有効性/PoP、資格情報非漏洩の失敗は、引き続き完了阻害条件である。
-- この決定はローカル設計の更新であり、現行main、PR公開版、live環境の変更を意味しない。
+- この決定はmain上の設計として合意済み。実装やlive環境の変更を意味しない。
 
 ## References
 

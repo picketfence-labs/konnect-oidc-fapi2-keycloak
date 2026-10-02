@@ -4,7 +4,7 @@
 
 次の開発では IdP を Keycloak に置き換え、FAPI 2.0 の主要なセキュリティ要素を比較できるデモへ拡張します。実装要件は [Keycloak FAPI 2.0 デモ要件](design/fapi2-keycloak-requirements.md)、設計判断は [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)を正とします。[セッション引き継ぎ](session-handoff.md)は初期デモの実績と注意事項を記録しています。
 
-2026-10-02のEnhancementは、[3rd Party経由デモ要件](design/third-party-fapi2-requirements.md)とADR 0009〜0012へ拡張します。設計PR #5のmerge待ちです。開発の分担・受入は[Luna / High移譲契約](design/third-party-luna-handoff.md)、schema準備の分担補足は[ADR 0013](decisions/0013-work-package-schema-and-acceptance-boundaries.md)を参照してください。以下の二経路構成はv1の設計記録として残します。
+2026-10-02のEnhancementは、[3rd Party経由デモ要件](design/third-party-fapi2-requirements.md)とADR 0009〜0012へ拡張します。設計PR #5をmergeしました。schema分担補足はPR #13でレビュー待ちです。開発の分担・受入は[Luna / High移譲契約](design/third-party-luna-handoff.md)、schema準備の分担補足は[ADR 0013](decisions/0013-work-package-schema-and-acceptance-boundaries.md)を参照してください。以下の二経路構成はv1の設計記録として残します。
 
 ## 目的
 

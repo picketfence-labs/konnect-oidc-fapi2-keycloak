@@ -16,7 +16,13 @@
 - 実際: merge実行前にautomatic approval reviewが拒否した。mainは更新されていない。
 - 理由: リポジトリの「人間のレビュー担当者に代わってPull Requestをmergeしない」規則を優先する判定。
 - 対処: PR #5に限った規則の例外承認を利用者へ確認。迂回せず、設計/受入整理は固定headを基準に継続する。
-- 再確認: merge未完了。Issueの設計merge待ちを解除しない。
+- 再確認: 利用者がPR #5限定の例外を明示承認し、2026-10-02にmerge成功。main commitは`bc4a063`。設計merge待ちは解消した。
+
+## 2026-10-02: 旧gh CLIのPR編集がProject APIで失敗した
+
+- 実際: `gh pr edit 13 --base main`が廃止されたProjects classicの`projectCards`照会で失敗した。
+- 対処: REST APIの`PATCH /repos/{owner}/{repo}/pulls/13`でbaseだけをmainへ変更した。
+- 再確認: API応答でbase=mainを確認。PRのmergeは行っていない。
 
 ## 2026-09-15: OIDC が作るヘッダーを基本 Route の条件にできない
 
