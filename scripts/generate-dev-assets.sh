@@ -9,54 +9,14 @@ SECRETS="$GENERATED/secrets.env"
 umask 077
 mkdir -p "$PKI" "$GENERATED/keycloak"
 
+python3 "$ROOT/scripts/generate-pki.py" "$PKI"
+
 if [[ -f "$ROOT/.env" ]]; then
   set -a
   # shellcheck disable=SC1091
   source "$ROOT/.env"
   set +a
 fi
-
-if [[ ! -f "$PKI/ca.key" ]]; then
-  openssl req -x509 -newkey rsa:4096 -sha256 -nodes -days 30 \
-    -addext "basicConstraints=critical,CA:TRUE" \
-    -addext "keyUsage=critical,keyCertSign,cRLSign" \
-    -addext "subjectKeyIdentifier=hash" \
-    -subj "/CN=FAPI demo development CA" \
-    -keyout "$PKI/ca.key" -out "$PKI/ca.crt"
-fi
-
-issue_certificate() {
-  local name="$1"
-  local subject="$2"
-  local usage="$3"
-  local alt_names="${4:-}"
-  local extension="$PKI/$name.ext"
-
-  if [[ -f "$PKI/$name.crt" && -f "$PKI/$name.key" ]]; then
-    return
-  fi
-
-  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$PKI/$name.key"
-  openssl req -new -key "$PKI/$name.key" -subj "/CN=$subject" -out "$PKI/$name.csr"
-  {
-    printf '%s\n' "basicConstraints=critical,CA:FALSE"
-    printf '%s\n' "keyUsage=critical,digitalSignature,keyEncipherment"
-    printf '%s\n' "extendedKeyUsage=$usage"
-    if [[ -n "$alt_names" ]]; then
-      printf '%s\n' "subjectAltName=$alt_names"
-    fi
-  } > "$extension"
-  openssl x509 -req -in "$PKI/$name.csr" -CA "$PKI/ca.crt" -CAkey "$PKI/ca.key" \
-    -CAcreateserial -days 30 -sha256 -extfile "$extension" -out "$PKI/$name.crt"
-  rm -f "$PKI/$name.csr" "$extension"
-}
-
-issue_certificate keycloak keycloak serverAuth "DNS:keycloak,DNS:localhost,IP:127.0.0.1"
-issue_certificate kong-proxy localhost serverAuth "DNS:localhost,IP:127.0.0.1"
-issue_certificate ui localhost serverAuth "DNS:localhost,IP:127.0.0.1"
-issue_certificate pop-verifier pop-verifier serverAuth "DNS:pop-verifier,DNS:localhost,IP:127.0.0.1"
-issue_certificate route-a kong-fapi-mtls clientAuth
-issue_certificate route-b kong-fapi-pkj-mtls clientAuth
 
 if [[ ! -f "$PKI/route-b-pkj.key" ]]; then
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:3072 -out "$PKI/route-b-pkj.key"
@@ -106,15 +66,14 @@ EOF
 
 python3 "$ROOT/scripts/render-runtime-secrets.py" \
   "$SECRETS" \
-  "$GENERATED/keycloak/route-b-private.jwk" \
   "$PKI" \
-  "$GENERATED/runtime.env"
+  "$GENERATED"
 
 cat > "$GENERATED/demo-users.txt" <<EOF
 sales.user@fapi-demo.invalid $SALES_PASSWORD
 engineering.user@fapi-demo.invalid $ENGINEERING_PASSWORD
 EOF
 
-chmod 600 "$GENERATED/deck.env" "$GENERATED/runtime.env" "$GENERATED/demo-users.txt"
+chmod 600 "$GENERATED/deck.env" "$GENERATED/runtime.env" "$GENERATED/runtime-api.json" "$GENERATED/runtime-third-party.json" "$GENERATED/runtime-api.env" "$GENERATED/runtime-third-party.env" "$GENERATED/demo-users.txt"
 echo "Generated development PKI, Keycloak realm, and credentials under .generated/."
 echo "Run 'sed -n 1,2p .generated/demo-users.txt' to display the demo credentials explicitly."

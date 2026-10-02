@@ -16,6 +16,18 @@ resource "konnect_gateway_control_plane" "demo" {
   }]
 }
 
+resource "konnect_gateway_control_plane" "third_party" {
+  name         = var.third_party_control_plane_name
+  description  = "Third-party Gateway for the Keycloak FAPI 2.0 demo"
+  cluster_type = "CLUSTER_TYPE_CONTROL_PLANE"
+  auth_type    = "pinned_client_certs"
+
+  labels = {
+    owner   = "picketfence-labs"
+    purpose = "keycloak-fapi2-third-party-demo"
+  }
+}
+
 resource "tls_private_key" "dp" {
   algorithm   = "ECDSA"
   ecdsa_curve = "P384"
@@ -50,5 +62,42 @@ resource "local_sensitive_file" "dp_cert" {
 resource "local_sensitive_file" "dp_key" {
   filename        = "${path.module}/certs/tls.key"
   content         = tls_private_key.dp.private_key_pem
+  file_permission = "0600"
+}
+
+resource "tls_private_key" "third_party_dp" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P384"
+}
+
+resource "tls_self_signed_cert" "third_party_dp" {
+  private_key_pem       = tls_private_key.third_party_dp.private_key_pem
+  validity_period_hours = 720
+  early_renewal_hours   = 72
+  is_ca_certificate     = false
+
+  subject {
+    common_name  = "${var.third_party_control_plane_name}-local-dp"
+    organization = "Picketfence Labs demo"
+  }
+
+  allowed_uses = ["client_auth", "digital_signature", "key_encipherment"]
+}
+
+resource "konnect_gateway_data_plane_client_certificate" "third_party_dp" {
+  control_plane_id = konnect_gateway_control_plane.third_party.id
+  cert             = tls_self_signed_cert.third_party_dp.cert_pem
+  title            = "${var.third_party_control_plane_name}-local-dp"
+}
+
+resource "local_sensitive_file" "third_party_dp_cert" {
+  filename        = "${path.module}/certs/third-party/tls.crt"
+  content         = tls_self_signed_cert.third_party_dp.cert_pem
+  file_permission = "0600"
+}
+
+resource "local_sensitive_file" "third_party_dp_key" {
+  filename        = "${path.module}/certs/third-party/tls.key"
+  content         = tls_private_key.third_party_dp.private_key_pem
   file_permission = "0600"
 }

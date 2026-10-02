@@ -1,0 +1,36 @@
+name: Validate repository configuration
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.4
+
+      - name: Install decK and LuaJIT
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes luajit
+          curl --fail --silent --show-error --location https://github.com/kong/deck/releases/download/v1.53.1/deck_1.53.1_linux_amd64.tar.gz | tar -xz -C /tmp
+          sudo install /tmp/deck /usr/local/bin/deck
+
+      - name: Validate and test
+        run: |
+          python3 -m pip install --requirement requirements-dev.txt
+          make validate
+          make test

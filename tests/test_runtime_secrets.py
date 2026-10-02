@@ -15,20 +15,20 @@ with tempfile.TemporaryDirectory() as directory:
     pki.mkdir()
     secrets = temporary / "secrets.env"
     jwk = temporary / "private.jwk"
-    output = temporary / "runtime.env"
+    output = temporary / "generated"
+    output.mkdir()
 
     secrets.write_text(
         "KEYCLOAK_ADMIN_USERNAME=admin\n"
         "KEYCLOAK_ADMIN_PASSWORD=password-with-symbols_123\n"
     )
-    jwk.write_text('{"kty":"RSA","d":"private-value"}\n')
-    for route in ("route-a", "route-b"):
-        (pki / f"{route}.crt").write_text(
+    for identity in ("route-a", "route-b", "api-introspection", "api-upstream", "ca"):
+        (pki / f"{identity}.crt").write_text(
             "-----BEGIN CERTIFICATE-----\ncertificate\n-----END CERTIFICATE-----\n"
         )
         private_key_marker = "-----BEGIN " + "PRIVATE KEY-----"
         private_key_end = "-----END " + "PRIVATE KEY-----"
-        (pki / f"{route}.key").write_text(
+        (pki / f"{identity}.key").write_text(
             f"{private_key_marker}\nprivate\n{private_key_end}\n"
         )
 
@@ -37,24 +37,50 @@ with tempfile.TemporaryDirectory() as directory:
             "python3",
             str(ROOT / "scripts" / "render-runtime-secrets.py"),
             str(secrets),
-            str(jwk),
             str(pki),
             str(output),
         ],
         check=True,
     )
 
-    rendered = {}
-    for line in output.read_text().splitlines():
+    runtime = {}
+    for line in (output / "runtime.env").read_text().splitlines():
         name, value = line.split("=", 1)
-        rendered[name] = json.loads(value)
+        runtime[name] = json.loads(value)
+    assert runtime == {
+        "KEYCLOAK_ADMIN_USERNAME": "admin",
+        "KEYCLOAK_ADMIN_PASSWORD": "password-with-symbols_123",
+    }
 
-    assert rendered["KEYCLOAK_ADMIN_USERNAME"] == "admin"
-    assert json.loads(rendered["ROUTE_B_JWK"])["d"] == "private-value"
-    assert rendered["ROUTE_A_TLS_CERT"].endswith("-----END CERTIFICATE-----\n")
-    assert rendered["ROUTE_A_TLS_KEY"].endswith(f"{private_key_end}\n")
-    assert rendered["ROUTE_B_TLS_CERT"].endswith("-----END CERTIFICATE-----\n")
-    assert rendered["ROUTE_B_TLS_KEY"].endswith(f"{private_key_end}\n")
-    assert stat.S_IMODE(output.stat().st_mode) == 0o600
+    api = json.loads((output / "runtime-api.json").read_text())
+    third_party = json.loads((output / "runtime-third-party.json").read_text())
+    assert api["DECK_API_INTROSPECTION_CERT_YAML"].startswith("-----BEGIN CERTIFICATE-----\\n")
+    assert api["API_INTROSPECTION_KEY"].endswith(f"{private_key_end}\n")
+    assert api["API_UPSTREAM_KEY"].endswith(f"{private_key_end}\n")
+    assert not any("route-a" in name or "route-b" in name or "third-party" in name for name in api)
+    assert third_party["ROUTE_A_TLS_KEY"].endswith(f"{private_key_end}\n")
+    assert third_party["ROUTE_B_TLS_KEY"].endswith(f"{private_key_end}\n")
+    assert not any("api-introspection" in name or "api-upstream" in name for name in third_party)
+    api_env = {}
+    for line in (output / "runtime-api.env").read_text().splitlines():
+        name, value = line.split("=", 1)
+        api_env[name] = json.loads(value)
+    third_party_env = {}
+    for line in (output / "runtime-third-party.env").read_text().splitlines():
+        name, value = line.split("=", 1)
+        third_party_env[name] = json.loads(value)
+    assert set(api_env) == {"API_INTROSPECTION_KEY", "API_UPSTREAM_KEY"}
+    assert api_env["API_INTROSPECTION_KEY"].endswith(f"{private_key_end}\n")
+    assert api_env["API_UPSTREAM_KEY"].endswith(f"{private_key_end}\n")
+    assert set(third_party_env) == {
+        "ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY", "FAPI_AS_TRANSPORT_ISSUER", "FAPI_AS_TRANSPORT_INTERNAL_ORIGIN"
+    }
+    assert third_party_env["ROUTE_A_TLS_KEY"].endswith(f"{private_key_end}\n")
+    assert third_party_env["ROUTE_B_TLS_KEY"].endswith(f"{private_key_end}\n")
+    assert third_party_env["FAPI_AS_TRANSPORT_ISSUER"] == "https://localhost:8444/realms/fapi-demo"
+    assert all(stat.S_IMODE((output / name).stat().st_mode) == 0o600 for name in (
+        "runtime.env", "runtime-api.json", "runtime-third-party.json", "runtime-api.env", "runtime-third-party.env"
+    ))
+    assert stat.S_IMODE(output.stat().st_mode) == 0o700
 
 print("runtime secret rendering checks: PASS")
