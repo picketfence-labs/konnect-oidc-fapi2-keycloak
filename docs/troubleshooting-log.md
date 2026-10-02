@@ -24,6 +24,19 @@
 - 対処: REST APIの`PATCH /repos/{owner}/{repo}/pulls/13`でbaseだけをmainへ変更した。
 - 再確認: API応答でbase=mainを確認。PRのmergeは行っていない。
 
+## 2026-10-02: Terraform provider schemaのread-only取得がsandboxで失敗した
+
+- 期待: インストール済みproviderから`terraform providers schema -json`で型を確認する。
+- 実際: sandbox内では4 providerがplugin protocol handshakeで失敗した。
+- 対処: 同じschema照会だけを権限昇格して再実行し、成功した。state値や秘密値は表示せず、CPのcomputed endpointとDP certificateのrequired fieldを確認した。
+- 再確認: HCL変更、plan/apply、resource更新は実施していない。schema取得成功をlive環境のplan成功として扱わない。
+
+## 2026-10-02: 公開SDK照会がGitHub OAuthのSAML制約で拒否された
+
+- 実際: Kong公式SDKの公開sourceを`gh api`で読む操作がorganization SAML enforcementにより403となった。
+- 対処: 認証なしの公開API/sourceから、custom schemaの一覧・個別取得の応答型だけを確認した。非公開情報やSAML保護された情報は取得していない。
+- 再確認: 一覧の`items[].lua_schema`と個別取得の`fields`を区別し、schema drift確認を全page一覧取得へ修正した。live Konnectのschema照会／更新は行っていない。
+
 ## 2026-09-15: OIDC が作るヘッダーを基本 Route の条件にできない
 
 - 期待: `X-Demo-Department` に応じて複数の Kong Route を選ぶ。

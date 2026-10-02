@@ -11,7 +11,7 @@
 - CIはjob setupで失敗。既存workflowの`aquasecurity/trivy-action@0.33.1`が解決できない。WP1が修復する。CI/build成功として扱わない。
 - 実TLS、JWT署名、Keycloak observer build、transport lifecycle、introspectionの実行証跡は今回取得していない。
 
-着手前にremoteを同期し、PR #5のmergeとこの設計補足の合意をIssueで確認する。baselineの差分があれば、再確認してからbranchを作る。設計はADR 0009〜0013、実装要件、DP0を正本とする。Workerは方式を選び直さない。
+着手前にremoteを同期し、PR #5のmergeとこの設計補足の合意をIssueで確認する。baselineの差分があれば、再確認してからbranchを作る。設計はADR 0009〜0013、実装要件、DP0と[WP1詳細設計](third-party-foundation-design.md)を正本とする。Workerは方式を選び直さない。
 
 ## 成果と範囲
 
@@ -46,14 +46,16 @@ WP4はWP1受入後に別branchで進められる。依存受入と実装着手�
 | 受入ID | 合格条件と証跡 |
 |---|---|
 | WP1-CP | 既存CP/DPのTerraform addressを維持し、3rd Party CP、独立DP鍵・証明書とlocal sensitive fileを追加。sanitized planは追加基盤だけ。既存resourceのdestroy/replace、意図しない更新は0 |
-| WP1-SELECT | `GATEWAY=api|third-party`をdiff/sync/schema操作で必須にする。未指定・不正値・CP不整合は資格情報読み込みと通信前に非zero。mockで別CPへの選択を確認し、承認済み前提で両live diffを取得 |
+| WP1-SELECT | `GATEWAY=api|third-party`をdiff/sync/schema操作で必須にする。未指定・不正値・ローカルmapping不整合は認証/通信前に非zero。実CP名はread-only照会で確認し、不一致なら後続操作を停止。mockと両foundation live diffを別々に記録 |
 | WP1-PKI | metadata、API server、introspection、upstreamの鍵を用途別に分離。API server certに`kong-api`とhost検証用SANを含める。新材料はGit外、read-only mount。生成済み材料を意図せず上書きしない |
-| WP1-SCHEMA | ADR 0013に従いtransport schemaとbridge delegate enumを準備。third-party CPの登録状態を確認し、schema syncは別承認。API用stateに両custom Entityなし。schemaの存在をDPロード成功と説明しない |
-| WP1-STATIC | `make validate`が両decK state・compose・schemaを検証。third-party両plugin必須/API両plugin禁止、bootstrap、global transport Entity有効1件、Route UUIDとidentity一貫性のpositive/negative検査 |
+| WP1-SCHEMA | 詳細設計の型/default/固定値に従いtransport schemaとbridge delegate enumを準備。third-party CPの両schemaを内容hashまで照合し、schema syncは別承認。API用stateに両custom Entityなし。legacy登録schemaを削除せず、登録をDPロード成功と説明しない |
+| WP1-STATIC | `make validate`が両foundation state・compose・schemaを検証。third-party両plugin必須/API両plugin禁止、bootstrap、third-party foundationのglobal transport Entity有効1件、固定Route manifestとidentityのpositive/negative検査。実Route entity一致はWP5 |
+| WP1-STAGE/TARGET | 詳細設計のstage必須、state ownership、CP照合順を検証。WP1はfoundationだけをdiffし、API既存v1 entityのupdate/delete=0。未完成runtimeやタグ範囲改変は拒否 |
+| WP1-SCHEMA-DRIFT/IDENTITY | 両schemaの欠落/drift、UUID/client ID/cert pathの入替・重複、CP/秘密鍵mountの混用を拒否 |
 | WP1-CI | credential不要のPR checkで`make validate`と`make test`が成功。既存Trivy参照を公式`v0.33.1`のcommit `b6643a29fecd7f34b3597bc6acb0a98b03d33ff8`へpinし、実行結果を確認。scanを外したり、失敗を成功に変換しない |
 | WP1-SECRETS | `.env`、`.generated`、state/plan、秘密鍵/証明書、token/licenseをGitへ追加しない。PR差分とignoreを確認し、値を表示せず結果だけ記録 |
 
-runtime本体はWP5。WP1時点で通常入口/UIは閉鎖を維持する。仮handlerを作らず、未実装transportのロードを外して起動を通さない。新CP作成・schema登録の承認がない場合、live diffはnot_run、WP1の完全受入は保留とする。
+runtime stateはAPIがWP3、third-partyがWP5で完成させ、foundation全entityを同一ID/タグで包含する。WP1時点で通常入口/UIは閉鎖を維持する。仮handlerを作らず、未実装transportのロードを外して起動を通さない。新CP作成・schema登録の承認がない場合、live diffはnot_run、WP1の完全受入は保留とする。
 
 ## WP2: Keycloak clientsとintrospection
 
@@ -77,6 +79,7 @@ Keycloak 26.7.4の[公開source](https://github.com/keycloak/keycloak/blob/26.7.
 - **HEADER-CERT-01**でclient供給cert headerを上書きし、証明書欠落時にはUpstreamへ到達させない。`X-Demo-*`はclaim由来、Cookieとclient供給`X-Fapi-*`は除去する。
 - Gatewayは専用upstream certで接続する。JWT再検証に必要なAuthorizationだけをUpstreamへ転送する。
 - tag限定のsync前diff、承認後sync、sync後diff=0。**RS-REVOKE-01**は任意、未実施を失効保証に読み替えない。
+- **WP3-MIGRATION**: API runtime stateへfoundationを包含し、旧v1 entityの除去を独立previewする。入口停止、旧sessionと復旧手順を確認してから適用する。WP1のcreate-only基盤受入へ削除を混ぜない。
 
 ## WP4: Upstream API
 
@@ -102,6 +105,7 @@ Keycloak 26.7.4の[公開source](https://github.com/keycloak/keycloak/blob/26.7.
 - **AS-META-MTLS-01**: A先行/B先行、cold cache、stock discovery/JWKS、bridge discovery、background/threadの専用metadata certを実AS peerで確認。warm no-fetchはskip。
 - **AS-TRANSPORT-GUARD-01**: 未知URL/HTTP/外部origin/3xx、context/signer/epoch不足、cert不一致、期限不足をnot_sentで拒否。同一POSTはfresh assertionでも拒否し、別tokenの2 revokeは許可。
 - **AS-TRANSPORT-LIFECYCLE-01**: 全worker実ロード、wrapper1回、registry epoch、configure前/invalid/nil、同一再通知、変更/restart、他plugin非AS通信を確認。transportだけ/両plugin欠落で入口/UIを閉じ、Route A metadata未送信を証明。
+- **WP5-BOOTSTRAP**: 設定受領前もCP通信だけを許可し、public/internal AS originへの到達とstock background/metadata送信を遮断する。UI停止だけでpassにしない。全workerのgeneration/ready/configを照合後に通常入口を開き、欠落・再起動・変更で閉鎖する。実証できなければneeds-design。
 - **A/B-PAR-01、B-PKJ-01、PAR-01/02、PKCE-01、A/B-CNF-01、HDR-01、TLS-01、ISS-01、META-01/02、RT-01、RT-ROT-01、B-SPOOF-01、B-AUD-02、REDIR-01**も実行する。TLS-02はP1対象として証跡を取得する。
 - **B-AUD-01/B-JTI-01**のdirect AS negativeは送信guardと分ける。signature不正、期限切れ、誤aud、同assertion replayを検証し、どの層が拒否したか記す。
 - 通常デモは標準Keycloak imageでpositive flowを再確認する。test-only計測image/harnessを通常経路に入れない。logout revoke失敗時はcertなしで再送せず、対象demo user限定resetへ進む。
@@ -138,6 +142,8 @@ Design ownerは実装merge後のmainで主要positive/negativeを独立再実行
 
 > Codex / gpt-6-luna / highでWP1 #7のみを担当してください。remoteと必須Vault文脈を読み、PR #5のmerge、ADR 0013の分担合意、Issueの開始状態を確認してください。`feat/wp1-dual-gateway-foundation`で基盤・schema・CIを実装し、既存CP/DP resourceを保全してください。通常入口は閉鎖を維持し、transport handlerは実装しません。未承認の環境変更は行わず、必要なpreviewと承認対象を具体化してください。WP1受入IDの対応表と検証結果を付け、`Refs #7`のPRを提出してください。設計不成立はDesign ownerへ戻し、merge/Issue closeは行わないでください。
 
+WP1の最初の成果は詳細設計のresource/output/identityとfoundation stateである。`STAGE=foundation`で両diffを取得し、runtimeの空stateを作って旧v1を削除しない。schemaの登録とhandler実装、CPのmetadata照会と通信前入力検査を分けて報告する。
+
 ## 参照
 
 - [実装要件とシナリオ](third-party-fapi2-requirements.md)
@@ -146,3 +152,4 @@ Design ownerは実装merge後のmainで主要positive/negativeを独立再実行
 - [DP0 transport契約](third-party-as-mtls-transport.md)
 - [AS peer証跡契約](third-party-as-peer-evidence.md)
 - [ADR 0013: schemaと受入分担](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)
+- [WP1詳細設計: address、PKI、identity、state、schema](third-party-foundation-design.md)

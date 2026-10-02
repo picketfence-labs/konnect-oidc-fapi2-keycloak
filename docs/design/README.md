@@ -14,6 +14,7 @@ Demonstrate mTLS and private_key_jwt, not full FAPI 2.0 compliance. DP0 selects 
 
 - [Luna / High開発移譲契約](third-party-luna-handoff.md): Issue #6〜#12の実装境界、開始条件、受入IDと証跡。schema分担補足はPR #13でレビュー待ち。
 - [ADR 0013: schema準備とruntime受入の分担](../decisions/0013-work-package-schema-and-acceptance-boundaries.md): WP1のschema準備とWP5の本体実装を分ける設計補足。
+- [WP1詳細設計](third-party-foundation-design.md): resource address、接続output、PKI/Route UUID、foundation/runtime state、schema driftとCP検証順。PR #13でレビューする補足。
 
 ## v1: direct dual-route demo (implemented on main)
 

@@ -197,6 +197,7 @@ v1の「Infrastructure as code」「GHCR」を継続し、次を追加する。
 - Terraformは、API Gateway用と3rd Party Gateway用の2つのKonnect control planeと、それぞれのdata plane certificateを管理すること（MUST）。既存のcontrol planeは、API Gateway用として再利用する（SHOULD）。
 - decK stateは、Gatewayごとに別ファイルとすること（MUST、例: `kong/api-gateway.yaml`、`kong/third-party-gateway.yaml`）。`make deck-diff`と`make deck-sync`は、対象Gatewayを明示して実行できること（MUST）。
 - `make validate`は、両方のdecK stateを検証すること（MUST）。live systemは変更しないこと（MUST NOT）。
+- PR #13の設計補足では[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[WP1詳細設計](third-party-foundation-design.md)に従い、WP1のfoundation stateとWP3/WP5のruntime stateを分ける。diff/syncは`GATEWAY`と`STAGE`を必須にし、未完成runtimeの空stateで既存v1を削除しない。runtimeが完成した段階では両方の最終stateもvalidate対象にする。
 - GitHub Actionsで`make validate`と`make test`をPRのstatus checkとして実行すること（SHOULD）。
 
 ## Observability and evidence

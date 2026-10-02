@@ -76,6 +76,8 @@ discoveryのlocator mappingはissuer・OAuth audience・browser authorization/en
 
 transport未ロード時、Route Aにbridge access拒否はない。stock POSTにcertが付いてもmetadata mTLSを保証しないので、上の入口ゲートで通常トラフィックを防ぐ。transportだけ/両pluginを外すnegativeでは、入口/UIが開かず、Route AのmetadataがASへ送られないことを確認する。observerのcertなし検出は独立した対照試験であり、既に送った通常トラフィックを事後検出するだけでpassにしない。Route Bでは既存のready context/epoch拒否も維持する。計測spikeは[peer証跡契約](third-party-as-peer-evidence.md)の隔離fixtureからだけ行い、通常デモ入口を開く代わりにしない。
 
+PR #13の[WP1詳細設計](third-party-foundation-design.md)はこの未送信条件を、起動直後のstock background/metadataにも適用する。UI停止だけでは成立と判定せず、CP通信は許可しつつASのpublic/internal origin到達を閉じるbootstrap段階を要求する。全worker generation/ready/configの照合後だけ開放し、変更・再起動で閉鎖する。具体的なmake/compose機構と実証はWP5-BOOTSTRAPの受入対象。不成立ならneeds-designへ戻す。
+
 ### 設定の形（新規schemaの設計、既存設定値ではない）
 
 global transport configはtest専用の`evidence_correlation_enabled`（既定false、[peer証跡契約](third-party-as-peer-evidence.md)のserver生成相関header用）と、`issuer`、`internal_origin`、`discovery_url`、`jwks_url`、`par_url`、`token_url`、`revocation_url`、`metadata_certificate_file`、`metadata_key_file`、`routes`を持つ。`routes`の各要素は`route_id`、`logical_route`（A/B）、`client_id`、`certificate_file`、`key_file`を持つ。任意URL、inline PEM/private key、動的fallbackの設定は提供しない。
