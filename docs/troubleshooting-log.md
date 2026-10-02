@@ -10,6 +10,13 @@
 - 対処: WP1 #7へ参照修復と独立validate/test checkを引き継ぐ。CI成功とは扱わない。
 - 再確認: ローカル`make validate`と`make test`は成功。修復後のGitHub Actionsとimage build/scanは未実施。
 
+## 2026-10-02: SHA pin修復後もTrivy本体のinstallが失敗した
+
+- 実際: PR #14の初回CIでvalidate、両imageのbuild/unit testは成功したが、Trivy setupがexit 1。scan自体は未実施。Actionの既定binary `v0.65.0`の公式release checksum URLも404だった。
+- 調査: [固定Action source](https://github.com/aquasecurity/trivy-action/blob/b6643a29fecd7f34b3597bc6acb0a98b03d33ff8/action.yaml)で既定versionを確認。[公式事後報告](https://github.com/aquasecurity/trivy/discussions/10462)は旧GitHub releasesの削除を記録する。ActionはSHA pinのまま維持する。
+- 対処: binary versionを[公式immutable release v0.74.0](https://github.com/aquasecurity/trivy/releases/tag/v0.74.0)へ固定。公式checksum assetのHTTP成功を確認。CRITICAL/HIGH、ignore-unfixedとexit-code 1を維持し、scanを省略しない。
+- 再確認: 修正commitでGitHub Actionsを再実行して判定する。image公開と環境適用は未実施。
+
 ## 2026-10-02: foundation templateをsemantic YAML validatorで読めなかった
 
 - 期待: foundationのtemplate値を安全なdummyへ置換し、YAML構造・重複key・entity ID・tag・秘密参照・transport configを検査する。
