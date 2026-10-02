@@ -2,6 +2,13 @@
 
 予期しない動作、失敗した操作、原因、対処、再確認事項を記録します。認証情報や token の実値は記載しません。
 
+## 2026-10-02: stacked実装PRのmerge先がmainではなかった
+
+- 期待: 設計PR #13をmainへmerge後、WP1実装PR #14もmainへ反映する。
+- 実際: #13はmain `1b34c5c`へmergeされたが、#14はbaseの`docs/third-party-luna-handoff`へmergeされた（`3dc5268`）。mainに実装は入っていなかった。
+- 対処: 新branch `feat/wp1-main-delivery`でWP1実装commitだけを最新mainへ載せ直し、main反映用PRを提出する。コードはレビュー済みhead `101e2aa`と同一。merge済み設計の差分は重複させない。
+- 再確認: 載せ直した直後のtreeが`101e2aa`と一致し、local test/pluginと差分空白検査が成功。追加変更はこの記録だけ。main merge後の独立再検証とlive基盤受入は、反映用PRのmerge後に行う。
+
 ## 2026-10-02: 設計PR #5のCIがjob setupで停止した
 
 - 期待: PRの既存image workflowがtest/build/scanへ進む。
