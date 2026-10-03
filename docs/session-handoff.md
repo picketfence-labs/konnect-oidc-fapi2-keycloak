@@ -1,5 +1,15 @@
 # OIDC デモのセッション引き継ぎ
 
+## 現在の作業状態（2026-10-03）
+
+Third-party FAPI 2.0デモの詳細は[Delivery planの現在地](design/third-party-delivery-plan.md#work-packages)と[WP3移譲契約](design/third-party-luna-handoff.md#基準と現在地)を参照してください。WP1 #7、WP2 #8、WP4 #10は受入済み・closed。WP3 Issue #9は通常migration/integration gateが残るためopen。最終isolated receipt `wp3-runtime-receipt-1791019160834567000.json`は37/37 PASS、FAIL 0、needs-design 0。194/194 candidatesをscanし、3 servicesすべてsecret/pattern match 0、API response 29件もclean。Keycloak実token/introspection、audience/scope/active/PoP/ERR、query/header controls、TLS policy/negatives、upstream mTLSを確認し、cleanupとports解放を独立確認した。read-only normal CP previewはcreate 6 / update 0 / delete 13だがsync未実施。WP5 #11、WP6 #12は未開始。通常`make up`、realm更新、CP同期は行っていない。
+
+過去のreceipt `1791014398144929000`には190 candidates中10 secret matches / 2 credential patternsが記録されていた。後続receipt `1791019160834567000`では分類境界を検証し直し、194/194 candidatesのscanが0 secret / 0 patternで完了した。以前のreceiptはimmutableのまま保持し、raw lines/valuesは保存していない。INFO levelはWP3 isolated fixture限定で、通常Composeはnoticeのまま。TLS 1.3 policyと1001件目HTTP parser provenanceは最終receiptでpassした。
+
+effective TLS helperはAdmin要求値と分離し、pinned NGINX configとHTTP/API listener policyを検査する。最新runtimeでは`ssl_conf_command` scopeを含むstrict proofとhandshake controlsがpassし、旧needs-design receiptは履歴として保持する。
+
+最新receipt後に、route-scoped inline LuaでOIDC前のquery credential-name guardを実装した。decoded query namesの`access_token`/alias、duplicate、PDK error/truncation、1000件境界を固定401 challengeで拒否する。query value、body、cookieには触れない。Pure Lua/static testsはpassしたがexact runtime matrixでは未実行であり、最新receiptの受入結果には含めない。この補完をstock OIDCの機能として説明しない。
+
 > [!IMPORTANT]
 > この文書は Auth0 を使った初期デモの完了時点を記録しています。次の開発では Keycloak-only 構成を採用します。実装要件は [Keycloak FAPI 2.0 デモ要件](design/fapi2-keycloak-requirements.md)、設計判断は [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)を参照してください。
 

@@ -143,7 +143,7 @@ v1要件の「Route A OpenID Connect configuration」は実行場所を移して
 - ASの全back-channelでclient certificateを提示し、server certificateを検証すること（MUST）。Route BのPAR/revoke、stock/bridgeのdiscovery・JWKS取得を含め、DP0で確定した補完方式を実装する。設定にcert IDが存在するだけでmTLS成功とは判定しない。
 - refresh responseに新しいrefresh tokenがある場合は、それをsessionへ保存すること（MUST、conformance C-09）。
 - 3rd Party Gatewayの静的endpoint設定（authorization、token、PAR、revocation、end-session、JWKS、mTLS alias）は、discoveryの値と一致すること（MUST）。一致はテストで確認する。
-- client供給の`client_assertion`、`client_assertion_type`、`X-Client-Cert*`、`X-Demo-*`、`X-Fapi-*`は、API Gatewayへの転送前に除去すること（MUST）。
+- API Gatewayはclient供給の`client_assertion`、`client_assertion_type`、`X-Client-Cert*`、`X-Demo-*`、`X-Fapi-*`をUpstreamへの転送前に除去し、検証済みclaim/certificate由来の値を設定すること（MUST）。caller headerはTLS Metadata Headersが生成する信頼済みcertificate detailと区別する（Resource Server表、ADR 0015）。
 
 ### Logout/reset（デモ運用）
 
@@ -156,19 +156,21 @@ v1要件の「Route A OpenID Connect configuration」は実行場所を移して
 
 API Gatewayは1つのServiceと1つのRoute（path `/fapi-api/evidence`）で、両Routeのtokenを同じポリシーで検証すること（MUST）。
 
+KongのOIDC `issuer`設定はdiscovery endpointまたはissuer identifierを受け付ける。[公式設定資料](https://docs.konghq.com/hub/kong-inc/openid-connect/configuration/)に基づき、候補stateはTLS/SAN検証できるinternal Keycloak discovery locatorを使い、`issuers_allowed`にtokenのpublic issuerを固定する。exact 3.16.0.0 runtimeでmetadataの`issuer`、実tokenの`iss`、誤った`iss`拒否を照合し、この公開資料だけでruntime成立とは扱わない。
+
 | 項目 | 要件 |
 |---|---|
 | client certificate | `tls-handshake-modifier`でclient certificateを要求する（MUST）。compose network内（SNI `kong-api`）とhost（SNI `localhost`）の両方から要求されることを確認する |
 | token取得 | `bearer_token_param_type: [header]`（MUST）。queryやbodyのtokenは受け付けない |
 | token検証 | `auth_methods: [introspection]`、`introspection_endpoint_auth_method: tls_client_auth`、`introspection_check_active: true`（MUST） |
 | introspection cache | デモで挙動を説明しやすくするため無効化を既定とする。cacheを使う場合はTTLを記録する。logout/resetの反映SLAは定義しない |
-| 認可範囲 | `issuers_allowed`はKeycloak issuer、`audience_required`は`fapi-demo-api`、`scopes_required`は`openid`（MUST） |
+| 認可範囲 | `config.issuer`はTLS検証するinternal Keycloak discovery locator、`issuers_allowed`はtoken内の公開issuer `https://localhost:8444/realms/fapi-demo`、`audience_required`は`fapi-demo-api`、`scopes_required`は`openid`（MUST）。内部metadataのissuerとtokenのpublic issuerをruntimeで区別して確認する |
 | sender constraint | `proof_of_possession_mtls: strict`（MUST） |
 | claim由来header | `X-Demo-Department`と`X-Demo-Route`を検証済みclaimから設定し、client供給の値を上書きする（MUST） |
-| certificateの転送 | `tls-metadata-headers`で`inject_client_cert_details: true`とし、URLエンコードしたPEMをUpstreamへ転送する（MUST） |
-| 資格情報の除去 | `Cookie`と、client供給の`X-Fapi-*`をUpstreamへ送らない（MUST）。`Authorization`はUpstreamの再検証のために転送してよい（MAY） |
+| certificateの転送 | `tls-metadata-headers`で`inject_client_cert_details: true`とし、URLエンコードしたPEMをUpstreamへ転送する（MUST）。この設定が生成するSerial、Issuer-DN、Subject-DN、Fingerprint、Chain headerはGatewayが生成する信頼済みmetadataであり、認証判断には使わない |
+| 資格情報とtrust headerの境界 | client供給の`Cookie`、`X-Demo-*`、case/underscore/unknown suffixを含む`X-Fapi-*`と`X-Client-Cert*`をUpstreamへ送らない（MUST）。入力境界でこれらを除去した後にOIDC/TMHがclaim由来headerとPEM/stock detailを再生成する。`Authorization`だけをclient-origin credentialとしてJWT再検証用に保持する。検査用header取得が失敗/truncatedまたは上限1000件に達したrequestはfail closedにする（ADR 0015） |
 | Upstreamへの接続 | API Gateway upstream certでmTLS接続し、Upstream APIのserver certificateを検証する（MUST） |
-| TLS | TLS 1.2以上、BCP195推奨のcipher suite（MUST） |
+| TLS | TLS 1.2以上、BCP195推奨のcipher suite（MUST）。API inboundはKong 3.16.0.0の`modern` presetによるTLS 1.3-onlyを目標とする。effective protocol allowlist、TLS 1.3 negotiated AEAD、TLS 1.2-only/weak-cipher offerのprotocol-layer拒否を確認し、`protocol_version`をcipher-specific拒否と説明しない（[ADR 0016](../decisions/0016-api-gateway-inbound-tls-policy.md)） |
 | error | `401`、`403`で`WWW-Authenticate`を返す（MUST） |
 
 `tls-handshake-modifier`、`tls-metadata-headers`、`proof_of_possession_mtls`の挙動は`kong-ee` masterのsourceで確認した。3.16.0.0のschemaで同じ挙動であることを、実装時に確認すること（MUST）。
@@ -239,7 +241,7 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 | RESET-01 | 次のデモケースへ切り替え | Route cookieとSSOをresetし、別Route・別userで新しい認可フローと期待する`azp`/claimを確認する。手動reset手順でも可 |
 | HDR-01 | tokenの送信方法 | 3rd Party GatewayからAPI Gatewayへのrequestで、tokenがAuthorization headerだけにある |
 | TLS-01 | TLS検証 | 3rd Party GatewayとAPI Gatewayの全outbound接続で、server certificateを検証している |
-| TLS-RS-01 | API GatewayのTLS | TLS 1.1以下と非推奨cipher suiteでの接続が失敗する |
+| TLS-RS-01 | API GatewayのTLS | TLS 1.1以下を拒否する。TLS 1.2-onlyとweak TLS 1.2 cipher offerは、effective modern/TLS 1.3-only policy、ClientHello offer、protocol-layer拒否、HTTP/Upstream非到達、直後のTLS 1.3 valid controlがすべて確認できた場合にTLS version policyとして受け入れる。cipher固有の拒否理由とは説明しない（ADR 0016） |
 
 ### Negative scenarios
 
@@ -259,6 +261,8 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 | UPSTREAM-01 | API Gatewayを経由せずにUpstream APIを呼ぶ | Upstream APIがTLS接続または`401`で拒否する |
 | ISS-01 | 認可レスポンスの`iss`を別の値に改変する | 3rd Party Gatewayが拒否する |
 | ISS-02 | 認可レスポンスから`iss`を除去する | 完全適合へ向けた将来シナリオ。guard追加時に拒否を確認する。今回のDoD対象外 |
+
+`RS-AUD-01`の隔離fixtureでは、`pop-verifier-audience` mapperの`access.token.claim`と`introspection.token.claim`を同時に一時無効化する。専用の`api-gateway-introspection-audience` mapperは変更しない。発行tokenとactive introspectionの双方から`fapi-demo-api`が欠落することを確認し、mapperの完全な元表現を復元した後、新しい正規tokenで両audience、active introspection、API `200`のcontrolを確認する。
 | B-AUD-02 | Route BのPARとrevocationのPKJWT（正常形式の確認） | `aud`が配列ではなくissuer文字列であること。DP0で確定した補完実装を対象とする |
 | REDIR-01 | login/logout後のredirect先を外部URLへ誘導する | 固定のredirect URI以外へは遷移しない |
 | ALG-01 | ID tokenとaccess tokenのalgorithm | すべてPS256であること |

@@ -65,3 +65,33 @@ docker compose --project-directory . \
 ```
 
 通常 demo gateway の起動、`make up`、realm sync、Konnect/Terraform 操作はこの手順に含みません。
+
+## 隔離した WP3 API Resource Server 検証
+
+WP3 は `kong/api-gateway.yaml` のAPI runtime stateを、専用Compose project `wp3-isolated-api-rs`で検証する。通常の`make up`、通常Composeのreadiness、UI、third-party Gateway、Konnect、Terraformには触れない。起動するserviceは、stock Kong Gateway `3.16.0.0`、Keycloak `26.7.4`、内部専用のstdlib TLS captureだけで、3 imageはそれぞれCompose fileに固定digestを記載する。captureは検証用TLS upstreamで、placeholder production handlerではない。
+
+ホスト公開はloopbackだけで、APIは`127.0.0.1:18443`からKong container `8443`、Keycloakは`127.0.0.1:18444`からcontainer `8443`へ接続する。OAuth callback listenerはflow実行中だけ`127.0.0.1:8443`で開く。captureはCompose network内の`pop-verifier:9443`のみで、host portを持たない。GatewayのAPI RouteはSNI `localhost`と`kong-api`を受け、API ServiceからcaptureへのTLSはfresh fixture CAと専用upstream client certificateで検証する。Keycloakは実際のdiscovery/JWT issuerを`https://localhost:8444/realms/fapi-demo`のまま広告し、fixtureだけのTLS接続先は18444へloopback mapする。Kongからのdiscovery/backchannelはCompose内の`https://keycloak:8443`を使う。
+
+隔離fixtureではAdmin APIをcontainer loopback `127.0.0.1:8001`だけでlistenし、Admin GUIは`KONG_ADMIN_GUI_LISTEN=off`とする。GUIを既定で有効にしたpublic-generated configには追加のNGINX includeが現れ、pinned四ファイルinclude graphのstrict TLS parserがfail closedしたためである。通常ComposeのAdmin APIとGUI設定は変更しない。
+
+fixture生成器のコードだけWP2から再利用し、CA、全certificate/private key、Route B signing key、demo accountとrealm stateは`.generated/wp3-preview/`へ新規生成する。既存WP2 fixture、通常`.env`、通常PKI/realmは読まず、licenseは起動時process environmentの存在だけを確認する。mode `0700` directoryと`0600` filesを使い、secret mountsはread-onlyにする。隔離serviceを`user: "0:0"`で実行するのは、host側のowner-only fixtureをcontainerの別UIDに公開せず読み取るためであり、通常Composeのuser設定は変えない。Composeのquiet config検査はAPI keyを子process environmentから受け取り、解決済み設定を出力しない。
+
+次のコマンドは新しいprivate fixture filesを生成し、pinned imageとquiet Compose configをread-only確認する。containerは起動しない。
+
+```sh
+python3 tests/harness/prepare_wp3_preview.py --allow-create-isolated-preview-assets
+```
+
+起動は具体的なpreviewを確認した後の別操作で、starterは準備receipt、state/compose/helper/fixture hashes、fixed project、image digest、ports、process-local license presenceを再確認してから、上記3 serviceだけを開始する。
+
+```sh
+python3 tests/harness/start_wp3_preview.py --allow-start-isolated-wp3-runtime
+```
+
+flow、Keycloak-issued access tokenによる実Gateway試験、runtime receiptが完成した後、同じ固定projectだけを停止し、fresh private PKI/accounts/realm/key filesを削除するcleanupは別操作にする。sanitized preparation/runtime receiptsはexclusive-createで`.generated/evidence/`に残る。
+
+```sh
+python3 tests/harness/cleanup_wp3_preview.py --allow-cleanup-isolated-wp3-runtime
+```
+
+最新の隔離runtime receipt `wp3-runtime-receipt-1791014398144929000.json`はstrict validatorを通過し、29 rows中28 pass / 1 fail / 0 needs-designを記録した。full WP3受入はLEAK-01のためfailである。TLSはpinned `nginx -T`からAPI HTTP listenerのTLS 1.3 policyを確認し、TLS 1.2 strong/weak rejection controlsがpassした。1001件目はHTTP 400とparser/API marker delta 1/1、999件controlを確認した。LEAK-01は190/190候補を調べ、cookie 2 / OAuth token 3 / unknown 5の10 matchesとcredential patternsを検出してfailを維持する。Keycloakのsession-state cookieは1件、unknownは5件、Kong APIはcookie 1とOAuth token 3、verifierは0。API responses 21件/21,917 bytesはclean。raw logs/valuesは保持しない。category/source/field/context countsは診断情報であり、漏えい原因の確定ではない。専用project、volume、fixture、portsのcleanupをrootが確認した。過去receiptは変更しない。receipt後にOIDC前のquery-token-name guardをroute-scoped inline Luaとして追加し、pure Lua/static checksを通した。exact runtimeでのreject/positive controlは未検証で、最新receiptの受入結果には含めない。この補完はstock OIDCの挙動と区別する。

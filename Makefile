@@ -59,6 +59,10 @@ test:
 	python3 tests/test_wp1.py
 	python3 tests/test_wp2.py
 	python3 tests/test_pop_verifier.py
+	python3 tests/test_wp3_runtime.py
+	python3 tests/test_wp3_flow.py
+	python3 tests/test_wp3_query_guard.py
+	python3 tests/test_wp3_tls_metadata.py
 	python3 tests/test_pki_generation.py
 	python3 tests/test_up_guard.py
 	luajit tests/test_wp1_schema.lua

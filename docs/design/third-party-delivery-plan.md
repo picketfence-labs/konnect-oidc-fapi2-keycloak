@@ -47,11 +47,16 @@ RS側stock検証とclient側proof生成を分け、Keycloak対応、nonce、repl
 
 ## Work packages
 
-Epic #6とWP #7〜#12はmerge前に起票済み。設計とWP1実装・修正のPR #5／#13／#15／#16／#17は利用者がmainへmerge済み。[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)の既存CA再利用を反映したmain `4ce796d`で両diff=0と既存entity不変を独立確認し、利用者がWP1受入・#7 close・WP2着手を承認した。[Luna / xHigh移譲契約](third-party-luna-handoff.md)に従いWP2 #8を開始する。環境変更は具体的preview後の別承認。最終runtime stateはAPIがWP3、third-partyがWP5で完成させる。
+Epic #6とWP #7〜#12はmerge前に起票済み。設計とWP1実装・修正のPR #5／#13／#15／#16／#17は利用者がmainへmerge済み。**2026-10-02時点の履歴**として、main `4ce796d`で両diff=0と既存entity不変を独立確認し、利用者がWP1受入・#7 close・WP2着手を承認した。環境変更は具体的preview後の別承認。最終runtime stateはAPIがWP3、third-partyがWP5で完成させる。
 
 依存関係: WP1 → WP2 → WP3 → WP5 → WP6。WP4はWP1の後、WP3と並行して進められる。**DP0 → WP5**も必須。DP1は別枠。
 
-WP2のPR #18では、利用者が具体的previewの隔離runtimeとcleanupを承認し、[実token/AS試験9結果](third-party-wp2-runtime-evidence.md)を独立実行して成功した。途中のfixture/harness失敗も保持した。PRレビュー・利用者merge・main独立検証・利用者受入は未完了であり、WP3へはまだ進まない。
+**過去のsnapshot（receipt 1791014398144929000；現状は次段落）**: main `1fc8e23b0dc2ce58676f7f912e85cf9795813a8f`。WP2 PR #18は受入済み・Issue #8 closed。WP4 PR #19はmainへmergeされ、独立`make validate` / `make test`とfresh UPSTREAM-01がpassし、Issue #10は受入後closed。WP3 #9はactive。最新正式receipt `wp3-runtime-receipt-1791014398144929000.json`は29 rows中28 pass / 1 fail / 0 needs-designで、full WP3受入はLEAK-01によりfail。Gateway/schema priorities、fresh Keycloak-issued Route A/B、dedicated mTLS introspection、audience/scope/active/PoP/ERR、header sanitation、1000件の431、TLS 1.1/SAN/CAとTLS 1.2 strong/weak protocol rejectionはpass。effective inbound TLSはpinned `nginx -T`からHTTP API listenerへ適用されるTLS 1.3 policyを証明し、TLS 1.3 AEAD positive controlsもpassした。1001件目はwell-formed HTTP 400で、pinned NGINX parser markerとAPI request marker deltaが各1、999件control/Upstream不変/response scanもpassした。LEAK-01は190/190候補を調べ、cookie 2 / OAuth token 3 / unknown 5の10 secret matchesと`oauth_token_field` / `jwt_shape`を検出してfail。service別ではKeycloakがsession-state cookie 1とunknown 5、Kong APIがcookie 1とOAuth token 3、verifierは0 matches。API response scanは21件/21,917 bytesでsecret/pattern 0。Keycloak側unknownは`oauth_form_submission`のother 1、introspectionのother 2、`sid` 1、`sub` 1。raw logs/valuesは保持しておらず、line contextは共起診断で原因証明ではない。専用project/volume/private fixture/portsはcleanup済み。通常Control Plane migrationは未実施、WP5 #11は未開始。通常`make up`、通常realm更新、Control Plane同期は実施していない。次の実装候補はOIDC前のquery-token key-only拒否と固定safe diagnosticsであり、まだ未実装・未実行。
+**現在地（2026-10-03）**: main `1fc8e23b0dc2ce58676f7f912e85cf9795813a8f`。WP1 #7、WP2 #8、WP4 #10は受入済み・closed。WP3 #9の最終isolated receipt `wp3-runtime-receipt-1791019160834567000.json`は37/37 PASS、FAIL 0、needs-design 0。194/194 candidatesをscanし、Keycloak、Kong API、verifierの全serviceでsecret/pattern match 0。API responseも29件すべてclean。認証・PoP・ERR、header/query、TLS policyとnegative controls、upstream mTLSを確認し、runtime cleanupを独立確認した。WP3 #9は通常migration/integration gateが残るためopen。read-only normal CP previewはcreate 6 / update 0 / delete 13だがsync未実施。WP5 #11とWP6 #12は未開始である。
+
+最終receiptで確認したものは隔離runtimeと固定fixtureの挙動である。通常`make up`、通常realm更新、通常Control Plane同期は行っていない。full `make test`（zero skips）、`make validate`、`git diff --check`はpassした。
+
+**過去の追加snapshot（receipt 1791014398144929000）**: 最新runtimeの190候補に対する3-service bounded scanはINFO fixtureで完了した。LEAK-01は10 secret matchesと2 credential-pattern categoriesによりfailを維持する。Keycloakのunknown field/source/context countsとKongのquery/resource context countsは診断情報だが、line contextは共起でありloggerや原因の証明ではない。candidateのsecret/pattern判定は変更しない。通常Composeは`notice`のままである。TLS 1.3-only policyと1001件目HTTP parser provenanceは最新runtime receiptでpassした。最新receipt後にOIDC前のquery-token-name guardをroute-scoped inline Luaとして実装し、pure Lua/static testsを追加したが、exact runtimeでは未検証であり最新receiptの受入行へ反映していない。
 
 ### WP1: 2つのGatewayの基盤
 
@@ -78,7 +83,7 @@ WP2のPR #18では、利用者が具体的previewの隔離runtimeとcleanupを�
 
 ### WP3: API GatewayのResource Server化
 
-- **範囲**: `kong/api-gateway.yaml`を作る。`tls-handshake-modifier`、OpenID Connect plugin（introspection、header only、PoP strict、audience、scope）、claim由来header、`tls-metadata-headers`、資格情報の除去、upstream mTLS、TLS protocolとcipher suiteを設定する。
+- **範囲**: `kong/api-gateway.yaml`を作る。`tls-handshake-modifier`、OpenID Connect plugin（introspection、header only、active、cache無効、PoP strict、issuer/audience/scope）、claim由来header、`tls-metadata-headers`、資格情報の除去、upstream mTLS、TLS protocolとcipher suiteを設定する。既知名だけでなくcase/underscore/unknown suffixを含む入力由来の`X-Fapi-*`と`X-Client-Cert*`、`Cookie`、`X-Demo-*`をOIDC/TMHより前にroute-scoped inline Luaで消す補完は[ADR 0015](../decisions/0015-api-resource-server-header-boundary.md)に従う。これはstockのautomatic prefix removalではない。
 - **受入条件**:
   - 3.16.0.0の実runtimeで、`tls-handshake-modifier`、`tls-metadata-headers`、`proof_of_possession_mtls`、`bearer_token_param_type`、introspectionのcache設定がschemaにあり、ADR 0010と同じpriorityで動くことを確認し、証跡をPRに添付する。
   - POP-01、POP-02、POP-03、RS-QUERY-01、RS-AUD-01、RS-SCOPE-01、ERR-01、HEADER-CERT-01、TLS-RS-01、RS-VALID-01が通る。tokenは、curlとtest用certificateで取得してよい。
