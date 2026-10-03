@@ -2,6 +2,28 @@
 
 予期しない動作、失敗した操作、原因、対処、再確認事項を記録します。認証情報や token の実値は記載しません。
 
+## 2026-10-03: WP3 API応答scannerがPoP証明用thumbprintを誤検出した
+
+- 期待: API応答のtoken、cookie、assertion、秘密鍵、証明書などはmemory内scanで拒否し、captureのPoP照合用thumbprintはreceiptへ保存せず比較できる。
+- 実際: runtime未起動の独立synthetic再現で、typed introspectionの`cnf.x5t#S256`に含まれる公開証明書digestを、capture応答の同じdigestが`unknown` secretとして誤検出した。実tokenを使った漏えい、Gateway起動、OAuth/API runtime試験は発生していない。
+- 原因: 応答scannerが全remember済み値を同じ機密候補として扱い、fixture leaf certificate由来の公開PoP binding digestを区別していなかった。
+- 対処: hash-bound fresh Route A/B leaf certificateからdigestをmemory内で導出し、その2値だけを正確な`cnf.x5t#S256` fieldとして記録した場合にpublic fixture observationへ分類する。明示password/token等のsensitive category、未登録digest、未知scalar/listは引き続き検査対象。captureの完全digestはmemory内比較のみとし、receiptには既存のprefixだけを残す。
+- 再確認: focused testで合法typed-introspection→capture経路を通し、同じdigestを明示secretとして記憶した場合、未知list、および未登録のcnf値はすべて拒否する。fresh fixtureの再準備後にruntime再試験が必要。
+
+## 2026-10-03: WP3 candidate stateのdecK templateを補助YAML parserで直接読めなかった
+
+- 期待: static testがAPI runtimeとfoundation entityの同一ID・タグ・証明書参照を構造で比較する。
+- 実際: decK `${{ env "NAME" }}` expressionを展開前に通常YAML parserへ渡した補助testがparse errorになった。これはdecK正規経路の不正ではなかった。
+- 対処: API candidateのtemplateはfoundationと同じbyte表記のまま維持し、static test内で既知env式を固定placeholderへ置換してから構造比較する。
+- 再確認: `./scripts/deck.sh validate`と`tests/test_static.py`が成功。exact Gateway config acceptanceは別確認のまま。
+
+## 2026-10-03: WP3 offline plugin schema probeの限界
+
+- 期待: stock Kong 3.16.0.0からplugin schema fieldとhandler priorityを限定的に読む。
+- 実際: 最初はplugin Lua/bytecode search pathが不足し、pluginを未loadと誤認した。KongのLua search pathを与えてread-only再試験したところ、OIDC/THM/pre-function schema・handler metadataが読み取れた。`tls-metadata-headers` schemaはloadしたがhandler module initializationは成功しなかった。
+- 対処: 再試験のsanitized結果をGit外の`/private/tmp/wp3-schema-probe.lua`と`/private/tmp`配下receiptへ記録した。OIDCの`discovery` config候補をstateから除去し、TLS Metadata Headersの実priorityとTLS動作はstartup probeへ残した。
+- 再確認: offline schema/priority結果はstartup、config acceptance、real TLS到達を証明しない。exact runtime acceptance前に`needs-design`を解除しない。
+
 ## 2026-10-02: `gh pr edit`がProjects classic互換エラーで失敗した
 
 - 期待: WP2のDraft PR本文へCI成功結果を追記する。
@@ -306,3 +328,115 @@
 - 原因: fresh CAにはSubject Key Identifierがあった一方、発行したleafにAuthority Key Identifierを付けていなかった。server側verify flagを緩めても、client側の既定strict検証には影響しない。
 - 対処: fixture leafへCAのSubject Key Identifierから導くAuthority Key Identifierを追加し、CA chainとhostname検証を保った。no-client-cert試験は`ssl.SSLError`の`CERTIFICATE_REQUIRED`または`HANDSHAKE_FAILURE`だけを期待拒否とし、他のnetwork/TLS errorをpassにしない。receipt先の既存file・symlinkはTLS起動前に拒否し、各試験のreceiptはexclusive createする。
 - 再確認: fresh attemptではhealthzとprotected `/evidence`が別々にHTTP 200となり、PyJWTの実PS256検証、Route Aの`cnf` binding、固定`azp` mappingを確認した。同一CA Route peerと同CN・別鍵peerは同一のvalid requestで401、証明書なしTLSは`TLSV13_ALERT_CERTIFICATE_REQUIRED`で拒否された。sentinel response/log漏えいなし、cleanup完了、port 19443解放を確認した。証跡は`.generated/evidence/wp4-upstream01-retry5.json`であり、fresh in-memory署名鍵によるfixture tokenを使った。Keycloak発行tokenやGateway統合の成功とは扱わない。
+
+## 2026-10-03: WP3検証sandboxでprovider DNSとDocker socketが使えなかった
+
+- 期待: `make validate`とfresh WP3 fixture preparationを完了する。preparationはprivate filesとread-only metadata checksだけを使い、runtimeを起動しない。
+- 実際: 通常sandboxの最初の`make validate`はregistry.terraform.ioへのDNSで停止した。続くfixture preparationはDocker daemonへ接続できず停止し、runtimeは開始しなかった。
+- 原因: 通常sandboxではprovider registryのnetwork accessとDocker socket accessが無効だった。どちらも構成検証の失敗を示す結果ではない。
+- 対処: Terraform provider初期化・validationと、既存pinned image/projectのread-only確認を個別の狭い権限で再実行した。`apply`、`sync`、container startは行っていない。
+- 再確認: `make validate`は成功した。read-only Docker metadataとquiet Compose検査後にfresh private WP3 assetsとsanitized preparation receiptを作成し、`.generated/wp3-preview/`はmode `0700`、receiptとasset filesは`0600`である。containerは起動しておらず、API runtime matrixは別のreview gateに残る。
+
+## 2026-10-03: WP3 runtime preflightがdecKのrender済みplugin配置を誤認した
+
+- 期待: 隔離API GatewayとKeycloakの試験前に、hash-bound API runtime stateが正確なService、HTTPS Route、4つのstock plugin、TLS upstream contractを保持することを確認する。
+- 実際: 試験runnerは`validate_runtime_state_contract`で停止し、最初の失敗phaseがreceiptの最終化で`runtime_complete`に上書きされていた。失敗receipt `wp3-runtime-receipt-1791000171490065000.json`ではAPI response数が0で、API要求・OAuth flowは始まっていない。起動時log scanは実行できたが、これを全runtimeの`LEAK-01`成功とは扱わない。
+- 原因: decK 1.53.1のrender出力はtop-level `plugins`を使わず、4つのAPI pluginを`services[0].routes[0].plugins`へ正規化する。validatorはtop-levelだけを調べていた。また、単一の失敗phaseを残す制御と、API通信前のlog scanを`LEAK-01`の全runtime証跡から区別する制御が不足していた。
+- 対処: validatorを、単一のAPI Serviceとその唯一のHTTPS Routeにネストされた正確な4 pluginに限定した。余分なService、top-level/service-level plugin、競合するRoute/Service/consumer参照を拒否する。fixture preflightの各境界を固定phaseとして記録し、失敗時は最初の失敗phaseを保持する。API responseが0件ならclean startup-only scanは`LEAK-01 not_run`として記録する。
+- 再確認: decK正規化形状、余分なServiceと競合scopeの拒否、正確なpreflight phase保持、API通信なしの`LEAK-01 not_run`を回帰testした。新しいfixtureのruntime再試験は未実施であり、前回のreceiptは変更していない。
+
+## 2026-10-03: WP3 exact-image Admin schema probeにHTTP clientがなかった
+
+- 期待: isolated Kongのloopback-only Admin APIからloaded plugin/schema metadataを取得し、schemaとpriorityを値を漏らさず記録する。
+- 実際: matrix attempt `1791001794707077000`はstate contractの18項目を通過した後、exact imageに`curl`がなくschema probe前に停止した。metadata-only observation `1791002226505121000`もAdmin listener isolation後のroot GET clientがなく、schema/priority dataを返せなかった。どちらもOAuth/API requestは0件で、全runtimeの`LEAK-01`結果ではない。
+- 原因: `kong/kong-gateway:3.16.0.0` fixture imageには`curl`と`wget`がなく、以前のprobeが存在しない実行ファイルを呼んでいた。read-only exact-image確認では`/usr/local/openresty/bin/resty`と`resty.http`が利用可能だった。
+- 対処: host側runnerが`resty.http`のstreaming `body_reader`を使い、固定loopback Admin URLへGETだけを行う bounded clientを追加した。2xx以外、redirect、1 MiBを超えるbody、未知pathを拒否し、raw bodyはchild pipeからhost memoryへ渡すだけで表示・保存しない。固定stage/reason enumだけをdiagnostic receiptに記録する。cleanupはcontainer撤去とprivate asset削除後の期待port-free判定だけをbounded pollingし、pre-start port guardは変更しない。
+- 再確認: focused testsでbounded request、client不在、redirect/oversize拒否、safe diagnostic shape、cleanup pollingの成功・timeout・他エラーを検証した。後続metadata-only observation `1791003913548008000`でexact-image `resty.http` GETと`connect(host, port)`が動作し、root/plugin/schema responsesを取得した。ここで初めて、schema field parserの別問題が判明した。
+
+## 2026-10-03: WP3 metadata-only schema probeがnested `issuer`を重複と数えた
+
+- 期待: exact Kong 3.16.0.0 loaded plugin versions/prioritiesとrequired plugin-schema field metadataを、限定された情報だけで記録する。
+- 実際: observation `1791003913548008000`でGateway version `3.16.0.0`、stock plugin version `3.16.0`、priority `pre-function=1000000` / `openid-connect=1050` / `tls-handshake-modifier=997` / `tls-metadata-headers=996`が確認され、全plugin schema GETも成功した。OIDC schemaの`issuer` field countは3となったためschema probeを完了扱いにせず停止した。OAuth/API requestは0、cleanupはexit 0。
+- 原因: generic recursive scanが、異なるnested record内の`issuer` nameをroot `config.issuer`と同じfield scopeとして数えていた。
+- 対処: schemaのtop-level `fields`から唯一の`config` recordを要求し、その直接`fields`だけでwanted namesを数える。root config recordの重複/型不一致、同じdirect scopeの重複wanted field、malformed descriptorはfail closedとする。nested unrelated namesはcountしない。raw schema responseは保存・表示しない。
+- 再確認: nested foreign `issuer`を無視しdirect duplicateを数えるhelper regression、duplicate issuerをrejectするprobe-level regression、single malformed descriptorをrejectするprobe-level regressionを追加した。WP3 flow 65 tests、full `make test`、narrow registry accessでの`make validate`、`git diff --check`が成功した。次のfresh metadata-only probeでこのexact Kong schema shapeを再確認する。full runtime matrixはまだ実行しておらず、これらの結果はAPI/LEAK-01 acceptanceではない。
+
+## 2026-10-03: WP3 Admin schema field scanがnested issuer名を重複と数えた
+
+- 期待: exact Kong 3.16.0.0 Admin APIのloaded plugin versions/prioritiesとrequired schema field metadataを、限定した値だけで記録する。
+- 実際: metadata-only observation `1791003913548008000`でGateway `3.16.0.0`、stock plugin version `3.16.0`、priority `pre-function=1000000` / `openid-connect=1050` / `tls-handshake-modifier=997` / `tls-metadata-headers=996`を確認し、期待値と一致した。全plugin schema GETも成功したが、OIDC `issuer` field countが3となりprobeはschema全体の受入前に停止した。OAuth/API requestは0件、cleanupは成功した。
+- 原因: field matcherがschema JSONを再帰走査し、別recordのnested `issuer` namesをroot OIDC `config.issuer`と同等に数えていた。
+- 対処: matcherを唯一のtop-level `config` recordの直接`fields`だけに限定し、そのconfig recordが欠落/重複/異型なら全required fieldを未確定として失敗させる。同一direct scopeのduplicateとmalformed descriptorも拒否する。enumとtypeは従来どおりallowlist/shapeで制限し、raw schemaを記録しない。
+- 再確認: nested unrelated `issuer`を無視すること、direct `issuer` duplicateを検出すること、single malformed descriptorをrejectすることをrunner-level regressionで検証した。最新65件のWP3 flow testsはpass。exact-imageでのdirect `config.fields`結果は次のfresh metadata-only observationで確認し、そのpass後だけfull matrixへ進む。今回の停止はschema parser診断で、実token/API失敗やLEAK-01 passとは扱わない。
+
+## 2026-10-03: WP3 schema確認後のflow/cleanup実行はreceiptなしで終了した
+
+- 期待: exact Kong metadata/schema probeがpassしたfresh fixtureで、続けてfull WP3 matrixを動かし、success/failureいずれもsanitized runtime receiptを残してからowned projectとfixtureをcleanupする。
+- 実際: metadata-only observation `1791004932981995000`でGateway `3.16.0.0`、stock plugin priorities `1000000/1050/997/996`、required direct `config.fields`とTHM `REQUEST` enumを確認した。そのfresh fixtureに対するflow CLIとcleanup CLIはともにexit 1で、正式runtime receiptは作成されなかった。rootが専用project、volume、ports、private fixtureの除去を独立確認した。正式receiptがないため、OAuth/API requestの有無と停止phaseは不明であり、未取得として扱う。
+- 原因確認: 実際のflow失敗原因はこの試行だけでは判定できない。実schema payloadを使ったoffline `main()` orchestrationでは、schema pass後にTLS SNI phaseで意図的に止めてもstrict runtime receiptが作成され、validatorを通った。syntheticな誤phase試験は実payloadの失敗原因を示すものではない。静的producer/validator照合で、header capture failure phase `upstream_capture_evidence`とlog scan phase `whole_runtime_log_scan`がcase/executionの固定enumに欠ける経路を見つけた。これは再現性のあるreceipt境界不備として修正したが、直前の実試行の原因とは断定しない。
+- 対処: case recorderは有限phase集合を先に検査し、negative group失敗で元のmatrix group phaseを保持する。ログscan match/例外とupstream capture失敗を含むoffline full-main回帰をstrict writerへ通す。失敗時のstderr markerは`WP3_RUNTIME_FAILURE phase=<fixed phase> reason=<negative_matrix_failed|probe_failed>`、receipt拒否時は`WP3_RUNTIME_RECEIPT_FAILURE phase=<fixed phase> reason=<evidence_directory_unsafe|schema_rejected|destination_exists|write_failed>`だけとし、raw exceptionを表示せずreceipt/PASSの代用にしない。cleanupはdangling receipt symlinkを拒否してowned fixtureを除去し、port release timeoutもfixed statusとして記録する。
+- Port確認: plain bindだけではclose後のTIME_WAITをactive listenerと誤認することがある。guardは指定portのprocess-owned TCP descriptorsをread-only確認し、SO_REUSEADDR bindでTIME_WAIT-onlyを確認する。active listenerとbound ownerは拒否し、lsof不明またはbind permissionでfreeを証明できない場合はfail closedとする。
+- 再確認: phase、strict receipt、log scan、cleanupのfocused regression 10件がpassし、権限付きloopback-only OS試験でもactive listener/bound owner拒否とTIME_WAIT-only許容を確認した。full `make test`はWP3 flow 74件を含め成功（sandboxではloopback OS test 1件skip、そのtestは権限付き個別実行でpass）。`make validate`も成功した。これらの修正後にruntimeを再起動しておらず、full WP3、negative/TLS、LEAK-01受入は未実証。
+
+## 2026-10-03: WP3 full isolated runtimeでweak-cipher、1001-header、LEAK-01の未解決が残った
+
+- 期待: frozen WP3 sourceとfresh fixtureで、exact Kong 3.16.0.0 metadata、実Keycloak tokenによるA/B、negative/API/TLS境界、upstream mTLS、全lifecycle漏えいscanを検証する。
+- 実際: immutable strict receipt `.generated/evidence/wp3-runtime-receipt-1791006905251048000.json`はoverall/full acceptance `fail`、28 rows中25 pass / 2 fail / 1 needs-design。Gateway `3.16.0.0`とrequired schema fields、plugin priorities `1000000/1050/997/996`を確認した。Route A/B positive、dedicated mTLS introspection、query/body/cookie token拒否、genuine missing API audience/scope拒否、same-token active true→false→true、PoP-01/02/03、ERR-01、caller-header sanitation、header 1000件431、TLS 1.1、SAN mismatch、untrusted CAはpassした。
+- 未解決transport境界: 1001-header requestはHTTP 400でGateway policyより前に拒否されたため、ADR 0015のGateway 431を証明せず`needs_design`とした。TLS weak-cipherではclient-side MemoryBIOが対象cipherをClientHelloに含め、negative後のvalid controlもpassしたが、peer alertは`protocol_version`で、cipher-suite拒否理由として認められずfail。現在のreceiptはこのpeer rejectionがcipher policy起因と証明しない。
+- 漏えいscan: whole-lifecycle container log scanは184/184 candidate valuesを調べ完了したが、9 secret matches（cookie 2、OAuth token 3、unknown 4）とcredential patterns `oauth_token_field` / `jwt_shape`がありLEAK-01 fail。public fixture/protocol observationsは別集計であり、上記9件から除外していない。20 API responses、19,928 bytesのresponse scanはsecret/pattern match 0。raw logsは保存していないため、該当ログのcontainer/service/stageとfield発生元は未特定で、実値もreceiptにない。これを誤検出と扱ったりcategoryから除外したりしない。
+- 対処/状態: 観測値はsanitized receiptに保持し、rootがdedicated project、volume、private fixture、portsのcleanupを独立確認した。normal Compose/realm/Control Plane/Terraform変更は行っていない。弱cipherのserver-side protocol/cipher policyと、matchを識別しつつraw line/valueを記録しないservice別diagnosticをofflineで調査する。次のruntimeは新しい具体previewとreview後に限る。
+
+## 2026-10-03: WP3のログmatch出所診断とTLS/header判定条件を準備
+
+- 期待: 保存済みのLEAK-01 failを弱めず、次の承認済み隔離runで既存matchのservice別情報を安全に得る。TLS/headerの前段拒否をLua/plugin成功と混同しない。
+- 実際: runtime receipt `1791006905251048000`を変更せず、追加runtime scanは行っていない。`keycloak`、`kong-api`、`pop-verifier`固定inventoryからstdout/stderrをmemory-onlyで読むper-service scanner、service別category/countを含むstrict receipt schema、subprocess/partial/oversize/timed-out negative testsを用意した。scanは各service/全体で4 MiB、全体60秒以内とし、partial/unknown/overflowはfail closed。raw log、credential値、match行は保存しない。global候補とsecret/pattern pass条件は維持する。
+- 設計整理: [ADR 0016](decisions/0016-api-gateway-inbound-tls-policy.md)はAPI inbound modern/TLS 1.3-only方針と、effective policy・negotiated AEAD・TLS 1.2 offerのprotocol-layer rejectionに必要な証拠を定義する。[ADR 0015](decisions/0015-api-resource-server-header-boundary.md)はHTTP parserの1001-header HTTP 400をLua 431と分離し、exact parser provenance、well-formed wire count、under-limit positive、unchanged Upstream counter、sentinel/response check、negative後positive controlがそろわなければ受け入れない。
+- 制約: これらは実装とunit evidenceであり、前回の9 secret matchesのservice/stage/cause、新しいTLS negotiation、1001 parser provenanceを立証しない。次回runtimeは新しいpreviewとreview後に限り、旧receiptの結果を遡及変更しない。
+
+## 2026-10-03: WP3再実行でservice別match数とTLS/header transport結果を取得
+
+- 期待: schema/priority確認後にfull matrixを実行し、全container logをscanしてTLS policyと1001-header拒否層を分類する。以前のreceiptは保持する。
+- 実際: fresh runtime receipt `.generated/evidence/wp3-runtime-receipt-1791011336629777000.json`はstrict validatorを通過し、29 rows中25 pass / 1 fail / 3 needs-designを記録した。Gateway/schema priorities、fresh Keycloak発行Route A/B、dedicated mTLS introspection、audience/scope/active/PoP/ERR、header 1000件の431、TLS 1.1/SAN/CA拒否と9件のupstream captureはpassした。
+- TLS: TLS 1.2-only strong-suite controlとweak-suiteで、exact TLS 1.2 ClientHello offer、`protocol_version` peer alert、negative前後のTLS 1.3 AEAD handshake、Upstream counter不変を確認した。Admin `ssl_cipher_suite=modern`は見えたが`ssl_protocols`は空で、effective allowed protocolsを証明できないため両variantはneeds-design。weak-suiteの結果をcipher-specific rejectionと説明しない。
+- Header: 1001件のwell-formed wire requestはHTTP 400でGatewayより前に拒否された。exact wire count、pinned NGINX parser default 1000、under-limit positive controls、response scan、Upstream counter不変は確認した。一方、NOTICE levelのbounded log scanでは`client sent too many header lines` markerと対象API request pathのmarker deltaがどちらも0だった。HTTP 400をparser provenanceのpassへ引き上げずneeds-designを維持する。log levelやGateway policyは変更していない。
+- LEAK-01: lifecycle log scanは186/186候補を確認し、cookie 2 / OAuth token 3 / unknown 4の9 secret matchesと`oauth_token_field` / `jwt_shape` patternsを検出した。service別ではKeycloakがcookie 1 / unknown 4、Kong APIがcookie 1 / OAuth token 3、verifierが0 matches / 0 bytes。Keycloakのpattern matchは0、Kong APIは両patternを持つ。API response scanは21件 / 21,913 bytesでsecret/pattern match 0。9 captureのpeer pin、header、CNF、caller sentinel checksはpassした。
+- 制約: raw logsとmatch valuesはcleanupで破棄し、receiptにも保存していない。service別categoryは分かったが、Keycloakのcookie/unknown候補やKongのcookie/token matchの正確なcandidate keypathとlog contextは未特定。これらを誤検出と分類せずLEAK-01 failを維持する。rootは専用project、volume、private fixture、portsのcleanupを独立確認した。前のreceipt `1791006905251048000`を変更しない。
+- 次の診断: runnerにcandidate category/callsite/field enumsとcounts、matching log line上のOAuth endpoint/query context enum/countを追加した。line contextは候補値とpath文字列の共起観測で、loggerや漏えい原因の証明ではない。まだ実runtimeでは未検証で、既存candidate/pattern scan、fail判定、bounded limitsを変更していない。header-limit INFO markerを観測するためWP3専用ComposeだけKong log levelを`info`へ上げる。通常Composeの`notice`、DEBUG禁止、ログ抑制なしは維持する。これは新しい未実行fixture差分で、現receiptを変更しない。次のruntimeは新しい具体previewとreview後に限る。
+
+## 2026-10-03: inbound TLS metadata helper が Admin GUI の追加includeを拒否
+
+- 期待: effective TLS metadata probeは、pinned Kong imageの`nginx -T`出力からAPI HTTP TLS listenerに適用されるprotocolを、Adminの要求値と分けてbounded metadataへ変換する。
+- 実際: GUIを既定で有効にしたpublic-generated config probeは、成功診断と既知4ファイルに加えてGUI用の別include markerを含み、strict parserは`not_proven`として拒否した。これはoffline/public-generated構成の観測で、WP3 runtime受入ではない。
+- 修正: helperは未知marker/includeを許容しないまま維持する。隔離WP3 Composeだけ`KONG_ADMIN_GUI_LISTEN=off`を明示し、Admin APIは既存どおりcontainer loopbackへ限定する。rootのoffline再確認では4 markerのみ、HTTP側の`ssl_protocols TLSv1.3`とexact API `listen 0.0.0.0:8443 ssl`が解析され、TLS 1.2へ改変したpolicyは拒否された。18 pure testsは別途レビュー済み。HTTP/API server scopeの`ssl_conf_command`も有効TLS overrideの可能性があるためparserがfail closedする。
+- 制約: このoffline checkは実fixtureでの再実行ではない。GUI-offを含むfresh preparation receipt、source binding、TLS handshake controlsがそろうまで過去receiptのTLS needs-designを維持する。通常ComposeのAdmin/GUI設定は変更しない。
+
+
+## 2026-10-03: isolated INFO fixtureでTLS/header provenanceとLEAK再検証
+
+- 実際: fresh strict receipt `.generated/evidence/wp3-runtime-receipt-1791014398144929000.json`は29 rows中28 pass / 1 fail / 0 needs-design。API listenerのeffective TLS 1.3 policyはpinned config dump/image/versionへbindして確認し、TLS 1.2 strong/weak negative controlsもpassした。1001件目はwell-formed HTTP 400、NGINX parser marker/API request marker deltaが各1、999件controlとUpstream不変を確認した。
+- LEAK-01: 190/190候補を確認し、cookie 2 / OAuth token 3 / unknown 5の10 secret matchesと`oauth_token_field` / `jwt_shape`を記録してfailを維持する。Keycloakは17,113 bytesでsession_state cookie 1とunknown 5（form submission other 1、introspection other 2、sid 1、sub 1）、Kong APIは26,757 bytesでcookie 1 / OAuth token 3、verifierは0。candidate matchをdemoteせず、raw logs/valuesは保持していない。context countsはsame-line co-occurrenceでloggerや漏えい原因の証明ではない。
+- API response scan: 21件 / 21,917 bytesでsecret/pattern matchなし。専用project、volume、private fixture、portsのcleanupをrootが独立確認した。従前receipt `1791011336629777000`等は変更しない。
+- 次の調査候補: query-token requestがOIDC前に拒否されるkey-only guardと、Keycloakの既知field labelsを使った診断を検討する。現時点で実装・runtime実証しておらず、10 matchを誤検知と扱わない。
+
+
+## 2026-10-03: bounded LEAK candidate classification before exact runtime verification (historical)
+
+- Actual: immutable receipt wp3-runtime-receipt-1791017200869688000.json has 36 acceptance rows pass and LEAK-01 fail. The scan checked 199/199 candidates and recorded cookie 1 / OAuth token 1 / unknown 5 matches, with 0 credential patterns. The API response scan checked 29 responses / 26,070 bytes and found no secret or pattern matches. Raw logs, tokens, cookies, and identifier values were not retained.
+- Observation: Keycloak candidates included token-response session_state, introspection azp/jti/sid/sub, and a form field-name observation; Kong API had one api_query candidate. These labels and same-line context counts are diagnostics, not proof of emitter or cause. The candidate does not establish that a CookieJar value is an authentication cookie.
+- Change: a bounded memory-only pending response collection now defers only exact top-level fields. A token-response session_state is reclassified only after the same response access token passes existing PS256 and claim verification and its signed sid matches exactly; azp must match the grant client. Authenticated successful introspection with active=true can reclassify exact top-level azp/jti/sid/sub only after existing same-token introspection checks and exact claim equality. Collection and token binding must match. Unresolved, mismatch, inactive, malformed, or overflow candidates retain their original cookie/unknown category. Credential collisions and pattern checks remain fail-closed.
+- Other fixed classifications: only the exact two harmless API query targets and structural form field name username are fixed protocol constants. Query extras, encoded variants, credentials, form values, passwords, and unknown names remain sensitive. API response scans continue to evaluate all candidate categories strictly.
+- Evidence: Keycloak 26.7.4 source links include AccessTokenResponse, IDToken, JsonWebToken, and AccessTokenIntrospectionProvider: https://github.com/keycloak/keycloak/blob/26.7.4/core/src/main/java/org/keycloak/representations/AccessTokenResponse.java ; https://github.com/keycloak/keycloak/blob/26.7.4/core/src/main/java/org/keycloak/representations/IDToken.java ; https://github.com/keycloak/keycloak/blob/26.7.4/core/src/main/java/org/keycloak/representations/JsonWebToken.java ; https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/protocol/oidc/AccessTokenIntrospectionProvider.java . This source mapping does not prove authentication-cookie use or the exact log emitter.
+- Verification status at that point: focused WP3 tests passed; full tests and exact runtime verification were pending. This historical entry is superseded by the final receipt below; its receipt and counts remain unchanged.
+
+## 2026-10-03: final isolated WP3 runtime acceptance
+
+- Actual: strict receipt `wp3-runtime-receipt-1791019160834567000.json` records 37/37 PASS, FAIL 0, needs-design 0. It scanned 194/194 log candidates; all three services had zero secret and credential-pattern matches. API response scan covered 29 responses and was clean. Final source freeze SHA was `16836905cc82d0d747f1f9ab7b083ba612bd09188572ca8cea00c614daa3b7b8`.
+- Scope: fresh Keycloak-issued Route A/B tokens, introspection/audience/scope/active/PoP/ERR, query/header controls, TLS policy and negative controls, certificate forwarding and upstream mTLS passed. Root independently confirmed the isolated containers, volume, private fixture, and ports were cleaned. Earlier receipts, including the 36/37 LEAK-01 failure, remain immutable.
+- Remaining gate: normal Control Plane migration was not applied. The latest read-only diff preview is 6 creates / 0 updates / 13 deletes and needs its separate human review/authorization before sync. WP5/WP6 have not started. No normal `make up`, realm update, or CP sync occurred.
+- Verification: zero-skip `make test`, `make validate`, and `git diff --check` passed. The registry-dependent validation required network access; it performed no apply or sync.
+
+## 2026-10-03: CI loopback TIME_WAIT regression test needed reusable client socket
+
+- Actual: CI run `37113019492` failed in the unit/static test step at `test_port_guard_rejects_active_listener_and_accepts_time_wait_only` on the TIME_WAIT setup with `EADDRINUSE`; the Kong job was cancelled by fail-fast. No image-build failure was established. The test client had not enabled `SO_REUSEADDR` before bind/connect; the Linux socket rules require the previous and replacement binders to set it for this reuse case ([`socket(7)`](https://man7.org/linux/man-pages/man7/socket.7.html)).
+- Fix: set `SO_REUSEADDR` on the test client before binding. The production port guard and its active-listener, process-owned socket, and permission-error checks are unchanged. This is test setup only and does not invalidate or change the isolated runtime receipt.
+- Verification: the focused OS test passed after the change; full approved-venv `make test` passed with zero skips and `make validate` passed. The test-only change does not alter the accepted runtime receipt.

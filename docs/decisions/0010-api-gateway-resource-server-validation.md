@@ -25,7 +25,7 @@ Kong `kong-ee` master（2026-09-12）のsourceでは、次を確認した。
 ## Decision
 
 1. API Gatewayは`auth_methods: [introspection]`でtokenを検証する。introspection endpointへは、専用のKeycloak client（`api-gateway-introspection`）として`tls_client_auth`で認証する。
-2. `introspection_check_active: true`とする。説明しやすさのためcache無効を既定とする。cacheを使う場合はTTLを記録する。失効反映SLAは設定しない。
+2. `introspection_check_active: true`とし、`cache_introspection: false`、`cache_tokens: false`でcacheを無効化する。説明しやすさのための既定であり、実tokenに対するGatewayからのintrospection呼出しをexact runtimeで確認する。失効反映SLAは設定しない。
 3. `bearer_token_param_type: [header]`とする。
 4. `tls-handshake-modifier`でclient certificateを要求し、`proof_of_possession_mtls: strict`で`cnf.x5t#S256`と照合する。CA chainの検証は必須にしない（RFC 8705 §3のbindingで成立する）。
 5. `issuers_allowed`、`audience_required: [fapi-demo-api]`、`scopes_required`で、認可範囲を確認する。

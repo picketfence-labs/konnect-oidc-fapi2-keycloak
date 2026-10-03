@@ -1,0 +1,105 @@
+services:
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.4@sha256:82a77884f3af238beab1e7afd63b5f530e1b5c0590bd7aa60b40a40463e29b2c
+    platform: linux/arm64
+    user: "0:0"
+    restart: "no"
+    command:
+      - start-dev
+      - --import-realm
+      - --https-port=8443
+    env_file:
+      - ./.generated/wp3-preview/bootstrap.env
+    environment:
+      KC_HOSTNAME: https://localhost:8444
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "false"
+      KC_HTTP_ACCESS_LOG_ENABLED: "false"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/tls/tls.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/tls/tls.key
+      KC_HTTPS_CLIENT_AUTH: request
+      KC_SPI_LOGIN_PROTOCOL__OPENID_CONNECT__ALLOW_TOKEN_INTROSPECTION_WITHOUT_AUDIENCE_CHECK: "false"
+      KC_TRUSTSTORE_PATHS: /opt/keycloak/conf/trust/ca.crt
+      KC_HEALTH_ENABLED: "true"
+    volumes:
+      - ./.generated/wp3-preview/realm-import/fapi-demo-realm.json:/opt/keycloak/data/import/fapi-demo-realm.json:ro
+      - ./.generated/wp3-preview/pki/keycloak.crt:/opt/keycloak/conf/tls/tls.crt:ro
+      - ./.generated/wp3-preview/pki/keycloak.key:/opt/keycloak/conf/tls/tls.key:ro
+      - ./.generated/wp3-preview/pki/ca.crt:/opt/keycloak/conf/trust/ca.crt:ro
+    ports:
+      - "127.0.0.1:18444:8443"
+
+  kong-api:
+    image: kong/kong-gateway:3.16.0.0@sha256:e2678b4cb534fc9d6a17288d83457d6cbea235a6331dc4982e021300ccb668c4
+    platform: linux/arm64
+    user: "0:0"
+    restart: "no"
+    environment:
+      KONG_LICENSE_DATA:
+      API_INTROSPECTION_KEY:
+      API_UPSTREAM_KEY:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /etc/kong/wp3/api-runtime.yml
+      KONG_PLUGINS: bundled
+      KONG_ROUTER_FLAVOR: expressions
+      KONG_PROXY_LISTEN: "0.0.0.0:8443 ssl"
+      KONG_PROXY_ACCESS_LOG: "off"
+      # Fixture-only, container-loopback listener for bounded metadata probes.
+      # It has no host port and the normal Compose contract remains disabled.
+      KONG_ADMIN_LISTEN: "127.0.0.1:8001"
+      # Exclude the Admin GUI include from the isolated nginx -T proof surface.
+      # The normal Compose Admin and GUI listeners remain disabled.
+      KONG_ADMIN_GUI_LISTEN: "off"
+      # Fixture-only diagnostic level so the bounded private scan can classify
+      # the NGINX header-limit INFO marker. Normal Compose stays at notice.
+      KONG_LOG_LEVEL: info
+      KONG_SSL_CERT: /etc/kong/fapi/api-gateway.crt
+      KONG_SSL_CERT_KEY: /etc/kong/fapi/api-gateway.key
+      KONG_SSL_PROTOCOLS: TLSv1.2 TLSv1.3
+      KONG_SSL_CIPHER_SUITE: modern
+      KONG_LUA_SSL_PROTOCOLS: TLSv1.2 TLSv1.3
+      KONG_LUA_MAX_REQ_HEADERS: "1000"
+      KONG_NGINX_PROXY_PROXY_SSL_PROTOCOLS: TLSv1.2 TLSv1.3
+      KONG_NGINX_PROXY_PROXY_SSL_CIPHERS: ECDHE+AESGCM:ECDHE+CHACHA20
+      KONG_LUA_SSL_TRUSTED_CERTIFICATE: system,/etc/kong/fapi/ca.crt
+      KONG_NGINX_MAIN_ENV: "API_INTROSPECTION_KEY; env API_UPSTREAM_KEY"
+    volumes:
+      - ./.generated/wp3-preview/api-runtime.yml:/etc/kong/wp3/api-runtime.yml:ro
+      - ./.generated/wp3-preview/pki/ca.crt:/etc/kong/fapi/ca.crt:ro
+      - ./.generated/wp3-preview/pki/api-gateway.crt:/etc/kong/fapi/api-gateway.crt:ro
+      - ./.generated/wp3-preview/pki/api-gateway.key:/etc/kong/fapi/api-gateway.key:ro
+    ports:
+      - "127.0.0.1:18443:8443"
+    depends_on:
+      - keycloak
+
+  pop-verifier:
+    image: python:3.11@sha256:db07fba48daaf1c68c03676aadc73866414d25b4c278029f9873c784517613bf
+    platform: linux/arm64
+    user: "0:0"
+    restart: "no"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    command:
+      - python
+      - /opt/wp3/wp3-capture-server.py
+    environment:
+      WP3_CAPTURE_TLS_CERT_FILE: /run/wp3/pki/pop-verifier.crt
+      WP3_CAPTURE_TLS_KEY_FILE: /run/wp3/pki/pop-verifier.key
+      WP3_CAPTURE_CLIENT_CA_FILE: /run/wp3/pki/ca.crt
+      WP3_CAPTURE_API_UPSTREAM_CERT_FILE: /run/wp3/pki/api-upstream.crt
+      WP3_CAPTURE_HOST: 0.0.0.0
+      WP3_CAPTURE_PORT: "9443"
+      WP3_CAPTURE_EXPECTED_DEPARTMENT: engineering
+      WP3_CAPTURE_EXPECTED_ROUTE: engineering-route
+    volumes:
+      - ./tests/harness/wp3-capture-server.py:/opt/wp3/wp3-capture-server.py:ro
+      - ./.generated/wp3-preview/pki/ca.crt:/run/wp3/pki/ca.crt:ro
+      - ./.generated/wp3-preview/pki/pop-verifier.crt:/run/wp3/pki/pop-verifier.crt:ro
+      - ./.generated/wp3-preview/pki/pop-verifier.key:/run/wp3/pki/pop-verifier.key:ro
+      - ./.generated/wp3-preview/pki/api-upstream.crt:/run/wp3/pki/api-upstream.crt:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=1m

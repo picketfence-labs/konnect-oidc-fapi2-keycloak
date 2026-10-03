@@ -1,0 +1,166 @@
+_format_version: "3.0"
+_info:
+  select_tags: [fapi2-demo]
+
+certificates:
+  - id: 44444444-4444-4444-8444-444444444444
+    cert: "${{ env "DECK_API_INTROSPECTION_CERT_YAML" }}"
+    key: "{vault://env/API_INTROSPECTION_KEY}"
+    tags: [fapi2-demo, fapi2-foundation]
+  - id: 55555555-5555-4555-8555-555555555555
+    cert: "${{ env "DECK_API_UPSTREAM_CERT_YAML" }}"
+    key: "{vault://env/API_UPSTREAM_KEY}"
+    tags: [fapi2-demo, fapi2-foundation]
+
+ca_certificates:
+  - id: 33333333-3333-4333-8333-333333333333
+    cert: "${{ env "DECK_FAPI_CA_CERT_YAML" }}"
+    tags: [fapi2-demo]
+
+services:
+  - id: a5fe77b4-93fd-4f84-bb31-71c245dedd09
+    name: fapi-api-resource-server
+    protocol: https
+    host: pop-verifier
+    port: 9443
+    path: /evidence
+    tls_verify: true
+    ca_certificates: [33333333-3333-4333-8333-333333333333]
+    client_certificate: 55555555-5555-4555-8555-555555555555
+    tags: [fapi2-demo, api]
+    routes:
+      - id: 14d51ff4-613c-4769-96ce-330cd8075855
+        name: fapi-api-resource-server-route
+        paths: [/fapi-api/evidence]
+        protocols: [https]
+        snis: [kong-api, localhost]
+        strip_path: true
+        tags: [fapi2-demo, api]
+
+plugins:
+  - name: pre-function
+    id: 4374b81d-77c4-4da1-9dfe-fbb0949a13ba
+    route: fapi-api-resource-server-route
+    tags: [fapi2-demo, api]
+    config:
+      access:
+        - |
+          local headers, err = kong.request.get_headers(1000)
+          if not headers or err then
+            return kong.response.exit(431, { message = "Request headers exceed inspection limit" })
+          end
+
+          local count = 0
+          for name in pairs(headers) do
+            count = count + 1
+            local value = headers[name]
+            if type(value) == "table" then
+              count = count + #value - 1
+            end
+            if count >= 1000 then
+              return kong.response.exit(431, { message = "Request headers exceed inspection limit" })
+            end
+
+            local normalized = string.lower(name):gsub("_", "-")
+            if normalized == "cookie"
+              or normalized:sub(1, 7) == "x-demo-"
+              or normalized:sub(1, 7) == "x-fapi-"
+              or normalized:sub(1, 13) == "x-client-cert"
+              or normalized:sub(1, 16) == "client-assertion" then
+              kong.service.request.clear_header(name)
+            end
+          end
+
+          local function reject_query_authentication()
+            kong.response.set_header("WWW-Authenticate", 'Bearer error="invalid_token"')
+            return kong.response.exit(401, { message = "Invalid access token" })
+          end
+
+          local query_call_ok, query_args, query_error = pcall(kong.request.get_query, 1000)
+          if not query_call_ok or type(query_args) ~= "table" or query_error ~= nil then
+            return reject_query_authentication()
+          end
+
+          local argument_count = 0
+          for name, value in pairs(query_args) do
+            if type(name) ~= "string" then
+              return reject_query_authentication()
+            end
+
+            local normalized = string.lower(name):gsub("_", "-")
+            if normalized == "access-token" then
+              return reject_query_authentication()
+            end
+
+            argument_count = argument_count + 1
+            if type(value) == "table" then
+              local occurrences = 0
+              local highest_index = 0
+              for index in pairs(value) do
+                if type(index) ~= "number" or index < 1 or index % 1 ~= 0 then
+                  return reject_query_authentication()
+                end
+                occurrences = occurrences + 1
+                if index > highest_index then
+                  highest_index = index
+                end
+              end
+              if occurrences < 2 or highest_index ~= occurrences then
+                return reject_query_authentication()
+              end
+              argument_count = argument_count + occurrences - 1
+            elseif type(value) ~= "string" and type(value) ~= "boolean" then
+              return reject_query_authentication()
+            end
+
+            if argument_count >= 1000 then
+              return reject_query_authentication()
+            end
+          end
+
+  - name: openid-connect
+    id: ed488e53-d29d-4db7-ba89-78b3bbf35df3
+    route: fapi-api-resource-server-route
+    tags: [fapi2-demo, api]
+    config:
+      issuer: https://keycloak:8443/realms/fapi-demo/.well-known/openid-configuration
+      introspection_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/token/introspect
+      mtls_introspection_endpoint: https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/token/introspect
+      client_id: [api-gateway-introspection]
+      client_auth: [tls_client_auth]
+      auth_methods: [introspection]
+      introspection_endpoint_auth_method: tls_client_auth
+      introspection_check_active: true
+      cache_introspection: false
+      cache_tokens: false
+      bearer_token_param_type: [header]
+      upstream_access_token_header: authorization:bearer
+      tls_client_auth_cert_id: 44444444-4444-4444-8444-444444444444
+      tls_client_auth_ssl_verify: true
+      ssl_verify: true
+      issuers_allowed: [https://localhost:8444/realms/fapi-demo]
+      audience_required: [fapi-demo-api]
+      scopes_required: [openid]
+      proof_of_possession_mtls: strict
+      proof_of_possession_auth_methods_validation: true
+      expose_error_code: true
+      upstream_headers:
+        - header: X-Demo-Department
+          path: ["https://fapi-demo.example.com/department"]
+        - header: X-Demo-Route
+          path: ["https://fapi-demo.example.com/route"]
+
+  - name: tls-handshake-modifier
+    id: 6c3a195b-2fa7-4ed8-8ae4-72db3d2c537c
+    route: fapi-api-resource-server-route
+    tags: [fapi2-demo, api]
+    config:
+      tls_client_certificate: REQUEST
+
+  - name: tls-metadata-headers
+    id: a6b8e2df-3612-47db-b863-b6dee55f2dc4
+    route: fapi-api-resource-server-route
+    tags: [fapi2-demo, api]
+    config:
+      inject_client_cert_details: true
+      client_cert_header_name: X-Client-Cert

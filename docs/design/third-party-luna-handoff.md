@@ -1,6 +1,6 @@
 # Luna / xHigh向けEnhancement開発移譲契約
 
-開発担当はIssueを1つずつ実装し、受入条件と証跡を対応付けたPRを提出する。現在のWP2担当設定は、利用者の最新指示による **Codex / gpt-6-luna / xhigh**。WP1はLuna / Highで実施した。個別の開始・環境変更承認はIssueへ記録する。
+開発担当はIssueを1つずつ実装し、受入条件と証跡を対応付けたPRを提出する。現在のWP3担当設定は、利用者の最新指示による **Codex / gpt-6-luna / xhigh**。WP1はLuna / Highで実施した。個別の開始・環境変更承認はIssueへ記録する。
 
 ## 基準と現在地
 
@@ -8,10 +8,13 @@
 - 設計baseline: [PR #5](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/pull/5)、main merge commit `bc4a063df75ac28d29c33299b90deac3bd1ebe98`（レビュー対象head `3a41ebceb9183f80702c1f898c83991d102fe61e`）。
 - 2026-10-02: Design ownerレビューはmerge blocker 0。`make validate`、`make test`、差分空白検査、変更Markdownのローカルリンク、図JSON解析と4図PNG目視が完了。
 - PR #5は初回の自動承認レビュー拒否後、利用者が本PR限定の規則の例外を明示承認し、2026-10-02にmergeした。設計・WP1実装・修正のPR #13／#15／#16／#17は利用者がmainへmerge済み。PR #5の例外を他PRへ適用しない。
-- main `4ce796d`で独立検証した両foundation diff=0、既存14 entity不変、API共有CA再利用・schema hash照合、19 tests、main CIはpass。[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)にTechnical Completion Reportを記録し、利用者がWP1受入・close・WP2着手を承認した。利用者の代理close承認に基づき#7はclosed。[Issue #8](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/8)をLuna / xHighで開始する。
-- 実TLS、JWT署名、Keycloak observer build、transport lifecycle、introspectionの実行証跡は今回取得していない。
+- **2026-10-02時点の履歴**: main `4ce796d`で独立検証した両foundation diff=0、既存14 entity不変、API共有CA再利用・schema hash照合、19 tests、main CIはpass。[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)にTechnical Completion Reportを記録し、利用者がWP1受入・close・WP2着手を承認した。利用者の代理close承認に基づき#7はclosed。その時点で実TLS、JWT署名、Keycloak observer build、transport lifecycle、introspectionの証跡は未取得だった。
+- **現在地（2026-10-03）**: main `1fc8e23b0dc2ce58676f7f912e85cf9795813a8f`。WP2 PR #18は利用者受入済みで[Issue #8](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/8) closed。WP4 PR #19はmainへmergeされ、独立`make validate` / `make test`とfresh UPSTREAM-01がpassし、[Issue #10](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/10)は利用者受入後closed（[完了記録](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/10#issuecomment-5963816820)）。
+- WP3 #9は同mainをbaselineとしてactive。最終isolated receipt `wp3-runtime-receipt-1791019160834567000.json`は37/37 acceptance rows PASS、FAIL 0、needs-design 0。194/194 log candidatesをscanし、3 servicesともsecret/pattern match 0。API response 29件もclean。fresh Keycloak token/introspection、audience/scope/active/PoP/ERR、query/body/cookie/header/TLS、upstream mTLSを検証し、cleanupとport解放をrootが独立確認した。最新source freeze SHAは`16836905cc82d0d747f1f9ab7b083ba612bd09188572ca8cea00c614daa3b7b8`。WP3 #9は通常migrationとintegration gateが残るためopenのまま。read-only normal CP previewはcreate 6 / update 0 / delete 13で、syncは未実施。WP5 #11とWP6 #12は未開始。
 
 着手前にremoteを同期し、設計合意・依存WP受入・開始条件をIssueで確認する。baselineの差分があれば、再確認してからbranchを作る。設計はADR 0009〜0014、実装要件、DP0と[WP1詳細設計](third-party-foundation-design.md)を正本とする。Workerは方式を選び直さない。
+
+過去のreceiptはすべてimmutableのまま保持する。前段階のreceipt `wp3-runtime-receipt-1791017200869688000.json`は36/37でLEAK-01をfailと記録したが、後続の境界付きcandidate分類を実装・再検証した最終receiptは37/37 PASSとなった。検証では、実token検証と同一response collectionに結び付くtop-level identifierだけをrestricted correlation categoryとして扱い、unresolved candidate、credential collision、Cookie、API response scanをstrictに維持した。raw field/valueやtoken/hashをreceiptへ保存していない。過去のreceiptは書き換えていない。INFO-level loggingはWP3 isolated fixtureだけに適用し、通常Composeは`notice`を維持する。
 
 ## 成果と範囲
 
@@ -80,13 +83,14 @@ namespaced claimのmapper設定ではURI内のdotをescapeする。Keycloakの[c
 
 ## WP3: API Gateway Resource Server
 
-変更候補は`kong/api-gateway.yaml`、API用runtime/TLS設定、RS test harness。`auth_methods=[introspection]`、header only、active確認、cache無効、strict mTLS PoP、issuer/audience/scopeを固定する。
+変更候補は`kong/api-gateway.yaml`、API用runtime/TLS設定、RS test harness。`auth_methods=[introspection]`、header only、active確認、`cache_introspection`/`cache_tokens`無効、strict mTLS PoP、issuer/audience/scopeを固定する。入力由来Cookie、`X-Demo-*`、全`X-Fapi-*`、全`X-Client-Cert*`は[ADR 0015](../decisions/0015-api-resource-server-header-boundary.md)に沿ってroute-scoped inline Luaで除去し、これはstockのautomatic prefix removalではないと説明する。続くOIDC/TMHが検証済みclaim header、URL-encoded `X-Client-Cert`、5種の固定stock detail headerを再生成する。client由来credentialはJWT再検証用`Authorization`だけを保持し、detail headerは認証に使わない。
 
-- exact runtimeで`tls-handshake-modifier`、OIDC（priority 1050）、`tls-metadata-headers`（996）のschema/phase/priorityと設定受理を記録。master sourceやmock schemaだけで完了しない。
+- exact runtimeで`tls-handshake-modifier`、OIDC（priority 1050）、`tls-metadata-headers`（996）のschema/phase/priorityと設定受理を記録。master sourceやmock schemaだけで完了しない。inbound TLSのeffective protocol/cipher metadataと交渉結果は[ADR 0016](../decisions/0016-api-gateway-inbound-tls-policy.md)に沿って別に確認する。
 - **POP-01/02/03**でcertなし・別Route・binding不一致を拒否。自己署名certのCA外という属性だけを拒否理由にしない。
 - **RS-QUERY-01**に加えてbody tokenも拒否。**RS-AUD-01、RS-SCOPE-01、ERR-01、RS-VALID-01、TLS-RS-01**で認可とTLSを検証する。
-- **HEADER-CERT-01**でclient供給cert headerを上書きし、証明書欠落時にはUpstreamへ到達させない。`X-Demo-*`はclaim由来、Cookieとclient供給`X-Fapi-*`は除去する。
-- Gatewayは専用upstream certで接続する。JWT再検証に必要なAuthorizationだけをUpstreamへ転送する。
+- **RS-AUD-01**の隔離negativeでは`pop-verifier-audience` mapperのaccess/introspection claimを同時に一時無効化し、JWTとactive introspectionの双方でAPI audience欠落を確認する。専用introspection audience mapperは変更せず、完全な元mapperを復元した後、新しいgrantで両audience、active introspection、API `200`を確認する。
+- **HEADER-CERT-01**でclient供給cert headerを除去し、TMHの必須設定`inject_client_cert_details: true`が正しいPEMとSerial、Issuer-DN、Subject-DN、Fingerprint、Chainを再生成することを確認する。caller sentinel、未知suffix、case/underscore alias、重複を拒否し、Fingerprintを転送leafと照合する。証明書欠落時にはUpstreamへ到達させない。Luaが取得した1000件上限/truncationは431でfail closedにする。well-formedな1001件目がHTTP parserで400となる場合は[ADR 0015](../decisions/0015-api-resource-server-header-boundary.md)のparser provenance/control条件を満たすまでneeds-designとする。
+- Gatewayは専用upstream certで接続する。client-origin credentialはJWT再検証に必要なAuthorizationだけをUpstreamへ転送し、Gatewayが生成したPEMと5種のstock detail headerはcertificate evidenceとして別に検証する。
 - tag限定のsync前diff、承認後sync、sync後diff=0。**RS-REVOKE-01**は任意、未実施を失効保証に読み替えない。
 - **WP3-MIGRATION**: API runtime stateへfoundationを包含し、旧v1 entityの除去を独立previewする。入口停止、旧sessionと復旧手順を確認してから適用する。WP1のcreate-only基盤受入へ削除を混ぜない。
 

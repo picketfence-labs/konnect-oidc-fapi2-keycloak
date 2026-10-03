@@ -16,6 +16,7 @@ from subprocess import TimeoutExpired, run as subprocess_run
 
 import yaml
 from yaml.constructor import ConstructorError
+from wp3_runtime import validate_api_runtime_state
 
 from wp1 import ROUTES, compare_schema_hashes, endpoint_host, validate_selector, validate_targets
 
@@ -28,6 +29,7 @@ FOUNDATION_FILES = {
     "api": Path("kong/foundation/api.yaml"),
     "third-party": Path("kong/foundation/third-party.yaml"),
 }
+RUNTIME_FILES = {"api": Path("kong/api-gateway.yaml")}
 
 
 class RejectRedirects(HTTPRedirectHandler):
@@ -77,15 +79,24 @@ def local_manifest(root: Path, gateway: str, stage: str | None, operation: str) 
     selector_operation = "schema" if operation.startswith("schema-") else operation
     validate_selector(gateway, stage, selector_operation)
     validate_foundation_state(root, gateway)
-    state = FOUNDATION_FILES[gateway] if stage == "foundation" else None
+    if stage == "runtime" and gateway not in RUNTIME_FILES:
+        raise ValueError("third-party runtime state is owned by WP5 and is unavailable")
+    state = (
+        FOUNDATION_FILES[gateway]
+        if stage == "foundation"
+        else RUNTIME_FILES.get(gateway)
+        if stage == "runtime"
+        else None
+    )
+    if operation == "validate" and gateway == "api":
+        runtime_state = root / "kong/api-gateway.yaml"
+        if runtime_state.exists():
+            validate_api_runtime_state(root)
     if operation in {"diff", "sync"}:
         if stage == "runtime":
-            runtime_state = root / ("kong/api-gateway.yaml" if gateway == "api" else "kong/third-party-gateway.yaml")
-            if not runtime_state.is_file():
-                raise ValueError("runtime state is incomplete or unavailable to this work package")
-            raise ValueError("runtime state requires its owning WP acceptance before diff/sync")
+            validate_api_runtime_state(root)
         if not (root / state).is_file():
-            raise ValueError(f"foundation state is missing: {state}")
+            raise ValueError(f"{stage} state is missing: {state}")
 
     manifest_path = root / ".generated/gateway_targets.json"
     if operation == "validate":

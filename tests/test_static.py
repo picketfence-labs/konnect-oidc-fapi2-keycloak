@@ -118,6 +118,135 @@ identity_map = json.loads(
     (ROOT / "tests/fixtures/wp2-client-identity-map.json").read_text()
 )
 assert identity_map["third-party-fapi-mtls"]["certificate_subject"] == "CN=kong-fapi-mtls"
+
+import yaml
+
+def parse_deck_yaml(path):
+    source = path.read_text()
+    rendered = re.sub(
+        r'\$\{\{\s*env\s+"([A-Z0-9_]+)"\s*\}\}',
+        lambda match: f"deck-template:{match.group(1)}",
+        source,
+    )
+    assert "${{" not in rendered
+    return yaml.safe_load(rendered)
+
+
+api_state = parse_deck_yaml(ROOT / "kong/api-gateway.yaml")
+api_foundation = parse_deck_yaml(ROOT / "kong/foundation/api.yaml")
+assert api_state["_format_version"] == "3.0"
+assert api_state["_info"]["select_tags"] == ["fapi2-demo"]
+foundation_certificates = {
+    entity["id"]: entity for entity in api_foundation["certificates"]
+}
+runtime_certificates = {entity["id"]: entity for entity in api_state["certificates"]}
+assert set(runtime_certificates) == set(foundation_certificates)
+for certificate_id, foundation_certificate in foundation_certificates.items():
+    assert runtime_certificates[certificate_id]["tags"] == foundation_certificate["tags"]
+    assert runtime_certificates[certificate_id]["cert"] == foundation_certificate["cert"]
+    assert runtime_certificates[certificate_id]["key"] == foundation_certificate["key"]
+api_ca = api_state["ca_certificates"]
+assert len(api_ca) == 1
+assert api_ca[0]["id"] == "33333333-3333-4333-8333-333333333333"
+assert api_ca[0]["tags"] == ["fapi2-demo"]
+assert len(api_state["services"]) == 1
+api_service = api_state["services"][0]
+assert api_service["id"] == "a5fe77b4-93fd-4f84-bb31-71c245dedd09"
+assert api_service["protocol"] == "https"
+assert api_service["tls_verify"] is True
+assert api_service["ca_certificates"] == [api_ca[0]["id"]]
+assert api_service["client_certificate"] == "55555555-5555-4555-8555-555555555555"
+assert len(api_service["routes"]) == 1
+api_route = api_service["routes"][0]
+assert api_route["id"] == "14d51ff4-613c-4769-96ce-330cd8075855"
+assert api_route["paths"] == ["/fapi-api/evidence"]
+assert api_route["protocols"] == ["https"]
+
+api_plugins = {plugin["name"]: plugin for plugin in api_state["plugins"]}
+assert set(api_plugins) == {
+    "pre-function",
+    "openid-connect",
+    "tls-handshake-modifier",
+    "tls-metadata-headers",
+}
+assert all(plugin.get("route") == api_route["name"] for plugin in api_plugins.values())
+assert {name: plugin["id"] for name, plugin in api_plugins.items()} == {
+    "pre-function": "4374b81d-77c4-4da1-9dfe-fbb0949a13ba",
+    "openid-connect": "ed488e53-d29d-4db7-ba89-78b3bbf35df3",
+    "tls-handshake-modifier": "6c3a195b-2fa7-4ed8-8ae4-72db3d2c537c",
+    "tls-metadata-headers": "a6b8e2df-3612-47db-b863-b6dee55f2dc4",
+}
+assert api_plugins["pre-function"]["tags"] == ["fapi2-demo", "api"]
+sanitizer = "\n".join(api_plugins["pre-function"]["config"]["access"])
+assert "kong.request.get_headers(1000)" in sanitizer
+assert 'if not headers or err then' in sanitizer
+assert "count >= 1000" in sanitizer
+assert "kong.response.exit(431" in sanitizer
+assert 'string.lower(name):gsub("_", "-")' in sanitizer
+assert 'normalized == "cookie"' in sanitizer
+assert 'normalized:sub(1, 7) == "x-fapi-"' in sanitizer
+assert 'normalized:sub(1, 13) == "x-client-cert"' in sanitizer
+assert 'normalized:sub(1, 16) == "client-assertion"' in sanitizer
+assert 'normalized:sub(1, 7) == "x-demo-"' in sanitizer
+assert "kong.service.request.clear_header(name)" in sanitizer
+assert "pcall(kong.request.get_query, 1000)" in sanitizer
+assert 'normalized == "access-token"' in sanitizer
+assert "query_error ~= nil" in sanitizer
+assert "argument_count >= 1000" in sanitizer
+assert "kong.response.exit(401" in sanitizer
+assert 'Bearer error="invalid_token"' in sanitizer
+assert "get_raw_query" not in sanitizer
+assert "request.set_path" not in sanitizer
+assert "kong.log" not in sanitizer
+oidc = api_plugins["openid-connect"]["config"]
+assert oidc["auth_methods"] == ["introspection"]
+assert oidc["bearer_token_param_type"] == ["header"]
+assert oidc["upstream_access_token_header"] == "authorization:bearer"
+assert oidc["introspection_check_active"] is True
+assert oidc["cache_introspection"] is False
+assert oidc["cache_tokens"] is False
+assert oidc["proof_of_possession_mtls"] == "strict"
+assert oidc["proof_of_possession_auth_methods_validation"] is True
+assert oidc["audience_required"] == ["fapi-demo-api"]
+assert oidc["scopes_required"] == ["openid"]
+assert oidc["issuer"] == "https://keycloak:8443/realms/fapi-demo/.well-known/openid-configuration"
+assert oidc["issuers_allowed"] == ["https://localhost:8444/realms/fapi-demo"]
+assert oidc["upstream_headers"] == [
+    {
+        "header": "X-Demo-Department",
+        "path": ["https://fapi-demo.example.com/department"],
+    },
+    {
+        "header": "X-Demo-Route",
+        "path": ["https://fapi-demo.example.com/route"],
+    },
+]
+assert api_plugins["tls-handshake-modifier"]["config"]["tls_client_certificate"] == "REQUEST"
+assert api_plugins["tls-metadata-headers"]["config"]["inject_client_cert_details"] is True
+assert api_plugins["tls-metadata-headers"]["config"]["client_cert_header_name"] == "X-Client-Cert"
+assert all(
+    "fapi-as-mtls-transport" not in plugin["name"]
+    and "fapi-client-auth-bridge" not in plugin["name"]
+    for plugin in api_state["plugins"]
+)
+
+compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text())
+api_compose = compose["services"]["kong-api"]
+api_env = api_compose["environment"]
+assert api_env["KONG_PROXY_LISTEN"] == "0.0.0.0:8443 ssl"
+assert api_env["KONG_PROXY_ACCESS_LOG"] == "off"
+assert api_env["KONG_SSL_PROTOCOLS"] == "TLSv1.2 TLSv1.3"
+assert "KONG_NGINX_HTTP_UNDERSCORES_IN_HEADERS" not in api_env
+wp3_compose = yaml.safe_load((ROOT / "tests/harness/docker-compose.wp3.yml").read_text())
+assert "KONG_NGINX_HTTP_UNDERSCORES_IN_HEADERS" not in wp3_compose["services"]["kong-api"]["environment"]
+assert api_env["KONG_SSL_CIPHER_SUITE"] == "modern"
+assert api_env["KONG_LUA_SSL_PROTOCOLS"] == "TLSv1.2 TLSv1.3"
+assert api_env["KONG_LUA_MAX_REQ_HEADERS"] == "1000"
+assert api_env["KONG_NGINX_PROXY_PROXY_SSL_PROTOCOLS"] == "TLSv1.2 TLSv1.3"
+assert api_env["KONG_NGINX_PROXY_PROXY_SSL_CIPHERS"] == "ECDHE+AESGCM:ECDHE+CHACHA20"
+assert "ports" not in api_compose
+assert api_env["KONG_PLUGINS"] == "bundled"
+assert compose["services"]["kong-third-party"]["environment"]["KONG_PROXY_LISTEN"] == "off"
 assert identity_map["third-party-fapi-pkj-mtls"]["certificate_subject"] == "CN=kong-fapi-pkj-mtls"
 assert identity_map["api-gateway-introspection"]["certificate_subject"] == "CN=api-gateway-introspection"
 pkigen = (ROOT / "scripts/generate-pki.py").read_text()
