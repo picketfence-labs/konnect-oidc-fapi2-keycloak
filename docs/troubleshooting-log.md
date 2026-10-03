@@ -434,3 +434,9 @@
 - Scope: fresh Keycloak-issued Route A/B tokens, introspection/audience/scope/active/PoP/ERR, query/header controls, TLS policy and negative controls, certificate forwarding and upstream mTLS passed. Root independently confirmed the isolated containers, volume, private fixture, and ports were cleaned. Earlier receipts, including the 36/37 LEAK-01 failure, remain immutable.
 - Remaining gate: normal Control Plane migration was not applied. The latest read-only diff preview is 6 creates / 0 updates / 13 deletes and needs its separate human review/authorization before sync. WP5/WP6 have not started. No normal `make up`, realm update, or CP sync occurred.
 - Verification: zero-skip `make test`, `make validate`, and `git diff --check` passed. The registry-dependent validation required network access; it performed no apply or sync.
+
+## 2026-10-03: CI loopback TIME_WAIT regression test needed reusable client socket
+
+- Actual: CI run `37113019492` failed in the unit/static test step at `test_port_guard_rejects_active_listener_and_accepts_time_wait_only` on the TIME_WAIT setup with `EADDRINUSE`; the Kong job was cancelled by fail-fast. No image-build failure was established. The test client had not enabled `SO_REUSEADDR` before bind/connect; the Linux socket rules require the previous and replacement binders to set it for this reuse case ([`socket(7)`](https://man7.org/linux/man-pages/man7/socket.7.html)).
+- Fix: set `SO_REUSEADDR` on the test client before binding. The production port guard and its active-listener, process-owned socket, and permission-error checks are unchanged. This is test setup only and does not invalidate or change the isolated runtime receipt.
+- Verification: the focused OS test passed after the change; full approved-venv `make test` passed with zero skips and `make validate` passed. The test-only change does not alter the accepted runtime receipt.

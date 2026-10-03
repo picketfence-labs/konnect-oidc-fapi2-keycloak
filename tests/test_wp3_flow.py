@@ -2888,6 +2888,7 @@ class WP3FlowTests(unittest.TestCase):
         thread.start()
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
+            client.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             client.bind(("127.0.0.1", 0))
             client.connect(server.getsockname())
         except PermissionError:
