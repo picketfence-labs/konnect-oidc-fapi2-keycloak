@@ -8,9 +8,11 @@
 
 拡張v6もRoot受入済み（43.869秒、実AS15件join）。A/Bともiss不一致401拒否の後に正規callback成功、2回の期限後refreshとrotation更新値使用、PAR redirect query/nonce/S256/callback URIを確認した。receipt SHA-256は`9b628ed21e550432405697ee7ac4281fb3b98936c0a087120774ec9ec3424ebd`。Root proofは`.generated/evidence/wp5-root-transport-v6-terminal-review-1791108590659333000.json`。全専用resources/PKI/port回収済み。v4/v5のharness固定status失敗は履歴として保持する。
 
-`make validate`、既存venvによる`make test`、`make test-plugin`はPASS。最終guard変更後の`make test-wp5-transport`もPASS（fixture8件）。通常A/B stateとrealm PS256 provider/kid、loopback入口supervisorは実装済み。通常Control Planeのthird-party diffは**create11/update0/delete0**、適用していない。API側WP3 previewはcreate6/update0/delete13、sync未実施。通常`make up`は閉鎖、third-party runtime syncは無効。通常統合、stock負例の残件、main検証と利用者受入までWP5全体を完了扱いにしない。
+`make validate`、既存venvによる`make test`、`make test-plugin`はPASS。focused `make test-wp5-transport`もPASS、拡張flow後のfixture回帰検査は11件PASS。sandboxでskipされた既存port検査1件は単独で補完しPASS。通常A/B stateとrealm PS256 provider/kid、loopback入口supervisorは実装済み。通常Control Planeのthird-party diffは**create11/update0/delete0**、適用していない。API側WP3 previewはcreate6/update0/delete13、sync未実施。通常`make up`は閉鎖、third-party runtime syncは無効。通常統合、stock負例の残件、main検証と利用者受入までWP5全体を完了扱いにしない。
 
 mainは`a84e1dfcc55f1c14788110f17dc7e2c5a96bda76`（remote同期済み）。WP1 #7、WP2 #8、WP4 #10は受入済み・closed。WP3 #9は37/37 isolated検証通過、通常migration/integration待ち。WP5 #11は実装・隔離検証済み、PRレビューと通常受入待ち。WP6 #12は未開始。通常環境変更は未実施。証跡・残件は[WP5受入表](design/third-party-wp5-acceptance.md)と[直結preview](design/third-party-wp5-transport-preview.md)を参照。
+
+レビュー用[Draft PR #21](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/pull/21)を作成済み。次はPRのCI・人によるレビュー、main反映確認、既存のAPI/third-party差分と起動手順のレビュー、通常デモ統合確認の順。通常環境への適用とIssue closeは未実施。
 
 以下は5a実行中の履歴であり、上記現在地を置き換えない。
 
