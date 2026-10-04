@@ -2,6 +2,10 @@
 
 ## 現在の作業状態（2026-10-04）
 
+通常統合着手（PR #22 merge後、main `6e4ced8`）: 標準Keycloakで管理対象3 clientsとPS256 providerを追加し、照合成功。third-party CPの追加11件を同期済み。API6追加/13削除は自動承認レビューが具体的な宛先・削除対象への承認を要求して拒否したため未実施。利用者へ具体的範囲を提示し回答待ち。旧API設定はGit外にprivate backupを保存した。通常入口/UIは閉鎖中、A/B E2Eは未実行。
+
+通常起動でRoute B JWK未受け渡しと、transport/bridgeの初回空設定による恒久拒否が見つかり、`fix/wp5-normal-runtime-env`で最小修正。Rootはmain公開amd64 imageをprivate overrideで使用し、修正handlerをread-only mountして確認中。修正stateのthird-party diffは0。workerの最終readiness確認後、API移行を承認された範囲で適用して通常フローへ進む。PR mergeと通常統合の受入は区別する。
+
 最新の決定: ゴールはKong標準優先の顧客要件デモで、本番FAPI完全準拠環境ではない。stock本文を維持し、PAR client_id欠落は仕様gapとして記録する。RootはSol 6.1 / High、開発委譲はLuna / xHigh。
 
 2026-10-04現在: WP5の5a spike、5b transport/bridge実装、5cの隔離AS直結・2 worker guard検証まで完了。5aのdirect TLS 40/40、再入r4、stock v15に加え、直結v2ではA/BのPAR→code→session→refresh→stock logout→access/refresh revokeが成功し、13操作を実ASのpeerへ照合した。token4応答のcnf一致、Route B全操作のPS256/issuer文字列aud/TTL60秒以内/異なるjtiを確認した。guard v3は偽装assertion3種400、marker欠落/不一致/reload/古いepochでA/B503、AS送信0。通常起動preflightのplugin欠落負例も固定image/networkなしで通過した。専用環境・PKI・portの回収はRoot独立確認済み。

@@ -5,7 +5,8 @@
 - third-party用runtime env生成で既存の `.generated/keycloak/route-b-private.jwk` を渡しておらず、workerへも公開されないため、Route BのVault参照解決とKonnect設定受領を妨げていた。JWKをthird-party専用envにだけ追加し、NGINX worker envへ引き継ぐ。
 - Hybrid DPの初期起動でCP設定前にtransport `configure(nil/empty)` が呼ばれると、初期configがない状態を永久失敗としてlatchし、後続の正しいCP設定も拒否していた。初回のnil/空だけ待機扱いにし、初期config後のnil/変更・不正設定は引き続きfail-closedにする。
 - decK stateのOIDC `login_tokens` がnullの一方、CPは既定値 `[id_token]` を返し、post-sync diffに設定差が残っていた。両Routeへ既定値を明示する。
-- focused source testsで確認する。Docker、Control Plane、通常runtimeの再試験はこの変更では行っていない。
+- bridgeも初回空設定でheader modeを固定し、後続のtransport_delegate設定を変更扱いで拒否していた。未設定のnil/空では方式を選ばず待機し、設定受領後の変更拒否とlegacy header動作を維持する。
+- focused source testsはPASS。Rootは公開imageに修正handlerをread-only mountし通常hybridを確認中。初期修正後に4 workerのregistry/hash/epoch準備完了、修正stateでthird-party diff=0を確認した。API同期と通常A/B E2Eは未実行。
 
 ## 2026-10-04: WP5 stock fixture v8 — PAR成功後のcallback 4xx
 
