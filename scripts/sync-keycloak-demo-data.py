@@ -49,6 +49,16 @@ REALM_ADMIN_FIELDS = (
     "clientPolicies",
     "clientProfiles",
 )
+KEY_PROVIDER_TYPE = "org.keycloak.keys.KeyProvider"
+MANAGED_KEY_PROVIDER_NAME = "fapi-demo-ps256-rsa-generated"
+MANAGED_KEY_PROVIDER_ID = "rsa-generated"
+MANAGED_KEY_PROVIDER_CONFIG = {
+    "priority": ["101"],
+    "enabled": ["true"],
+    "active": ["true"],
+    "keySize": ["3072"],
+    "algorithm": ["PS256"],
+}
 
 
 class NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -224,6 +234,145 @@ def realm_admin_payload(current, desired):
         for field, value in payload.items()
         if current.get(field) != value
     }
+
+
+def key_provider_admin_payload(desired_realm):
+    """Validate and project only the single managed PS256 signing provider."""
+    if not isinstance(desired_realm, dict) or not isinstance(desired_realm.get("components"), dict):
+        raise RuntimeError("desired Keycloak key provider configuration is malformed")
+    providers = desired_realm["components"].get(KEY_PROVIDER_TYPE)
+    if not isinstance(providers, list):
+        raise RuntimeError("desired Keycloak key provider configuration is malformed")
+    matching = []
+    for provider in providers:
+        if not isinstance(provider, dict) or not isinstance(provider.get("name"), str):
+            raise RuntimeError("desired Keycloak key provider entry is malformed")
+        if provider["name"] == MANAGED_KEY_PROVIDER_NAME:
+            matching.append(provider)
+    if len(matching) != 1:
+        raise RuntimeError("desired Keycloak managed key provider is missing or duplicated")
+    provider = matching[0]
+    if set(provider) != {"name", "providerId", "config"}:
+        raise RuntimeError("desired Keycloak managed key provider fields are unexpected")
+    if (provider["providerId"] != MANAGED_KEY_PROVIDER_ID
+        or provider["config"] != MANAGED_KEY_PROVIDER_CONFIG):
+        raise RuntimeError("desired Keycloak managed key provider config is invalid")
+    return {
+        "name": MANAGED_KEY_PROVIDER_NAME,
+        "providerId": MANAGED_KEY_PROVIDER_ID,
+        "providerType": KEY_PROVIDER_TYPE,
+        "config": {key: list(values) for key, values in MANAGED_KEY_PROVIDER_CONFIG.items()},
+    }
+
+
+def plan_key_provider_sync(desired_payload, live_components):
+    """Plan a single additive/update action without touching other components."""
+    if not isinstance(desired_payload, dict) or set(desired_payload) != {
+        "name", "providerId", "providerType", "config",
+    } or desired_payload.get("name") != MANAGED_KEY_PROVIDER_NAME \
+        or desired_payload.get("providerId") != MANAGED_KEY_PROVIDER_ID \
+        or desired_payload.get("providerType") != KEY_PROVIDER_TYPE \
+        or desired_payload.get("config") != MANAGED_KEY_PROVIDER_CONFIG:
+        raise RuntimeError("desired Keycloak managed key provider config is invalid")
+    if not isinstance(live_components, list):
+        raise RuntimeError("Keycloak managed key provider lookup is malformed")
+    matches = []
+    for component in live_components:
+        if not isinstance(component, dict) or not isinstance(component.get("name"), str):
+            raise RuntimeError("Keycloak managed key provider lookup is malformed")
+        if component["name"] == MANAGED_KEY_PROVIDER_NAME:
+            matches.append(component)
+    if len(matches) > 1:
+        raise RuntimeError("duplicate Keycloak managed key provider names found")
+    if not matches:
+        return [{"operation": "create", "payload": desired_payload}]
+
+    current = matches[0]
+    component_id = current.get("id")
+    if not isinstance(component_id, str) or not component_id:
+        raise RuntimeError("Keycloak managed key provider ID is missing")
+    if (current.get("providerId") != MANAGED_KEY_PROVIDER_ID
+        or current.get("providerType") != KEY_PROVIDER_TYPE):
+        raise RuntimeError("Keycloak managed key provider name is occupied by another component")
+    current_config = current.get("config")
+    if not isinstance(current_config, dict) or any(
+        not isinstance(key, str) or not isinstance(values, list)
+        or any(not isinstance(value, str) for value in values)
+        for key, values in current_config.items()
+    ):
+        raise RuntimeError("Keycloak managed key provider config is malformed")
+    if all(current_config.get(key) == values for key, values in MANAGED_KEY_PROVIDER_CONFIG.items()):
+        return [{"operation": "noop", "component_id": component_id}]
+
+    # Keycloak's updateComponent changes only config keys present in the body,
+    # so sending the managed subset retains other provider settings without
+    # echoing their values back to the Admin API.
+    return [{
+        "operation": "update", "component_id": component_id, "payload": desired_payload,
+    }]
+
+
+def prepare_key_provider_sync(desired_realm, context, token):
+    desired_payload = key_provider_admin_payload(desired_realm)
+    query = urllib.parse.urlencode({"name": MANAGED_KEY_PROVIDER_NAME})
+    live_components = request(
+        f"/admin/realms/{REALM}/components?{query}", context, token=token,
+    )
+    return plan_key_provider_sync(desired_payload, live_components)
+
+
+def safe_key_provider_plan_summary(plan):
+    if not isinstance(plan, list) or len(plan) != 1 or not isinstance(plan[0], dict) \
+        or plan[0].get("operation") not in {
+        "create", "update", "noop",
+    }:
+        raise RuntimeError("Keycloak managed key provider plan is malformed")
+    return [{
+        "operation": plan[0]["operation"],
+        "provider": MANAGED_KEY_PROVIDER_NAME,
+        "algorithm": "PS256",
+    }]
+
+
+def apply_key_provider_sync(plan, context, token):
+    safe_key_provider_plan_summary(plan)
+    action = plan[0]
+    if action["operation"] == "noop":
+        return False
+    if action["operation"] == "create":
+        payload = action.get("payload")
+        if not isinstance(payload, dict) or set(payload) != {
+            "name", "providerId", "providerType", "config",
+        } or payload.get("name") != MANAGED_KEY_PROVIDER_NAME \
+            or payload.get("providerId") != MANAGED_KEY_PROVIDER_ID \
+            or payload.get("providerType") != KEY_PROVIDER_TYPE \
+            or payload.get("config") != MANAGED_KEY_PROVIDER_CONFIG:
+            raise RuntimeError("Keycloak managed key provider create plan is malformed")
+        request(
+            f"/admin/realms/{REALM}/components", context,
+            method="POST", token=token, body=payload,
+        )
+        return True
+    component_id = action.get("component_id")
+    payload = action.get("payload")
+    if not isinstance(component_id, str) or not component_id or not isinstance(payload, dict) \
+        or set(payload) != {"name", "providerId", "providerType", "config"} \
+        or payload.get("name") != MANAGED_KEY_PROVIDER_NAME \
+        or payload.get("providerId") != MANAGED_KEY_PROVIDER_ID \
+        or payload.get("providerType") != KEY_PROVIDER_TYPE \
+        or payload.get("config") != MANAGED_KEY_PROVIDER_CONFIG:
+        raise RuntimeError("Keycloak managed key provider update plan is malformed")
+    request(
+        f"/admin/realms/{REALM}/components/{urllib.parse.quote(component_id, safe='')}",
+        context, method="PUT", token=token, body={"id": component_id, **payload},
+    )
+    return True
+
+
+def verify_key_provider_sync(desired_realm, context, token):
+    plan = prepare_key_provider_sync(desired_realm, context, token)
+    if any(action["operation"] != "noop" for action in plan):
+        raise RuntimeError("Keycloak managed key provider configuration did not converge")
 
 
 def plan_client_sync(desired_clients, matches_by_client_id):
@@ -445,6 +594,7 @@ def main():
     secrets = read_env(ROOT / ".generated/secrets.env")
     desired_realm = json.loads((ROOT / ".generated/keycloak/realm.json").read_text())
     desired_profile = json.loads((ROOT / "keycloak/user-profile.json").read_text())
+    key_provider_admin_payload(desired_realm)
 
     context = ssl.create_default_context(cafile=ROOT / ".generated/pki/ca.crt")
     # Existing workspaces may have a development CA generated before keyUsage
@@ -455,12 +605,15 @@ def main():
     token = wait_for_keycloak(context, secrets)
     realm_plan = prepare_realm_sync(desired_realm, context, token)
     client_plan = prepare_client_sync(desired_realm["clients"], context, token)
+    key_provider_plan = prepare_key_provider_sync(desired_realm, context, token)
+    key_provider_changed = apply_key_provider_sync(key_provider_plan, context, token)
     synced_clients, synced_mappers = apply_client_sync(
         client_plan, context, token
     )
     realm_changed = apply_realm_sync(realm_plan, context, token)
     verify_client_sync(desired_realm["clients"], context, token)
     verify_realm_sync(desired_realm, context, token)
+    verify_key_provider_sync(desired_realm, context, token)
     live_profile = request(
         f"/admin/realms/{REALM}/users/profile", context, token=token
     )
@@ -522,6 +675,7 @@ def main():
         f"{len(synced)} demo users, {synced_clients} clients, and "
         f"{synced_mappers} protocol mappers. Realm WP2 settings "
         f"{'updated' if realm_changed else 'already matched'}. "
+        f"Managed PS256 key provider {'updated' if key_provider_changed else 'already matched'}. "
         "Legacy clients were left untouched."
     )
 

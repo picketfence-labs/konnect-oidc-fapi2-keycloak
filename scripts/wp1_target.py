@@ -33,6 +33,23 @@ RUNTIME_FILES = {
     "api": Path("kong/api-gateway.yaml"),
     "third-party": Path("kong/third-party-gateway.yaml"),
 }
+THIRD_PARTY_RUNTIME_SERVICE_IDS = {
+    "A": "0e48dd20-46a0-5b94-832b-014b857c58b5",
+    "B": "b52f6f69-8c94-5148-a6a2-dbc5b6e2c15e",
+}
+THIRD_PARTY_RUNTIME_PLUGIN_IDS = {
+    "A": {
+        "cors": "66d86cb7-9d75-5b1b-855d-63b1a9a957f9",
+        "openid-connect": "96d4d14a-4b66-5751-b8b0-d000c6c84409",
+        "request-transformer": "1f1902cb-dfa2-5003-a3ae-9968b2c126b2",
+    },
+    "B": {
+        "cors": "be2f0305-7644-5e24-9c0d-c5c16e726492",
+        "fapi-client-auth-bridge": "564675c7-1913-5d2c-8e2f-af7709855db5",
+        "openid-connect": "fa9b36b8-2ae3-5240-ac4e-c1303c33bb9c",
+        "request-transformer": "2678d008-77b3-5ec1-bc5d-8e2a5f8633a5",
+    },
+}
 
 
 class RejectRedirects(HTTPRedirectHandler):
@@ -105,9 +122,6 @@ def local_manifest(root: Path, gateway: str, stage: str | None, operation: str) 
                 validate_third_party_runtime_state(root)
         if not (root / state).is_file():
             raise ValueError(f"{stage} state is missing: {state}")
-    if operation == "sync" and gateway == "third-party" and stage == "runtime":
-        raise ValueError("third-party runtime sync is disabled; WP5 currently permits read-only diff only")
-
     manifest_path = root / ".generated/gateway_targets.json"
     if operation == "validate":
         return {}
@@ -313,6 +327,7 @@ def validate_third_party_runtime_state(root: Path) -> dict:
         if route is None or route in by_route:
             raise ValueError("third-party runtime Route A/B IDs are missing or duplicated")
         expected_service = {
+            "id": THIRD_PARTY_RUNTIME_SERVICE_IDS[route],
             "name": f"third-party-route-{route.lower()}-api",
             "protocol": "https",
             "host": "kong-api",
@@ -324,7 +339,7 @@ def validate_third_party_runtime_state(root: Path) -> dict:
             "tags": ["fapi2-demo", f"route-{route.lower()}"],
         }
         if set(service) != {
-            "name", "protocol", "host", "port", "path", "tls_verify", "ca_certificates",
+            "id", "name", "protocol", "host", "port", "path", "tls_verify", "ca_certificates",
             "client_certificate", "tags", "routes", "plugins",
         } or any(service.get(name) != value for name, value in expected_service.items()):
             raise ValueError(f"third-party Route {route} must use verified internal HTTPS and its fixed TLS identity")
@@ -386,7 +401,9 @@ def validate_third_party_runtime_state(root: Path) -> dict:
                                               if isinstance(plugin, dict)] != expected_names:
             raise ValueError(f"third-party Route {route} plugin set changed")
         for plugin in plugins:
-            if not isinstance(plugin, dict) or plugin.get("tags") != ["fapi2-demo", f"route-{route.lower()}"]:
+            if not isinstance(plugin, dict) \
+                or plugin.get("id") != THIRD_PARTY_RUNTIME_PLUGIN_IDS[route].get(plugin.get("name")) \
+                or plugin.get("tags") != ["fapi2-demo", f"route-{route.lower()}"]:
                 raise ValueError(f"third-party Route {route} plugin scope changed")
         plugins_by_name = {plugin["name"]: plugin for plugin in plugins}
         oidc = plugins_by_name["openid-connect"].get("config")

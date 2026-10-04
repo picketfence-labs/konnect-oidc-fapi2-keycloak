@@ -11,9 +11,9 @@ Kong Gateway 3.16 を Konnect の data plane として動かし、同じ Keycloa
 
 > このリポジトリは FAPI 2.0 の学習・比較用デモです。認定試験への適合を主張するものではありません。
 
-## Enhancementの現在地: WP1 foundation
+## Enhancementの現在地: WP5通常デモ統合
 
-現在のEnhancementブランチは、APIとthird-partyの二つのKonnect CP、用途別の基盤証明書、foundation decK state、custom schema、静的検証までを扱います。runtime Route stateとtransport handlerは後続WPの範囲です。通常起動入口とUIは閉じており、`make up`はWP5のruntime readinessが受け入れられるまで、資材生成やDocker呼び出しより前に失敗します。
+APIとthird-partyの二つのKonnect CP、用途別証明書、runtime state、AS mTLS transportを実装済みです。PR #21の隔離AS検証では両Routeの認証・更新・ログアウトが成功しました。通常環境の統合・利用者受入は未完了です。`make up`の既定経路は閉じており、通常入口とUIは全worker readiness確認後にsupervisorから公開します。現在の対象差分と実行順序は[通常デモ統合プレビュー](docs/design/third-party-wp5-normal-preview.md)、確認済みの範囲は[WP5受入表](docs/design/third-party-wp5-acceptance.md)を参照してください。
 
 開発依存を入れてから、credential-free検証を実行します。
 
@@ -30,7 +30,7 @@ GATEWAY=api STAGE=foundation make deck-diff
 GATEWAY=third-party STAGE=foundation make deck-diff
 ```
 
-`make plan`は適用前のread-only previewです。`make apply`、`make plugin-schema-sync`、`make deck-sync`、Docker起動、realm更新、image公開には別の実施承認が必要です。後続のsetup手順はv1デモの設計記録を含みますが、現在のWP1ブランチでデモが起動できることを示しません。
+`make plan`は適用前のread-only previewです。適用・同期・Docker起動・realm更新は、具体的な差分と起動対象をレビューした後に実行します。後続のsetup節はv1デモの設計記録を含みます。現在の二Gateway構成では、上記の通常デモ統合プレビューに従ってください。RFC 9126の既知gapは開示し、本番FAPI完全準拠は主張しません。
 
 [![Route A の検証結果。署名済み claim、Kong が設定したヘッダー、証明書束縛を表示](docs/assets/ui-results.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
 
