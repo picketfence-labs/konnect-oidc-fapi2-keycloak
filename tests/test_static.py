@@ -246,7 +246,14 @@ assert api_env["KONG_NGINX_PROXY_PROXY_SSL_PROTOCOLS"] == "TLSv1.2 TLSv1.3"
 assert api_env["KONG_NGINX_PROXY_PROXY_SSL_CIPHERS"] == "ECDHE+AESGCM:ECDHE+CHACHA20"
 assert "ports" not in api_compose
 assert api_env["KONG_PLUGINS"] == "bundled"
-assert compose["services"]["kong-third-party"]["environment"]["KONG_PROXY_LISTEN"] == "off"
+third_party_compose = compose["services"]["kong-third-party"]
+assert third_party_compose["environment"]["KONG_PROXY_LISTEN"] == "${FAPI_DEMO_PROXY_LISTEN:-off}"
+assert 'test "$$KONG_PLUGINS"' in third_party_compose["command"][0]
+assert "exec /entrypoint.sh kong docker-start" in third_party_compose["command"][0]
+assert "127.0.0.1:18443:8443" in third_party_compose["ports"]
+assert "127.0.0.1:8443:8443" not in third_party_compose["ports"]
+assert any("kong-proxy.crt:/etc/kong/fapi/kong-proxy.crt:ro" in volume for volume in third_party_compose["volumes"])
+assert any("kong-proxy.key:/etc/kong/fapi/kong-proxy.key:ro" in volume for volume in third_party_compose["volumes"])
 assert identity_map["third-party-fapi-pkj-mtls"]["certificate_subject"] == "CN=kong-fapi-pkj-mtls"
 assert identity_map["api-gateway-introspection"]["certificate_subject"] == "CN=api-gateway-introspection"
 pkigen = (ROOT / "scripts/generate-pki.py").read_text()
@@ -374,7 +381,8 @@ assert "./keycloak/data:/opt/keycloak/data\n" not in compose
 assert "KONG_LICENSE_DATA" not in compose
 assert "./ui/default.conf:/etc/nginx/conf.d/default.conf:ro" in compose
 assert "./.generated/pki/ui.crt:/etc/nginx/tls/tls.crt:ro" in compose
-assert '"3443:443"' in compose
+assert '"127.0.0.1:3000:80"' in compose
+assert '"127.0.0.1:3443:443"' in compose
 assert "profiles: [demo]" in compose
 wp2_compose = (ROOT / "tests/harness/docker-compose.wp2.yml").read_text()
 assert "quay.io/keycloak/keycloak:26.7.4@sha256:" in wp2_compose
@@ -389,7 +397,11 @@ service_blocks = {
 }
 for gateway_name in ("kong-api", "kong-third-party"):
     block = service_blocks[gateway_name]
-    assert "ports:" not in block
+    if gateway_name == "kong-api":
+        assert "ports:" not in block
+    else:
+        assert '      - "127.0.0.1:18443:8443"' in block
+        assert '      - "127.0.0.1:8443:8443"' not in block
 pop_verifier_block = service_blocks["pop-verifier"]
 pop_verifier_mounts = pop_verifier_block.split("volumes:", 1)[1]
 assert ".generated/pki/api-upstream.crt:/etc/fapi/api-upstream.crt:ro" in pop_verifier_mounts

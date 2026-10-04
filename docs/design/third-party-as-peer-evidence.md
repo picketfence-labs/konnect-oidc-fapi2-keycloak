@@ -1,8 +1,14 @@
 # Keycloak側AS mTLS peer証跡（test-only設計）
 
+> 2026-10-04現在の実装・検証結果は[WP5受入表](third-party-wp5-acceptance.md)を参照。5a受入、5b実装、5c隔離AS直結・2 worker guardは通過した。通常環境での受入は未完了。以下の契約や過去の試行記録から、現在の成功・未実行範囲を推定しない。
+
 ## 方式と状態
 
-2026-10-02、OpusレビューOM-01への設計補強。**方式は固定したが、build・実行・live成立確認は未実施**。WP5冒頭の`AS-MTLS-OBS-01`で成立を確認してからtransport本体実装へ進む。[DP0契約](third-party-as-mtls-transport.md)と[Delivery plan](third-party-delivery-plan.md)を併用する。
+2026-10-02のOpusレビューOM-01への設計補強。**5aはRoot受入済み、5b/5cを実装中**。direct TLS v3の40/40、同一要求の再入r4、stock v15のsigned PAR201・session/logout・access/refresh両revoke200と3操作の実AS Route B peer joinを確認した。署名はPS256、issuer文字列aud、TTL60秒、異なるjti。秘密値検出0、専用環境とPKI・portの回収も独立確認済み。v15 receipt SHA-256は`f0348037bf6796be694f9a00d58bcfeea0b963b8547f16bc5383a4c8b4257519`。PAR client_id欠落のRFC 9126ギャップは開示を維持する。relayによるAS-peer証跡をGateway直結transportの証明には扱わない。[DP0契約](third-party-as-mtls-transport.md)、[Delivery plan](third-party-delivery-plan.md)、[observer記録](third-party-wp5-observer-preview.md)を参照する。
+
+repeated-handler sub-gateも再入r4で受入済み。3モードのHTTP401が一致し、canonical observer行は1/1/0件。計測ONでは同じPARの相関IDで再入count2/3/4を確認した。Rootはcanonical13 field、期待するRoute B leaf、PKIX・有効性・clientAuth EKUとcleanupを独立監査した。terminal receiptは`/private/tmp/wp5-as-reentry-probe-run-receipt-20261004-v4-r4.json`、Root証跡は`.generated/evidence/wp5-root-reentry-r4-terminal-review-1791092645025522000.json`。これはstock claim/session/logoutの成功とは別の受入である。
+
+stock v5は実PARをrelayで受信したが、form `client_id`のguardで署名検証前に拒否した。固定SDKのPKJWT分岐によるID除去とRFC9126の必須項目が両立せず、同じ署名方式で保持する公開設定は見つかっていない。本文補完はせず、ID欠落を許容する検証harnessへ最小修正する。[ADR 0019の具体案](../decisions/0019-wp5-stock-claim-fixture-boundaries.md#v5で判明したpar契約の相違とデモ範囲の決定)に決定を記録した。実署名・aud・TTL・stock session/logoutは未受入。専用リソース・private fixtureの回収はRoot独立監査済み。
 
 一次取得元は**Keycloak 26.7.4のtest-only source-instrumented image内のrequest observer**とする。test AS、Gateway option log、TLS終端proxy、完全certificateのaccess logは代替にしない。通常デモimage/起動手順にはobserverを組み込まない。これはお客様向け認証機能の追加ではなく、受入試験のための計測コードである。実装・test起動のlive承認は別途必要。
 
@@ -44,6 +50,8 @@ HTTP処理直前のAS側記録は、ID、UTC時刻、method、queryなしpath、
 private module関数を直接呼ばず、**通常デモとは隔離したexact Kong 3.16.0.0のOIDC Route B fixture**を公開plugin設定で起動する。v1相当の`authorization_code + session`、既存bridgeのheader mode + stock token/refresh `tls_client_auth`でtokenを取得し、stock logoutからrevokeを起動する。新transport/delegateの本体実装は前提にしない。fixtureはtest用network/利用者承認済みtest入口だけに置き、通常3rd Party/APIのpluginロード契約やデモ入口ゲートを緩めない。
 
 `H = https://as-spike-harness:9443`をtest内の固定宛先とする。変更するendpointはPAR/revokeだけ。issuer `I`、authorization/token/JWKS/end-session、client ID、signing key、Route B cert、JWT audienceは変更しない。
+
+2026-10-04のfixture具体化では、v1 stock生成経路の基準を`kong/kong.yaml`の`client_id=kong-fapi-pkj-mtls`とする。隔離realmの登録client、bridge、OIDC、署名のiss/sub、Route B証明書をこのidentityに揃え、fixture全体で固定する。fixtureの秘密材料は専用に生成・登録し、通常realm/templateやfoundation stateを更新しない。foundationの`third-party-fapi-pkj-mtls`への統合は5b/5cで受け入れる別項目である。
 
 | stock OIDC公開設定 | spike fixtureの値 / 目的 |
 |---|---|

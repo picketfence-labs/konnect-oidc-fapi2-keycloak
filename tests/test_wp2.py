@@ -228,6 +228,7 @@ class RealmRenderTests(unittest.TestCase):
             **os.environ,
             "SALES_PASSWORD": "temporary-sales-fixture",
             "ENGINEERING_PASSWORD": "temporary-engineering-fixture",
+            "DECK_ROUTE_B_JWK_KID": "temporary-route-b-fixture-kid",
         }
         if rotation is not None:
             environment["KEYCLOAK_REFRESH_TOKEN_ROTATION"] = rotation

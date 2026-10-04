@@ -34,3 +34,4 @@ jobs:
           python3 -m pip install --requirement requirements-dev.txt
           make validate
           make test
+          make test-plugin

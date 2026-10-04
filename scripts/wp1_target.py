@@ -29,7 +29,10 @@ FOUNDATION_FILES = {
     "api": Path("kong/foundation/api.yaml"),
     "third-party": Path("kong/foundation/third-party.yaml"),
 }
-RUNTIME_FILES = {"api": Path("kong/api-gateway.yaml")}
+RUNTIME_FILES = {
+    "api": Path("kong/api-gateway.yaml"),
+    "third-party": Path("kong/third-party-gateway.yaml"),
+}
 
 
 class RejectRedirects(HTTPRedirectHandler):
@@ -80,7 +83,7 @@ def local_manifest(root: Path, gateway: str, stage: str | None, operation: str) 
     validate_selector(gateway, stage, selector_operation)
     validate_foundation_state(root, gateway)
     if stage == "runtime" and gateway not in RUNTIME_FILES:
-        raise ValueError("third-party runtime state is owned by WP5 and is unavailable")
+        raise ValueError("runtime state is unavailable for the selected gateway")
     state = (
         FOUNDATION_FILES[gateway]
         if stage == "foundation"
@@ -92,11 +95,18 @@ def local_manifest(root: Path, gateway: str, stage: str | None, operation: str) 
         runtime_state = root / "kong/api-gateway.yaml"
         if runtime_state.exists():
             validate_api_runtime_state(root)
+    if operation == "validate" and gateway == "third-party" and stage == "runtime":
+        validate_third_party_runtime_state(root)
     if operation in {"diff", "sync"}:
         if stage == "runtime":
-            validate_api_runtime_state(root)
+            if gateway == "api":
+                validate_api_runtime_state(root)
+            else:
+                validate_third_party_runtime_state(root)
         if not (root / state).is_file():
             raise ValueError(f"{stage} state is missing: {state}")
+    if operation == "sync" and gateway == "third-party" and stage == "runtime":
+        raise ValueError("third-party runtime sync is disabled; WP5 currently permits read-only diff only")
 
     manifest_path = root / ".generated/gateway_targets.json"
     if operation == "validate":
@@ -254,6 +264,183 @@ def validate_foundation_state(root: Path, gateway: str) -> None:
         ):
             raise ValueError("third-party global transport entity identity or config was changed")
         _require_tags(plugin)
+
+
+def validate_third_party_runtime_state(root: Path) -> dict:
+    """Validate the WP5 third-party state while pinning its foundation entities."""
+    state_path = root / RUNTIME_FILES["third-party"]
+    if not state_path.is_file() or state_path.is_symlink():
+        raise ValueError("third-party runtime state is missing or unsafe")
+    validate_foundation_state(root, "third-party")
+    state = _parse_foundation(state_path)
+    foundation = _parse_foundation(root / FOUNDATION_FILES["third-party"])
+    if set(state) != {
+        "_format_version", "_info", "certificates", "ca_certificates", "plugins", "services"
+    }:
+        raise ValueError("third-party runtime state contains unexpected entities or fields")
+    if state.get("_format_version") != "3.0" or state.get("_info") != {
+        "select_tags": ["fapi2-demo"]
+    }:
+        raise ValueError("third-party runtime select_tags must remain fapi2-demo")
+    for entity_set in ("certificates", "ca_certificates", "plugins"):
+        if state.get(entity_set) != foundation.get(entity_set):
+            raise ValueError(f"third-party runtime must preserve the foundation {entity_set} exactly")
+
+    ca_id = "33333333-3333-4333-8333-333333333333"
+    certificate_ids = {
+        "A": "11111111-1111-4111-8111-111111111111",
+        "B": "22222222-2222-4222-8222-222222222222",
+    }
+    route_ids = {
+        "A": "754519ff-b0b9-5ed5-94c0-e453d260c6c4",
+        "B": "0f45debe-a3a6-5207-aea3-637227fb96f2",
+    }
+    clients = {"A": "third-party-fapi-mtls", "B": "third-party-fapi-pkj-mtls"}
+    paths = {"A": "/api/fapi/mtls", "B": "/api/fapi/pkj-mtls"}
+    services = state.get("services")
+    if not isinstance(services, list) or len(services) != 2:
+        raise ValueError("third-party runtime must contain exactly fixed Route A and B services")
+
+    by_route: dict[str, dict] = {}
+    for service in services:
+        if not isinstance(service, dict):
+            raise ValueError("third-party runtime service is malformed")
+        route = next((name for name, route_id in route_ids.items()
+                      if isinstance(service.get("routes"), list)
+                      and len(service["routes"]) == 1
+                      and isinstance(service["routes"][0], dict)
+                      and service["routes"][0].get("id") == route_id), None)
+        if route is None or route in by_route:
+            raise ValueError("third-party runtime Route A/B IDs are missing or duplicated")
+        expected_service = {
+            "name": f"third-party-route-{route.lower()}-api",
+            "protocol": "https",
+            "host": "kong-api",
+            "port": 8443,
+            "path": "/fapi-api/evidence",
+            "tls_verify": True,
+            "ca_certificates": [ca_id],
+            "client_certificate": certificate_ids[route],
+            "tags": ["fapi2-demo", f"route-{route.lower()}"],
+        }
+        if set(service) != {
+            "name", "protocol", "host", "port", "path", "tls_verify", "ca_certificates",
+            "client_certificate", "tags", "routes", "plugins",
+        } or any(service.get(name) != value for name, value in expected_service.items()):
+            raise ValueError(f"third-party Route {route} must use verified internal HTTPS and its fixed TLS identity")
+        route_entity = service["routes"][0]
+        if set(route_entity) != {"id", "name", "paths", "protocols", "strip_path", "tags"} or route_entity != {
+            "id": route_ids[route],
+            "name": f"third-party-route-{route.lower()}",
+            "paths": [paths[route]],
+            "protocols": ["https"],
+            "strip_path": True,
+            "tags": ["fapi2-demo", f"route-{route.lower()}"],
+        }:
+            raise ValueError(f"third-party Route {route} identity or HTTPS scope changed")
+        by_route[route] = service
+
+    if set(by_route) != {"A", "B"}:
+        raise ValueError("third-party runtime Route A/B services are incomplete")
+
+    issuer = "https://localhost:8444/realms/fapi-demo"
+    internal = "https://keycloak:8443/realms/fapi-demo"
+    token_url = internal + "/protocol/openid-connect/token"
+    jwks_url = internal + "/protocol/openid-connect/certs"
+    par_url = internal + "/protocol/openid-connect/ext/par/request"
+    revoke_url = internal + "/protocol/openid-connect/revoke"
+    common_oidc = {
+        "issuer": issuer,
+        "authorization_endpoint": issuer + "/protocol/openid-connect/auth",
+        "token_endpoint": token_url,
+        "mtls_token_endpoint": token_url,
+        "jwks_endpoint": jwks_url,
+        "pushed_authorization_request_endpoint": par_url,
+        "revocation_endpoint": revoke_url,
+        "mtls_revocation_endpoint": revoke_url,
+        "end_session_endpoint": issuer + "/protocol/openid-connect/logout",
+        "client_auth": ["tls_client_auth"],
+        "token_endpoint_auth_method": "tls_client_auth",
+        "tls_client_auth_ssl_verify": True,
+        "ssl_verify": True,
+        "auth_methods": ["authorization_code", "session"],
+        "scopes": ["openid", "profile"],
+        "response_mode": "query",
+        "login_tokens": None,
+        "require_proof_key_for_code_exchange": True,
+        "require_pushed_authorization_requests": True,
+        "login_action": "redirect",
+        "logout_uri_suffix": "/logout",
+        "logout_methods": ["GET", "POST"],
+        "logout_revoke": True,
+        "logout_revoke_access_token": True,
+        "logout_revoke_refresh_token": True,
+    }
+
+    for route in ("A", "B"):
+        plugins = by_route[route].get("plugins")
+        expected_names = ["cors", "openid-connect", "request-transformer"]
+        if route == "B":
+            expected_names = ["cors", "fapi-client-auth-bridge", "openid-connect", "request-transformer"]
+        if not isinstance(plugins, list) or [plugin.get("name") for plugin in plugins
+                                              if isinstance(plugin, dict)] != expected_names:
+            raise ValueError(f"third-party Route {route} plugin set changed")
+        for plugin in plugins:
+            if not isinstance(plugin, dict) or plugin.get("tags") != ["fapi2-demo", f"route-{route.lower()}"]:
+                raise ValueError(f"third-party Route {route} plugin scope changed")
+        plugins_by_name = {plugin["name"]: plugin for plugin in plugins}
+        oidc = plugins_by_name["openid-connect"].get("config")
+        if not isinstance(oidc, dict) or any(oidc.get(name) != value for name, value in common_oidc.items()):
+            raise ValueError(f"third-party Route {route} OIDC HTTPS, TLS, or session policy changed")
+        if oidc.get("client_id") != [clients[route]] or oidc.get("tls_client_auth_cert_id") != certificate_ids[route]:
+            raise ValueError(f"third-party Route {route} TLS client identity changed")
+        if oidc.get("redirect_uri") != ["https://localhost:8443" + paths[route]]:
+            raise ValueError(f"third-party Route {route} callback URI changed")
+        if oidc.get("upstream_access_token_header") != "authorization:bearer":
+            raise ValueError(f"third-party Route {route} upstream token behavior changed")
+
+        if route == "A":
+            if oidc.get("client_auth") != ["tls_client_auth"] \
+                or oidc.get("pushed_authorization_request_endpoint_auth_method") != "tls_client_auth" \
+                or oidc.get("revocation_endpoint_auth_method") != "tls_client_auth":
+                raise ValueError("third-party Route A must use TLS client authentication for PAR and revocation")
+        else:
+            if oidc.get("client_alg") != ["PS256"] \
+                or oidc.get("pushed_authorization_request_endpoint_auth_method") != "private_key_jwt" \
+                or oidc.get("revocation_endpoint_auth_method") != "private_key_jwt":
+                raise ValueError("third-party Route B must retain stock PS256 PAR/revocation and TLS token auth")
+            expected_jwk = {
+                "kty": "RSA",
+                "kid": "foundation-template:DECK_ROUTE_B_JWK_KID",
+                "use": "sig",
+                "alg": "PS256",
+                "n": "foundation-template:DECK_ROUTE_B_JWK_N",
+                "e": "foundation-template:DECK_ROUTE_B_JWK_E",
+                "d": "{vault://env/route-b-jwk/d}",
+                "p": "{vault://env/route-b-jwk/p}",
+                "q": "{vault://env/route-b-jwk/q}",
+                "dp": "{vault://env/route-b-jwk/dp}",
+                "dq": "{vault://env/route-b-jwk/dq}",
+                "qi": "{vault://env/route-b-jwk/qi}",
+            }
+            if oidc.get("client_jwk") != [expected_jwk]:
+                raise ValueError("third-party Route B stock PS256 signing JWK references changed")
+            bridge = plugins_by_name["fapi-client-auth-bridge"]
+            bridge_config = bridge.get("config")
+            expected_bridge = {
+                "issuer": issuer,
+                "discovery_endpoint": "https://keycloak:8443/realms/fapi-demo/.well-known/openid-configuration",
+                "client_id": clients["B"],
+                "private_key_file": "/etc/kong/fapi/route-b-pkj.key",
+                "tls_certificate_file": "/etc/kong/fapi/route-b.crt",
+                "key_id": "foundation-template:DECK_ROUTE_B_JWK_KID",
+                "assertion_delivery": "transport_delegate",
+                "assertion_ttl": 60,
+            }
+            if bridge.get("protocols") != ["grpc", "grpcs", "http", "https"] \
+                or bridge_config != expected_bridge:
+                raise ValueError("third-party Route B bridge must use the fixed transport delegate")
+    return state
 
 
 def request_json(url: str, token: str, *, method: str = "GET", body: dict | None = None) -> tuple[int, dict]:

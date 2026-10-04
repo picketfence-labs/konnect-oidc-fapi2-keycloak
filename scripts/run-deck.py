@@ -44,6 +44,62 @@ def sanitize_output(text: str, secrets: list[str]) -> str:
     return text
 
 
+def parse_sanitized_runtime_diff(raw_output: str, secrets: list[str] | None = None) -> dict:
+    """Keep only decK operation names/counts; never print entity bodies or secrets."""
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate decK runtime diff report field")
+            result[key] = value
+        return result
+
+    try:
+        report = json.loads(raw_output, object_pairs_hook=unique_object)
+    except (json.JSONDecodeError, UnicodeError):
+        raise ValueError("third-party runtime diff did not return valid JSON") from None
+    operations = ("creating", "updating", "deleting")
+    if not isinstance(report, dict) or set(report) != {"changes", "summary", "warnings", "errors"} \
+        or report["warnings"] != [] or report["errors"] != []:
+        raise ValueError("third-party runtime diff report contains errors, warnings, or unexpected fields")
+    changes, summary = report["changes"], report["summary"]
+    if not isinstance(changes, dict) or set(changes) != set(operations) \
+        or not isinstance(summary, dict) or set(summary) != {*operations, "total"}:
+        raise ValueError("third-party runtime diff report structure is malformed")
+
+    safe_changes = {}
+    counts = {}
+    for operation in operations:
+        entries = changes[operation]
+        if not isinstance(entries, list):
+            raise ValueError("third-party runtime diff operation list is malformed")
+        safe_entities = []
+        seen = set()
+        for entry in entries:
+            if not isinstance(entry, dict) or set(entry) != {"kind", "name", "body"} \
+                or not isinstance(entry["kind"], str) \
+                or entry["kind"] not in {"service", "route", "plugin", "certificate", "ca_certificate"} \
+                or not isinstance(entry["name"], str) or not entry["name"] \
+                or len(entry["name"]) > 256 or any(ord(char) < 0x20 or ord(char) == 0x7f for char in entry["name"]) \
+                or not isinstance(entry["body"], dict) or set(entry["body"]) != {"old", "new"}:
+                raise ValueError("third-party runtime diff entity is malformed")
+            safe_name = sanitize_output(entry["name"], secrets or [])
+            identity = (entry["kind"], safe_name)
+            if identity in seen:
+                raise ValueError("third-party runtime diff contains duplicate operation identities")
+            seen.add(identity)
+            safe_entities.append({"kind": identity[0], "name": identity[1]})
+        safe_entities.sort(key=lambda entity: (entity["kind"], entity["name"]))
+        safe_changes[operation] = safe_entities
+        counts[operation] = len(safe_entities)
+        if type(summary[operation]) is not int or summary[operation] != len(safe_entities):
+            raise ValueError("third-party runtime diff summary does not match its operation identities")
+    total = sum(counts.values())
+    if type(summary["total"]) is not int or summary["total"] != total:
+        raise ValueError("third-party runtime diff total is malformed")
+    return {"summary": {**counts, "total": total}, "operations": safe_changes}
+
+
 DECK_SUBPROCESS_TIMEOUT_SECONDS = 300
 MAX_ROLE_FILE_BYTES = 1_048_576
 
@@ -127,17 +183,21 @@ def main() -> int:
     info = local_manifest(root, args.gateway, args.stage, args.mode)
     if args.stage == "foundation":
         state_relative = FOUNDATION_FILES[args.gateway]
-    elif args.stage == "runtime" and args.gateway == "api":
-        state_relative = RUNTIME_FILES["api"]
+    elif args.stage == "runtime":
+        state_relative = RUNTIME_FILES[args.gateway]
     else:
-        raise ValueError("runtime decK state is available only for the API gateway")
+        raise ValueError("fixed decK state is unavailable for the selected gateway and stage")
     state = root / state_relative
     if not state.is_file():
         raise ValueError(f"fixed {args.stage} state is unavailable")
 
+    if args.stage == "runtime" and args.gateway == "third-party" and args.mode == "sync":
+        raise ValueError("third-party runtime sync is disabled; only read-only WP5 diff is available")
+
     if (
         args.stage == "runtime"
         and args.mode == "sync"
+        and args.gateway == "api"
         and os.environ.get("WP3_API_RUNTIME_MIGRATION_APPROVED") != "YES"
     ):
         raise ValueError(
@@ -153,7 +213,7 @@ def main() -> int:
     role_inputs_sha256 = canonical_sha256(role_values)
 
     migration_receipt = None
-    if args.stage == "runtime" and args.mode == "sync":
+    if args.stage == "runtime" and args.mode == "sync" and args.gateway == "api":
         # Local approval binding is checked before loading the Konnect token or contacting Konnect.
         target = info["target"]
         migration_receipt = read_migration_approval(root, target["control_plane_id"], role_values)
@@ -252,14 +312,20 @@ def main() -> int:
     safe_stderr = sanitize_output(result.stderr, sensitive_values)
     if args.stage == "runtime" and args.mode == "diff":
         if result.returncode != 0:
-            raise ValueError("API runtime migration diff failed")
+            raise ValueError(f"{args.gateway} runtime diff failed")
         if safe_stderr.strip():
-            raise ValueError("API runtime migration diff returned unexpected diagnostics")
-        operations, digest = parse_deck_diff_report(result.stdout)
-        print(json.dumps(operations, sort_keys=True, separators=(",", ":")))
-        print(f"WP3_MIGRATION_DIFF_SHA256={digest}")
-        print(f"WP3_API_RUNTIME_STATE_SHA256={file_sha256(state)}")
-        print(f"WP3_API_RUNTIME_ROLE_INPUTS_SHA256={role_inputs_sha256}")
+            raise ValueError(f"{args.gateway} runtime diff returned unexpected diagnostics")
+        if args.gateway == "api":
+            operations, digest = parse_deck_diff_report(result.stdout)
+            print(json.dumps(operations, sort_keys=True, separators=(",", ":")))
+            print(f"WP3_MIGRATION_DIFF_SHA256={digest}")
+            print(f"WP3_API_RUNTIME_STATE_SHA256={file_sha256(state)}")
+            print(f"WP3_API_RUNTIME_ROLE_INPUTS_SHA256={role_inputs_sha256}")
+        else:
+            operations = parse_sanitized_runtime_diff(result.stdout, sensitive_values)
+            print(json.dumps(operations, sort_keys=True, separators=(",", ":")))
+            print(f"WP5_THIRD_PARTY_RUNTIME_STATE_SHA256={file_sha256(state)}")
+            print(f"WP5_THIRD_PARTY_RUNTIME_ROLE_INPUTS_SHA256={role_inputs_sha256}")
     elif args.stage == "runtime" and args.mode == "sync" and result.returncode != 0:
         raise ValueError(
             "API runtime migration sync exited nonzero; outcome is unknown; "

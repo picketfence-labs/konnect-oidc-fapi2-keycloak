@@ -29,6 +29,7 @@ substitutions = {
     "__SALES_PASSWORD__": os.environ["SALES_PASSWORD"],
     "__ENGINEERING_PASSWORD__": os.environ["ENGINEERING_PASSWORD"],
     "__ROUTE_B_PUBLIC_KEY__": public_key,
+    "__ROUTE_B_JWK_KID__": os.environ["DECK_ROUTE_B_JWK_KID"],
 }
 
 realm = replace(json.loads(template.read_text()), substitutions)

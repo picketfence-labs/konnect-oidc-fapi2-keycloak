@@ -1,0 +1,53 @@
+services:
+  keycloak:
+    image: sha256:3c89b8de02b358f39b0d2b7f47c1505a61087112f9ec81aed712f4b7db777953
+    pull_policy: never
+    platform: linux/arm64
+    cpus: 2
+    mem_limit: 4g
+    pids_limit: 256
+    stop_grace_period: 20s
+    user: "0:0"
+    restart: "no"
+    command:
+      - start-dev
+      - --import-realm
+      - --https-port=8443
+    environment:
+      KC_HOSTNAME: https://localhost:19443
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      KC_HTTP_ENABLED: "false"
+      KC_HTTP_ACCESS_LOG_ENABLED: "false"
+      KC_HTTPS_CERTIFICATE_FILE: /opt/keycloak/conf/tls/server.crt
+      KC_HTTPS_CERTIFICATE_KEY_FILE: /opt/keycloak/conf/tls/server.key
+      KC_HTTPS_CLIENT_AUTH: request
+      KC_TRUSTSTORE_PATHS: /opt/keycloak/conf/trust/ca.crt
+      FAPI_DEMO_AS_PEER_OBSERVER: ${WP5_OBSERVER_ENABLED:?}
+      FAPI_DEMO_AS_PEER_CA_FILE: /opt/keycloak/conf/trust/ca.crt
+    volumes:
+      - ${WP5_FIXTURE_ROOT:?}/realm/fapi-demo-realm.json:/opt/keycloak/data/import/fapi-demo-realm.json:ro
+      - ${WP5_FIXTURE_ROOT:?}/tls/server.crt:/opt/keycloak/conf/tls/server.crt:ro
+      - ${WP5_FIXTURE_ROOT:?}/tls/server.key:/opt/keycloak/conf/tls/server.key:ro
+      - ${WP5_FIXTURE_ROOT:?}/ca/ca.crt:/opt/keycloak/conf/trust/ca.crt:ro
+      - wp5-as-mtls-observer-data:/opt/keycloak/data/h2
+    ports:
+      - "127.0.0.1:19443:8443"
+    labels:
+      org.picketfence.wp5.owner: wp5-luna
+      org.picketfence.wp5.phase: observer-direct-runtime
+    networks:
+      default: {}
+
+volumes:
+  wp5-as-mtls-observer-data:
+    name: wp5-as-mtls-observer-data
+    labels:
+      org.picketfence.wp5.owner: wp5-luna
+      org.picketfence.wp5.phase: observer-direct-runtime
+
+networks:
+  default:
+    name: wp5-as-mtls-observer_default
+    labels:
+      org.picketfence.wp5.owner: wp5-luna
+      org.picketfence.wp5.phase: observer-direct-runtime
