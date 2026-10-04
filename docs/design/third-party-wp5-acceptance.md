@@ -42,11 +42,11 @@
 
 third-party CPのread-only diffはcreate11/update0/delete0。Service2、Route2、service plugin7のみ追加。foundation certificate/CA/global transportは不変。詳細とhashは[直結preview](third-party-wp5-transport-preview.md)を参照。
 
-通常環境のapply/sync/up/realm更新は未実施。third-party runtime syncは無効、通常make upは閉鎖を維持する。WP3 #9の通常migration（preview create6/update0/delete13）と、WP5の通常統合をまとめて具体的にレビューする必要がある。
+通常環境のapply/sync/up/realm更新は未実施。PR #21 merge後の仕上げでは、固定entity IDとレビュー済み11/0/0差分に限定するthird-party同期経路、既存realmのPS256 provider反映を追加する。未承認の同期と通常make upは閉鎖を維持する。WP3 #9の通常migration（preview create6/update0/delete13）と、WP5の通常統合は[通常統合プレビュー](third-party-wp5-normal-preview.md)でまとめてレビューする。
 
 独立レビューは、通常state/runtime/selectorをfixture担当Luna、transport/bridge/guard snapshotをruntime担当Lunaが読み取り専用で実施した。blocking指摘0。metadata fingerprintの指摘はRoot修正・回帰テスト・再レビュー済み。2 workerのstatus初期化と全workerへのHTTP配信は区別する。supervisorは呼出し元のlistener設定を確認するが、起動済みcontainerのlistener実設定は通常統合で照合する。
 
-次の順序: 実装PRレビュー → 利用者merge → 通常migration preview/承認 → mainで独立positive/negative → IssueへTechnical Completion Report → 利用者受入・close。今回のPRでIssueを自動closeしない。
+PR #21は利用者がmerge済み。次の順序: 通常同期の仕上げPRレビュー・merge → 通常migration preview確認 → mainで独立positive/negative → IssueへTechnical Completion Report → 利用者受入・close。Issueを自動closeしない。
 
 ## 証跡の保存
 

@@ -171,6 +171,107 @@ class WP2SyncPlanTests(unittest.TestCase):
             sync.realm_admin_payload(duplicate, desired)
 
 
+class ManagedKeyProviderSyncTests(unittest.TestCase):
+    def setUp(self):
+        self.desired = sync.key_provider_admin_payload(REALM_TEMPLATE)
+
+    def live_provider(self, component_id="provider-uuid", **overrides):
+        return {
+            "id": component_id,
+            "name": sync.MANAGED_KEY_PROVIDER_NAME,
+            "providerId": sync.MANAGED_KEY_PROVIDER_ID,
+            "providerType": sync.KEY_PROVIDER_TYPE,
+            "parentId": "realm-uuid",
+            "config": copy.deepcopy(sync.MANAGED_KEY_PROVIDER_CONFIG),
+            **overrides,
+        }
+
+    def test_missing_provider_plans_create_and_preserves_other_providers(self):
+        other = {
+            "id": "other-provider", "name": "operator-rsa", "providerId": "rsa-generated",
+            "providerType": sync.KEY_PROVIDER_TYPE, "config": {"priority": ["100"]},
+        }
+        plan = sync.plan_key_provider_sync(self.desired, [other])
+        self.assertEqual([action["operation"] for action in plan], ["create"])
+        self.assertEqual(plan[0]["payload"]["config"], sync.MANAGED_KEY_PROVIDER_CONFIG)
+        self.assertNotIn("operator-rsa", json.dumps(plan))
+        with patch.object(sync, "request") as request:
+            self.assertTrue(sync.apply_key_provider_sync(plan, None, "admin-token-sentinel"))
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(request.call_args.kwargs["method"], "POST")
+        self.assertEqual(request.call_args.kwargs["body"], self.desired)
+
+    def test_exact_provider_is_noop_and_extra_config_is_retained(self):
+        current = self.live_provider(config={
+            **copy.deepcopy(sync.MANAGED_KEY_PROVIDER_CONFIG),
+            "operatorExtension": ["keep-me"],
+        })
+        plan = sync.plan_key_provider_sync(self.desired, [current])
+        self.assertEqual(plan, [{"operation": "noop", "component_id": "provider-uuid"}])
+        self.assertEqual(current["config"]["operatorExtension"], ["keep-me"])
+        with patch.object(sync, "request") as request:
+            self.assertFalse(sync.apply_key_provider_sync(plan, None, "admin-token-sentinel"))
+        request.assert_not_called()
+
+    def test_managed_drift_updates_only_target_without_echoing_unknown_config(self):
+        current = self.live_provider(config={
+            **copy.deepcopy(sync.MANAGED_KEY_PROVIDER_CONFIG),
+            "priority": ["100"], "operatorSecretLikeValue": ["never-print-sentinel"],
+        })
+        unrelated = {
+            "id": "legacy-provider", "name": "legacy-hmac", "providerId": "hmac-generated",
+            "providerType": sync.KEY_PROVIDER_TYPE, "config": {"algorithm": ["HS512"]},
+        }
+        plan = sync.plan_key_provider_sync(self.desired, [unrelated, current])
+        self.assertEqual(plan[0]["operation"], "update")
+        self.assertEqual(plan[0]["payload"]["config"]["priority"], ["101"])
+        self.assertEqual(plan[0]["payload"]["config"], sync.MANAGED_KEY_PROVIDER_CONFIG)
+        self.assertEqual(current["config"]["operatorSecretLikeValue"], ["never-print-sentinel"])
+        summary = sync.safe_key_provider_plan_summary(plan)
+        self.assertNotIn("never-print-sentinel", json.dumps(summary))
+        self.assertNotIn("operatorSecretLikeValue", json.dumps(summary))
+        self.assertNotIn("never-print-sentinel", json.dumps(plan))
+
+        with patch.object(sync, "request") as request:
+            self.assertTrue(sync.apply_key_provider_sync(plan, None, "admin-token-sentinel"))
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(request.call_args.kwargs["method"], "PUT")
+        self.assertTrue(request.call_args.args[0].endswith("/components/provider-uuid"))
+        self.assertEqual(request.call_args.kwargs["body"]["config"], sync.MANAGED_KEY_PROVIDER_CONFIG)
+        self.assertNotIn("never-print-sentinel", json.dumps(request.call_args.kwargs["body"]))
+
+    def test_duplicate_live_or_desired_managed_names_fail_before_mutation(self):
+        duplicated_live = [self.live_provider("one"), self.live_provider("two")]
+        with self.assertRaisesRegex(RuntimeError, "duplicate Keycloak managed key provider"):
+            sync.plan_key_provider_sync(self.desired, duplicated_live)
+
+        duplicate_desired = copy.deepcopy(REALM_TEMPLATE)
+        duplicate_desired["components"][sync.KEY_PROVIDER_TYPE].append(
+            copy.deepcopy(duplicate_desired["components"][sync.KEY_PROVIDER_TYPE][0])
+        )
+        with patch.object(sync, "request") as request:
+            with self.assertRaisesRegex(RuntimeError, "missing or duplicated"):
+                sync.key_provider_admin_payload(duplicate_desired)
+        request.assert_not_called()
+
+    def test_invalid_desired_provider_config_fails_before_read_or_mutation(self):
+        invalid = copy.deepcopy(REALM_TEMPLATE)
+        provider = invalid["components"][sync.KEY_PROVIDER_TYPE][0]
+        provider["config"]["keySize"] = ["2048"]
+        with patch.object(sync, "request") as request:
+            with self.assertRaisesRegex(RuntimeError, "config is invalid"):
+                sync.prepare_key_provider_sync(invalid, None, "admin-token-sentinel")
+        request.assert_not_called()
+
+    def test_prepare_reads_only_named_managed_component(self):
+        live = [self.live_provider()]
+        with patch.object(sync, "request", return_value=live) as request:
+            plan = sync.prepare_key_provider_sync(REALM_TEMPLATE, None, "admin-token-sentinel")
+        self.assertEqual(plan[0]["operation"], "noop")
+        self.assertEqual(request.call_count, 1)
+        self.assertIn("/admin/realms/fapi-demo/components?name=", request.call_args.args[0])
+
+
 class RedirectSafetyTests(unittest.TestCase):
     def test_admin_bearer_token_is_not_forwarded_on_redirect_and_body_is_suppressed(self):
         received = []

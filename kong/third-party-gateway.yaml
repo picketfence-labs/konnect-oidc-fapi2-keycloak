@@ -46,8 +46,10 @@ plugins:
           key_file: /etc/kong/fapi/route-b.key
       evidence_correlation_enabled: false
 
+# Stable UUIDv5 identities use urn:picketfence-labs:konnect-oidc-fapi2:wp5:third-party:v1 names.
 services:
   - name: third-party-route-a-api
+    id: 0e48dd20-46a0-5b94-832b-014b857c58b5
     protocol: https
     host: kong-api
     port: 8443
@@ -65,6 +67,7 @@ services:
         tags: [fapi2-demo, route-a]
     plugins:
       - name: cors
+        id: 66d86cb7-9d75-5b1b-855d-63b1a9a957f9
         tags: [fapi2-demo, route-a]
         config:
           origins: ["https://localhost:3443"]
@@ -73,6 +76,7 @@ services:
           credentials: true
           max_age: 3600
       - name: openid-connect
+        id: 96d4d14a-4b66-5751-b8b0-d000c6c84409
         tags: [fapi2-demo, route-a]
         config:
           issuer: https://localhost:8444/realms/fapi-demo
@@ -117,6 +121,7 @@ services:
             - header: X-Demo-Route
               path: ["https://fapi-demo.example.com/route"]
       - name: request-transformer
+        id: 1f1902cb-dfa2-5003-a3ae-9968b2c126b2
         tags: [fapi2-demo, route-a]
         config:
           remove:
@@ -131,6 +136,7 @@ services:
             headers: [X-Fapi-Route:route-a, X-Fapi-Client-Auth:tls_client_auth]
 
   - name: third-party-route-b-api
+    id: b52f6f69-8c94-5148-a6a2-dbc5b6e2c15e
     protocol: https
     host: kong-api
     port: 8443
@@ -148,6 +154,7 @@ services:
         tags: [fapi2-demo, route-b]
     plugins:
       - name: cors
+        id: be2f0305-7644-5e24-9c0d-c5c16e726492
         tags: [fapi2-demo, route-b]
         config:
           origins: ["https://localhost:3443"]
@@ -156,6 +163,7 @@ services:
           credentials: true
           max_age: 3600
       - name: fapi-client-auth-bridge
+        id: 564675c7-1913-5d2c-8e2f-af7709855db5
         tags: [fapi2-demo, route-b]
         protocols: [grpc, grpcs, http, https]
         config:
@@ -168,6 +176,7 @@ services:
           assertion_delivery: transport_delegate
           assertion_ttl: 60
       - name: openid-connect
+        id: fa9b36b8-2ae3-5240-ac4e-c1303c33bb9c
         tags: [fapi2-demo, route-b]
         config:
           issuer: https://localhost:8444/realms/fapi-demo
@@ -226,6 +235,7 @@ services:
             - header: X-Demo-Route
               path: ["https://fapi-demo.example.com/route"]
       - name: request-transformer
+        id: 2678d008-77b3-5ec1-bc5d-8e2a5f8633a5
         tags: [fapi2-demo, route-b]
         config:
           remove:

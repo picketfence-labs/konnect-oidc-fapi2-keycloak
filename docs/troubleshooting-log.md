@@ -572,3 +572,9 @@ v14では隔離realmへ標準のPS256鍵providerを明示し、AS token endpoint
 ## 2026-10-04: PR #21のLinux CIでunit fixture生成失敗
 
 CIの`make test`はstock fixtureの4件で`FileNotFoundError`となった。unit testがmacOS専用の`/private/tmp`へ一時ディレクトリを生成していたため、Linux runnerでは作成できなかった。unit fixtureはホストの既定temp directoryを使う。runnerの失敗経路2件では固定パス専用の削除関数をstubし、要求された削除対象と実際の一時ファイル削除を検査する。実fixtureの固定パス・所有確認・削除guardは変更せず、別パスの削除拒否検査も維持する。修正後のstock fixture unit testは16件PASS。通常環境は変更していない。
+
+## 2026-10-04: 通常同期プレビューのIDとJSON報告
+
+同じthird-party state・role・targetのread-only diffを2回取得しても完全なdiffのhashが一致しなかった。Service2とService plugin7のIDがstateに未指定だったため、固定UUIDv5を指定し、validatorでも一致を検査する。foundationとRoute UUIDは変えない。
+
+固定ID後の標準並列diffでは、JSONのsummaryがcreate11であるのに列挙は10件（Route A欠落）となった。件数guardは拒否し、同期は未実施。`--parallelism 1`の対照では11件すべてが列挙された。third-partyのdiff・同期を直列化し、不完全な報告を許可せずに照合する。API移行の経路は変更しない。
