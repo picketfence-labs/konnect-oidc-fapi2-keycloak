@@ -2,21 +2,24 @@
 
 ## 現在の作業状態（2026-10-04）
 
-通常統合着手（PR #22 merge後、main `6e4ced8`）: 標準Keycloakで管理対象3 clientsとPS256 providerを追加し、照合成功。third-party CPの追加11件を同期済み。API6追加/13削除は自動承認レビューが具体的な宛先・削除対象への承認を要求して拒否したため未実施。利用者へ具体的範囲を提示し回答待ち。旧API設定はGit外にprivate backupを保存した。通常入口/UIは閉鎖中、A/B E2Eは未実行。
+main `f8c3a8f`（PR #23 merge後）で通常デモの統合確認が通った。利用者の具体的な承認を受け、API CPの旧A/B構成13件を削除し、Resource Server構成6件を追加した。共有CAとfoundation certificateは維持し、旧設定のprivate backupはGit外に保存している。third-party CPの追加11件、標準Keycloakの3 clientsとPS256 providerも反映済み。
 
-通常起動でRoute B JWK未受け渡しと、transport/bridgeの初回空設定による恒久拒否が見つかり、`fix/wp5-normal-runtime-env`で最小修正。Rootはmain公開amd64 imageをprivate overrideで使用し、修正handlerをread-only mountして確認中。修正stateのthird-party diffは0。native arm64 baseとread-only plugin sourceで既存の全worker readiness checkはPASS（4 worker）。amd64互換実行ではprocess名を識別できず入口は閉鎖のまま。API移行を承認された範囲で適用して通常フローへ進む。PR mergeと通常統合の受入は区別する。
+通常A/Bとも、ログイン→API 200→期限後refresh→stock logoutが成功した。Route Aはtls_client_auth/sales、Route Bはprivate_key_jwt/engineering。API応答の署名検証・証明書binding・claimとheaderの一致がtrueで、偽装X-Demo headerも認証済みclaimへ上書きされた。UIのHTTPS応答は200。4 workerのreadiness確認後にだけ通常入口を開き、reloadでsupervisorが8443/3443を閉鎖し、UI/third-party DPを停止することも確認した。確認後は同じ構成を再起動し、監視付きでデモを再開した。
 
-最新の決定: ゴールはKong標準優先の顧客要件デモで、本番FAPI完全準拠環境ではない。stock本文を維持し、PAR client_id欠落は仕様gapとして記録する。RootはSol 6.1 / High、開発委譲はLuna / xHigh。
+通常環境は、native arm64のKong 3.16.0.0 baseにmainのtransport/bridgeをread-only mountするprivate overrideを使う。API/verifierは既存公開amd64 imageを使う。これはソースと実フローの確認であり、published multi-architecture imageやclean checkout再現の受入ではない。通常APIのpost-sync diffはOIDC config.cache_tokens_saltの1 updateのみ（liveは非空、stateは未指定）。cache_tokensはfalseで、追加syncは行っていない。詳細は[障害対応記録](troubleshooting-log.md)を参照。
 
-2026-10-04現在: WP5の5a spike、5b transport/bridge実装、5cの隔離AS直結・2 worker guard検証まで完了。5aのdirect TLS 40/40、再入r4、stock v15に加え、直結v2ではA/BのPAR→code→session→refresh→stock logout→access/refresh revokeが成功し、13操作を実ASのpeerへ照合した。token4応答のcnf一致、Route B全操作のPS256/issuer文字列aud/TTL60秒以内/異なるjtiを確認した。guard v3は偽装assertion3種400、marker欠落/不一致/reload/古いepochでA/B503、AS送信0。通常起動preflightのplugin欠落負例も固定image/networkなしで通過した。専用環境・PKI・portの回収はRoot独立確認済み。
+| WP / Issue | 現状 | 残件 |
+|---|---|---|
+| WP1 #7、WP2 #8、WP4 #10 | 受入済み・closed | なし |
+| WP3 #9 | isolated 37/37と通常統合がpass | 利用者受入・close |
+| WP5 #11 | AS直結・guard・通常A/B・supervisor確認がpass | [受入表](design/third-party-wp5-acceptance.md)の未網羅項目の扱いと利用者受入・close |
+| WP6 #12 | 未開始 | UI表示・reset/切替手順・clean checkout再現の仕上げ。既存証跡を再利用し、全テストの再実行を前提にしない |
 
-拡張v6もRoot受入済み（43.869秒、実AS15件join）。A/Bともiss不一致401拒否の後に正規callback成功、2回の期限後refreshとrotation更新値使用、PAR redirect query/nonce/S256/callback URIを確認した。receipt SHA-256は`9b628ed21e550432405697ee7ac4281fb3b98936c0a087120774ec9ec3424ebd`。Root proofは`.generated/evidence/wp5-root-transport-v6-terminal-review-1791108590659333000.json`。全専用resources/PKI/port回収済み。v4/v5のharness固定status失敗は履歴として保持する。
+Git外の通常証跡: `.generated/evidence/wp5-normal-flow-route_a.json`（SHA-256 `0050094f0f7c31b08cbbd433bbf58f771a1f0c046b23173e5085ac0648a0286d`）、`wp5-normal-flow-transport_route_b.json`（`4340fad6e39b197c8d5106b28a199af64a6be2a6394298197ca4483ac2c82bd8`）、`wp5-normal-supervisor-reload.json`、`wp5-normal-integration-progress.json`。raw token/cookie/password/鍵は報告に含めない。
 
-`make validate`、既存venvによる`make test`、`make test-plugin`はPASS。focused `make test-wp5-transport`もPASS、拡張flow後のfixture回帰検査は11件PASS。sandboxでskipされた既存port検査1件は単独で補完しPASS。通常A/B stateとrealm PS256 provider/kid、loopback入口supervisorは実装済み。通常Control Planeのthird-party diffは**create11/update0/delete0**、適用していない。API側WP3 previewはcreate6/update0/delete13、sync未実施。通常`make up`は閉鎖、third-party同期は仕上げPRでレビュー済み差分に限定する。通常統合、stock負例の残件、main検証と利用者受入までWP5全体を完了扱いにしない。
+ゴールはKong標準優先の顧客要件デモで、本番FAPI完全準拠環境ではない。stock本文を維持し、PAR client_id欠落はRFC 9126の仕様gapとして記録する。iss欠落guard、追加の開始CSRF防御、DPoP、厳密な個別失効SLAは今回の完了条件に追加しない。RootはSol 6.1 / High、開発委譲はLuna / xHigh。
 
-mainは`9243886603a225c3f86d1be602fabe99ff76b6ea`（PR #21 merge後に同期済み）。WP1 #7、WP2 #8、WP4 #10は受入済み・closed。WP3 #9は37/37 isolated検証通過、通常migration/integration待ち。WP5 #11は実装・隔離検証済み、通常受入待ち。WP6 #12は未開始。通常環境変更は未実施。証跡・残件は[WP5受入表](design/third-party-wp5-acceptance.md)と[直結preview](design/third-party-wp5-transport-preview.md)を参照。
-
-[PR #21](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/pull/21)は利用者がmerge済み。mainの独立validate/focused testsとCI/image公開がPASS。最新CP差分はAPI6/0/13、third-party11/0/0。通常Composeと10 identityのPKI preflightもPASSだが、通常デモのコンテナはまだない。`feat/wp5-normal-integration`で、固定entity ID、レビュー差分に限定する同期経路、既存realmのPS256 provider反映を仕上げている。次は仕上げPR・[通常統合プレビュー](design/third-party-wp5-normal-preview.md)のレビュー、通常適用・統合確認の順。通常環境への適用とIssue closeは未実施。
+隔離証跡は再実行せず維持する。直結v6の実AS15件join、2回refresh/rotation、iss不一致拒否のreceipt SHA-256は`9b628ed21e550432405697ee7ac4281fb3b98936c0a087120774ec9ec3424ebd`。通常フローの成功をAS observer再計測や全worker/全background形態の網羅と読み替えない。
 
 以下は5a実行中の履歴であり、上記現在地を置き換えない。
 

@@ -587,3 +587,11 @@ CIの`make test`はstock fixtureの4件で`FileNotFoundError`となった。unit
 同じthird-party state・role・targetのread-only diffを2回取得しても完全なdiffのhashが一致しなかった。Service2とService plugin7のIDがstateに未指定だったため、固定UUIDv5を指定し、validatorでも一致を検査する。foundationとRoute UUIDは変えない。
 
 固定ID後の標準並列diffでは、JSONのsummaryがcreate11であるのに列挙は10件（Route A欠落）となった。件数guardは拒否し、同期は未実施。`--parallelism 1`の対照では11件すべてが列挙された。third-partyのdiff・同期を直列化し、不完全な報告を許可せずに照合する。API移行の経路は変更しない。
+
+## 2026-10-04: 通常API同期後のsalt差分と統合確認
+
+利用者がAPI CP `monex-oidc-demo`の旧13件削除・Resource Server 6件追加を明示承認し、レビュー済みhashに結び付いた同期が成功した。共有CA/foundation certificateとprivate backupは維持した。
+
+post-syncの読み取り専用diffはcreate0/update1/delete0。唯一の変更フィールドはOIDC `config.cache_tokens_salt`で、liveは非空string、stateは未指定/null。移行専用wrapperは0/0/0か6/0/13以外を拒否するため、通常のdiffコマンドはこの残差分を拒否した。読み取り専用の詳細確認だけを行い、追加syncやguard変更はしていない。`cache_tokens:false`を確認したが、salt生成元までのコード証明はしていない。秘密値は報告・Gitへ保存せず、raw diffはGit外のprivate証跡だけに保持した。
+
+main `f8c3a8f`の通常A/Bでログイン・API200・署名/証明書binding・claim/header一致・偽装header上書き・期限後refresh・stock logoutが成功した。UI HTTPS200、4 worker readinessもpass。通常DPを一度reloadするとsupervisorがworker変更を検出し、8443/3443を閉鎖、UI/third-party DPを停止した。確認後は同じ構成を再起動し、readinessを再確認して監視付きデモを再開した。AS観測imageや全隔離matrixの再実行は行っていない。
