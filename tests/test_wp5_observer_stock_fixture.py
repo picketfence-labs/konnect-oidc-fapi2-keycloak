@@ -17,7 +17,9 @@ import stock_fixture as fixture
 
 class StockFixtureTests(unittest.TestCase):
     def _prepared(self):
-        directory = tempfile.TemporaryDirectory(dir="/private/tmp")
+        # Unit fixtures use the host temp directory. Runner tests stub the
+        # live cleanup guard, whose /private/tmp target remains fixed.
+        directory = tempfile.TemporaryDirectory()
         root = Path(directory.name)
         root.rmdir()  # prepare_stock_fixture must claim a new, exclusive path.
         prep = root.parent / f".{root.name}-prep.json"
@@ -348,9 +350,11 @@ class StockFixtureTests(unittest.TestCase):
              mock.patch.object(fixture, "_capture_keycloak_logs", return_value=(b"", [], {}, fixture._safe_runtime_log_diagnostics(b""))), \
              mock.patch.object(fixture, "verify_owned_resources", return_value={"containers": 0, "volume": False, "network": False}), \
              mock.patch.object(fixture, "_ports_released", return_value={str(port): True for port in fixture.HOST_PORTS}), \
+             mock.patch.object(fixture, "_remove_fixture", side_effect=lambda path: shutil.rmtree(path) or True) as cleanup, \
              mock.patch.object(fixture.stock_flow, "run_stock_flow") as flow:
             result = fixture.run_stock_par(root, prep_path, intent_path, run_path, approved_single_attempt=True)
         flow.assert_not_called()
+        cleanup.assert_called_once_with(root)
         self.assertEqual(result["stage2"], "not_run")
         self.assertNotEqual(result["result"], "pass")
         self.assertTrue(result["cleanup"]["private_fixture_removed"])
@@ -374,9 +378,11 @@ class StockFixtureTests(unittest.TestCase):
                  "containers": 0, "volume": False, "network": False,
              }), \
              mock.patch.object(fixture, "_ports_released", return_value={str(port): True for port in fixture.HOST_PORTS}), \
+             mock.patch.object(fixture, "_remove_fixture", side_effect=lambda path: shutil.rmtree(path) or True) as cleanup, \
              mock.patch.object(fixture, "_compose", side_effect=[b"", fixture.StockFixtureError("compose_start_failed")]):
             result = fixture.run_stock_par(root, prep_path, intent_path, run_path,
                                            approved_single_attempt=True)
+        cleanup.assert_called_once_with(root)
         self.assertEqual(result["result"], "failed")
         self.assertEqual(result["failure_category"], "compose_start_failed")
         self.assertEqual(result["stage2"], "not_run")

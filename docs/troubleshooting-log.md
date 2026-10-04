@@ -568,3 +568,7 @@ v14では隔離realmへ標準のPS256鍵providerを明示し、AS token endpoint
 ## 2026-10-04: WP5追加issuer試験のharness判定
 
 拡張v4/v5はissuer不一致拒否のHTTP400固定判定で停止した。実Kongは401を返す。v5ではRoute Aの401拒否後、正規callback・2回のrefresh・stock logoutが成功していた。harnessの拒否判定を400/401にし、重複した固定判定を削除した。実code交換各1回、正規control成功、rotation使用の照合は維持する。失敗時の固定outcome/status/countもreceiptへ残す。別v6でA/B全体がaccepted、実AS15件join、秘密値検出0、専用環境回収をRoot独立確認した。stock本文や認証方式は変更していない。
+
+## 2026-10-04: PR #21のLinux CIでunit fixture生成失敗
+
+CIの`make test`はstock fixtureの4件で`FileNotFoundError`となった。unit testがmacOS専用の`/private/tmp`へ一時ディレクトリを生成していたため、Linux runnerでは作成できなかった。unit fixtureはホストの既定temp directoryを使う。runnerの失敗経路2件では固定パス専用の削除関数をstubし、要求された削除対象と実際の一時ファイル削除を検査する。実fixtureの固定パス・所有確認・削除guardは変更せず、別パスの削除拒否検査も維持する。修正後のstock fixture unit testは16件PASS。通常環境は変更していない。
