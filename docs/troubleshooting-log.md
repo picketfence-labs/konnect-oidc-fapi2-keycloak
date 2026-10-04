@@ -6,6 +6,7 @@
 - Hybrid DPの初期起動でCP設定前にtransport `configure(nil/empty)` が呼ばれると、初期configがない状態を永久失敗としてlatchし、後続の正しいCP設定も拒否していた。初回のnil/空だけ待機扱いにし、初期config後のnil/変更・不正設定は引き続きfail-closedにする。
 - decK stateのOIDC `login_tokens` がnullの一方、CPは既定値 `[id_token]` を返し、post-sync diffに設定差が残っていた。両Routeへ既定値を明示する。
 - bridgeも初回空設定でheader modeを固定し、後続のtransport_delegate設定を変更扱いで拒否していた。未設定のnil/空では方式を選ばず待機し、設定受領後の変更拒否とlegacy header動作を維持する。
+- 公開amd64 imageのarm64互換実行では全worker statusがreadyでも `/proc` のworker process名が表示されず、入口チェックは閉鎖を維持した。同じDockerfile baseのcached native arm64 imageとread-only plugin sourceをprivate overrideで使い、機能確認を続ける。公開済みamd64 artifactでの通常supervisor受入とは区別する。
 - focused source testsはPASS。Rootは公開imageに修正handlerをread-only mountし通常hybridを確認中。初期修正後に4 workerのregistry/hash/epoch準備完了、修正stateでthird-party diff=0を確認した。API同期と通常A/B E2Eは未実行。
 
 ## 2026-10-04: WP5 stock fixture v8 — PAR成功後のcallback 4xx
