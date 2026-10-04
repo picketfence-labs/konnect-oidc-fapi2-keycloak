@@ -615,6 +615,18 @@ local function configure(configs)
     return
   end
 
+  local initial_config_absent = configs == nil
+    or (type(configs) == "table" and next(configs) == nil)
+  if initial_config_absent and not state.config_source and not state.config_hash then
+    state.registry = nil
+    state.registry_ready = false
+    state.delegate_ready = false
+    remove_ready_marker()
+    write_status()
+    refresh_bridge_status()
+    return
+  end
+
   local config = unwrap_plugin_config(configs)
   local routes = validate_config(config)
   if not routes then

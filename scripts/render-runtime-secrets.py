@@ -57,6 +57,21 @@ missing = [
 if missing:
     raise ValueError("required runtime credentials are missing")
 
+try:
+    route_b_jwk = json.loads((output_dir / "keycloak" / "route-b-private.jwk").read_text())
+except (OSError, json.JSONDecodeError):
+    raise ValueError("required Route B private JWK is missing or invalid") from None
+required_jwk_fields = {"kty", "kid", "use", "alg", "n", "e", "d", "p", "q", "dp", "dq", "qi"}
+if (
+    not isinstance(route_b_jwk, dict)
+    or set(route_b_jwk) != required_jwk_fields
+    or route_b_jwk.get("kty") != "RSA"
+    or route_b_jwk.get("alg") != "PS256"
+    or any(not isinstance(value, str) or not value for value in route_b_jwk.values())
+):
+    raise ValueError("required Route B private JWK is missing or invalid")
+route_b_jwk_json = json.dumps(route_b_jwk, separators=(",", ":"))
+
 output_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
 os.chmod(output_dir, 0o700)
 runtime_env = output_dir / "runtime.env"
@@ -96,6 +111,7 @@ write_role_env(output_dir / "runtime-api.env", {
 write_role_env(output_dir / "runtime-third-party.env", {
     "ROUTE_A_TLS_KEY": (pki_dir / "route-a.key").read_text(),
     "ROUTE_B_TLS_KEY": (pki_dir / "route-b.key").read_text(),
+    "ROUTE_B_JWK": route_b_jwk_json,
     "FAPI_AS_TRANSPORT_ISSUER": "https://localhost:8444/realms/fapi-demo",
     "FAPI_AS_TRANSPORT_INTERNAL_ORIGIN": "https://keycloak:8443",
 })

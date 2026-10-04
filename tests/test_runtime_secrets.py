@@ -17,6 +17,14 @@ with tempfile.TemporaryDirectory() as directory:
     jwk = temporary / "private.jwk"
     output = temporary / "generated"
     output.mkdir()
+    (output / "keycloak").mkdir()
+
+    private_jwk = {
+        "kty": "RSA", "kid": "test-kid", "use": "sig", "alg": "PS256",
+        "n": "test-n", "e": "AQAB", "d": "test-d", "p": "test-p", "q": "test-q",
+        "dp": "test-dp", "dq": "test-dq", "qi": "test-qi",
+    }
+    (output / "keycloak" / "route-b-private.jwk").write_text(json.dumps(private_jwk))
 
     secrets.write_text(
         "KEYCLOAK_ADMIN_USERNAME=admin\n"
@@ -32,7 +40,7 @@ with tempfile.TemporaryDirectory() as directory:
             f"{private_key_marker}\nprivate\n{private_key_end}\n"
         )
 
-    subprocess.run(
+    rendered = subprocess.run(
         [
             "python3",
             str(ROOT / "scripts" / "render-runtime-secrets.py"),
@@ -41,7 +49,11 @@ with tempfile.TemporaryDirectory() as directory:
             str(output),
         ],
         check=True,
+        capture_output=True,
+        text=True,
     )
+    assert json.dumps(private_jwk, separators=(",", ":")) not in rendered.stdout
+    assert json.dumps(private_jwk, separators=(",", ":")) not in rendered.stderr
 
     runtime = {}
     for line in (output / "runtime.env").read_text().splitlines():
@@ -73,10 +85,13 @@ with tempfile.TemporaryDirectory() as directory:
     assert api_env["API_INTROSPECTION_KEY"].endswith(f"{private_key_end}\n")
     assert api_env["API_UPSTREAM_KEY"].endswith(f"{private_key_end}\n")
     assert set(third_party_env) == {
-        "ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY", "FAPI_AS_TRANSPORT_ISSUER", "FAPI_AS_TRANSPORT_INTERNAL_ORIGIN"
+        "ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY", "ROUTE_B_JWK",
+        "FAPI_AS_TRANSPORT_ISSUER", "FAPI_AS_TRANSPORT_INTERNAL_ORIGIN"
     }
     assert third_party_env["ROUTE_A_TLS_KEY"].endswith(f"{private_key_end}\n")
     assert third_party_env["ROUTE_B_TLS_KEY"].endswith(f"{private_key_end}\n")
+    assert json.loads(third_party_env["ROUTE_B_JWK"]) == private_jwk
+    assert "ROUTE_B_JWK" not in api_env
     assert third_party_env["FAPI_AS_TRANSPORT_ISSUER"] == "https://localhost:8444/realms/fapi-demo"
     assert all(stat.S_IMODE((output / name).stat().st_mode) == 0o600 for name in (
         "runtime.env", "runtime-api.json", "runtime-third-party.json", "runtime-api.env", "runtime-third-party.env"

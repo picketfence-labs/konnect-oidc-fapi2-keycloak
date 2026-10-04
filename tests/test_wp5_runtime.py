@@ -87,6 +87,12 @@ class ThirdPartyRuntimeTests(unittest.TestCase):
         self.assertTrue(all(service["path"] in api_paths for service in services.values()))
         routes = {route["id"] for service in services.values() for route in service["routes"]}
         self.assertEqual(routes, {ROUTE_A, ROUTE_B})
+        route_a_plugins = {
+            plugin["name"]: plugin for plugin in services["third-party-route-a-api"]["plugins"]
+        }
+        self.assertEqual(
+            route_a_plugins["openid-connect"]["config"]["login_tokens"], ["id_token"]
+        )
         route_b = services["third-party-route-b-api"]
         plugins = {plugin["name"]: plugin for plugin in route_b["plugins"]}
         bridge = plugins["fapi-client-auth-bridge"]["config"]
@@ -96,7 +102,7 @@ class ThirdPartyRuntimeTests(unittest.TestCase):
         self.assertEqual(oidc["token_endpoint_auth_method"], "tls_client_auth")
         self.assertEqual(oidc["pushed_authorization_request_endpoint_auth_method"], "private_key_jwt")
         self.assertEqual(oidc["revocation_endpoint_auth_method"], "private_key_jwt")
-        self.assertIsNone(oidc["login_tokens"])
+        self.assertEqual(oidc["login_tokens"], ["id_token"])
         self.assertTrue(oidc["logout_revoke_access_token"])
         self.assertTrue(oidc["logout_revoke_refresh_token"])
         self.assertEqual(oidc["issuer"], "https://localhost:8444/realms/fapi-demo")

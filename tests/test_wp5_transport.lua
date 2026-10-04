@@ -194,6 +194,12 @@ local config = {
 }
 
 local transport = dofile("kong/plugins/fapi-as-mtls-transport/handler.lua")
+transport:configure(nil)
+assert(not transport.status_snapshot().registry_ready,
+  "an initial nil configure waits for hybrid CP state without latching failure")
+transport:configure({})
+assert(not transport.status_snapshot().registry_ready,
+  "an initial empty configure also waits for hybrid CP state")
 transport:configure({ { config = config } })
 local initial_snapshot = transport.status_snapshot()
 local decorated_config = {}

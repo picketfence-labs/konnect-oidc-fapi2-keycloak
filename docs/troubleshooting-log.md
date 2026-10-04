@@ -1,5 +1,12 @@
 # 障害対応記録
 
+## 2026-10-04: 通常third-party runtimeのJWK引継ぎと初期configure待機
+
+- third-party用runtime env生成で既存の `.generated/keycloak/route-b-private.jwk` を渡しておらず、workerへも公開されないため、Route BのVault参照解決とKonnect設定受領を妨げていた。JWKをthird-party専用envにだけ追加し、NGINX worker envへ引き継ぐ。
+- Hybrid DPの初期起動でCP設定前にtransport `configure(nil/empty)` が呼ばれると、初期configがない状態を永久失敗としてlatchし、後続の正しいCP設定も拒否していた。初回のnil/空だけ待機扱いにし、初期config後のnil/変更・不正設定は引き続きfail-closedにする。
+- decK stateのOIDC `login_tokens` がnullの一方、CPは既定値 `[id_token]` を返し、post-sync diffに設定差が残っていた。両Routeへ既定値を明示する。
+- focused source testsで確認する。Docker、Control Plane、通常runtimeの再試験はこの変更では行っていない。
+
 ## 2026-10-04: WP5 stock fixture v8 — PAR成功後のcallback 4xx
 
 fixtureの`jwt.credential.kid`をKong JWKと一致させるとPAR201になった。実署名とRoute BのAS mTLSをRootが受入済み。ログイン1回の後、code交換のAS呼出しは観測されたがKong callbackが4xxで、session/logoutは未完成。次の試行はcallbackの固定error enumを取得し、fixture設定の問題を絞る。stockのPAR本文は変更しない。v8の専用環境は完全回収、秘密値検出は0。証跡はADR 0019を参照。

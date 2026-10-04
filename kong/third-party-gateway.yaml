@@ -100,7 +100,7 @@ services:
           scopes: [openid, profile]
           redirect_uri: ["https://localhost:8443/api/fapi/mtls"]
           response_mode: query
-          login_tokens: null
+          login_tokens: [id_token]
           require_proof_key_for_code_exchange: true
           require_pushed_authorization_requests: true
           login_action: redirect
@@ -214,7 +214,7 @@ services:
           scopes: [openid, profile]
           redirect_uri: ["https://localhost:8443/api/fapi/pkj-mtls"]
           response_mode: query
-          login_tokens: null
+          login_tokens: [id_token]
           require_proof_key_for_code_exchange: true
           require_pushed_authorization_requests: true
           login_action: redirect
