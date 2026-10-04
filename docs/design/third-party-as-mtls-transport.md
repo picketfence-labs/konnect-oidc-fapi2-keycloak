@@ -1,6 +1,12 @@
 # DP0: 3rd Party → ASのmTLS補完契約
 
+> 2026-10-04現在の実装・検証結果は[WP5受入表](third-party-wp5-acceptance.md)を参照。5a受入、5b実装、5c隔離AS直結・2 worker guardは通過した。通常環境での受入は未完了。以下の契約や過去の試行記録から、現在の成功・未実行範囲を推定しない。
+
 ## 状態と境界
+
+2026-10-04: WP5の5aはRoot受入済み。direct TLS v3（40/40）、同一要求の再入r4、stock v15のPAR201・token200・callback302・session成立・logout・access/refresh両revoke200を確認した。stock3操作はPS256・issuer文字列aud・TTL60秒・異なるjtiを満たし、実ASのRoute B peerと1:1対応（chain2/PKIX/期限/EKU/leaf一致）。秘密値検出0、専用Docker環境・PKI・3ポートの回収を独立確認した。Root証跡は`.generated/evidence/wp5-root-stock-v15-terminal-review-1791101147900716000.json`、v15 receipt SHA-256は`f0348037bf6796be694f9a00d58bcfeea0b963b8547f16bc5383a4c8b4257519`。Luna / xHighによる5b transport/bridge本体と5cの設定・起動ゲートの実装へ進む。PARのRFC 9126ギャップは開示のみ。5aのrelayからASへの証明を、まだ未検証のGateway直結transportや個別token失効の証明には扱わない。
+
+以下は方式選択時点の設計契約である。
 
 2026-10-02、**方式選択と設計契約をレビューし、PR #5としてmerge済み**。[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)を正本とする。production plugin、設定、realm、実装PRは作っていない。live環境も変更していない。WP5の開始には依存WPの受入が必要。Opusレビューへの補強として[Keycloak側peer証跡契約](third-party-as-peer-evidence.md)を追加し、WP5冒頭のAS-MTLS-OBS-01で計測/claimの成立を確認してから本体実装へ進む。
 
@@ -62,6 +68,7 @@ discoveryのlocator mappingはissuer・OAuth audience・browser authorization/en
 - デモでは`keepalive=false`、`ssl_reused_session=false`。pool namespaceにもidentity/epochを含める。exact imageの既定pool名はcert hashを含むが、デモの証跡は新規handshakeで取得し、接続再利用へ依存しない。
 - HTTP 3xxはlibrary/SDKへ返す前にsanitized errorへ変え、Locationへ追従しない。server検証を弱めるfallback、certなし再試行、proxy経由の迂回を禁止する。
 - request-scopedに`(logical_route, endpoint_kind, grant_type, canonical_form_digest)`を記録し、**同じ送信を再びnetworkへ出さない**。formは一度だけdecodeし、`client_assertion`/`client_assertion_type`を除外してparameter名順に正規化・SHA-256化する。stock assertionが再生成されても同じkeyとする。重複parameterは拒否し、forwardする正常なform値は変えない。PARと各token grantは同request内で最大1送信、revokeは`client_id + token`のdigestをkeyとし`token_type_hint`の差でも再送を通さない。refresh/accessの異なるtokenのrevokeは別keyで両方許可する。digestはsigner呼出し前に送信済みとして固定し、送信失敗時も解除しない。生token/bodyは保持しない。SDKのretryが同じassertionやcode/refresh/revokeを再送する場合はfail closed。GET metadataの再取得は許可する。生body/assertionをglobal registryやlogへ保存しない。
+- stock PKJWTのPAR/revokeでformの`client_id`が省略される場合は、trusted Route registryのclient IDとassertionの`iss/sub`を照合する。省略だけで拒否せず、存在する値が異なる場合は拒否する。revokeの重複検査に必要なclient identityもregistryから導く。元のformへIDを補完せず、本文とstock assertionを維持する。RFC 9126のPARギャップは[ADR 0019](../decisions/0019-wp5-stock-claim-fixture-boundaries.md)へ記録し、完全準拠を本デモの完了条件にしない。
 - configureの同一内容の再通知はidempotentとする。鍵/endpoint/identityの変更やplugin無効化は対象経路をfail closedにし、restartで新registryを作る。hot rotation・無停止再構成は今回の範囲外。nil configでwrapperを外してHTTPSへ戻さない。
 
 公開APIの仕様は[resty.http](https://github.com/ledgetech/lua-resty-http)、[PEM parsing](https://github.com/openresty/lua-resty-core/blob/master/lib/ngx/ssl.md#parse_pem_cert)、lifecycleは[Kong custom plugin handler](https://developer.konghq.com/custom-plugins/handler.lua/)を参照する。これらの最新版documentationと固定imageの挙動を分ける。**このmethod decorator自体はworker-wide monkeypatchであり、公式のOIDC標準設定・本番推奨方式ではない。** 他pluginとの干渉はWP5で検証する。

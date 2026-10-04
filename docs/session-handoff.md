@@ -1,14 +1,28 @@
 # OIDC デモのセッション引き継ぎ
 
-## 現在の作業状態（2026-10-03）
+## 現在の作業状態（2026-10-04）
 
-Third-party FAPI 2.0デモの詳細は[Delivery planの現在地](design/third-party-delivery-plan.md#work-packages)と[WP3移譲契約](design/third-party-luna-handoff.md#基準と現在地)を参照してください。WP1 #7、WP2 #8、WP4 #10は受入済み・closed。WP3 Issue #9は通常migration/integration gateが残るためopen。最終isolated receipt `wp3-runtime-receipt-1791019160834567000.json`は37/37 PASS、FAIL 0、needs-design 0。194/194 candidatesをscanし、3 servicesすべてsecret/pattern match 0、API response 29件もclean。Keycloak実token/introspection、audience/scope/active/PoP/ERR、query/header controls、TLS policy/negatives、upstream mTLSを確認し、cleanupとports解放を独立確認した。read-only normal CP previewはcreate 6 / update 0 / delete 13だがsync未実施。WP5 #11、WP6 #12は未開始。通常`make up`、realm更新、CP同期は行っていない。
+最新の決定: ゴールはKong標準優先の顧客要件デモで、本番FAPI完全準拠環境ではない。stock本文を維持し、PAR client_id欠落は仕様gapとして記録する。RootはSol 6.1 / High、開発委譲はLuna / xHigh。
+
+2026-10-04現在: WP5の5a spike、5b transport/bridge実装、5cの隔離AS直結・2 worker guard検証まで完了。5aのdirect TLS 40/40、再入r4、stock v15に加え、直結v2ではA/BのPAR→code→session→refresh→stock logout→access/refresh revokeが成功し、13操作を実ASのpeerへ照合した。token4応答のcnf一致、Route B全操作のPS256/issuer文字列aud/TTL60秒以内/異なるjtiを確認した。guard v3は偽装assertion3種400、marker欠落/不一致/reload/古いepochでA/B503、AS送信0。通常起動preflightのplugin欠落負例も固定image/networkなしで通過した。専用環境・PKI・portの回収はRoot独立確認済み。
+
+拡張v6もRoot受入済み（43.869秒、実AS15件join）。A/Bともiss不一致401拒否の後に正規callback成功、2回の期限後refreshとrotation更新値使用、PAR redirect query/nonce/S256/callback URIを確認した。receipt SHA-256は`9b628ed21e550432405697ee7ac4281fb3b98936c0a087120774ec9ec3424ebd`。Root proofは`.generated/evidence/wp5-root-transport-v6-terminal-review-1791108590659333000.json`。全専用resources/PKI/port回収済み。v4/v5のharness固定status失敗は履歴として保持する。
+
+`make validate`、既存venvによる`make test`、`make test-plugin`はPASS。focused `make test-wp5-transport`もPASS、拡張flow後のfixture回帰検査は11件PASS。sandboxでskipされた既存port検査1件は単独で補完しPASS。通常A/B stateとrealm PS256 provider/kid、loopback入口supervisorは実装済み。通常Control Planeのthird-party diffは**create11/update0/delete0**、適用していない。API側WP3 previewはcreate6/update0/delete13、sync未実施。通常`make up`は閉鎖、third-party runtime syncは無効。通常統合、stock負例の残件、main検証と利用者受入までWP5全体を完了扱いにしない。
+
+mainは`a84e1dfcc55f1c14788110f17dc7e2c5a96bda76`（remote同期済み）。WP1 #7、WP2 #8、WP4 #10は受入済み・closed。WP3 #9は37/37 isolated検証通過、通常migration/integration待ち。WP5 #11は実装・隔離検証済み、PRレビューと通常受入待ち。WP6 #12は未開始。通常環境変更は未実施。証跡・残件は[WP5受入表](design/third-party-wp5-acceptance.md)と[直結preview](design/third-party-wp5-transport-preview.md)を参照。
+
+レビュー用[Draft PR #21](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/pull/21)を作成済み。次はPRのCI・人によるレビュー、main反映確認、既存のAPI/third-party差分と起動手順のレビュー、通常デモ統合確認の順。通常環境への適用とIssue closeは未実施。
+
+以下は5a実行中の履歴であり、上記現在地を置き換えない。
+
+追加進捗（2026-10-04）: 再入計測用image v4のbuildとRoot archive reviewはPASS。network対照でinternal networkからhost loopbackへの到達失敗を確認し、成功済みdirect v3と同じ専用bridgeへ補正した。stock v4はrelayでPARを受信したが、署名検査前のform guardで拒否（HTTP500 / par_form）。ASへ未転送でclaimは未検証、専用環境の回収はRoot独立確認済み。stock v5はresponse_mode=queryへの補正後、client_id guardで拒否（HTTP500 / par_client_id、署名未検証・AS未転送）。固定SDKはPKJWT認証時にform client_idを除去するがRFC9126では必須であり、公開設定での保持経路は見つからなかった。利用者はstock本文の無変更転送を維持し、仕様gapは開示だけにする方針を決定。[ADR0019](decisions/0019-wp5-stock-claim-fixture-boundaries.md)に具体案を記録した。v5の専用リソース・port・private fixture回収もRoot独立確認済み。再入r4は3モードPASS・Root独立確認済みで、同一PARの再入count2/3/4、canonical行数[1,1,0]、HTTP401一致、cleanup PASS。記録は[stock preview](design/third-party-wp5-observer-preview.md)と[再入preview](design/third-party-wp5-reentry-preview.md)を参照。
 
 過去のreceipt `1791014398144929000`には190 candidates中10 secret matches / 2 credential patternsが記録されていた。後続receipt `1791019160834567000`では分類境界を検証し直し、194/194 candidatesのscanが0 secret / 0 patternで完了した。以前のreceiptはimmutableのまま保持し、raw lines/valuesは保存していない。INFO levelはWP3 isolated fixture限定で、通常Composeはnoticeのまま。TLS 1.3 policyと1001件目HTTP parser provenanceは最終receiptでpassした。
 
 effective TLS helperはAdmin要求値と分離し、pinned NGINX configとHTTP/API listener policyを検査する。最新runtimeでは`ssl_conf_command` scopeを含むstrict proofとhandshake controlsがpassし、旧needs-design receiptは履歴として保持する。
 
-最新receipt後に、route-scoped inline LuaでOIDC前のquery credential-name guardを実装した。decoded query namesの`access_token`/alias、duplicate、PDK error/truncation、1000件境界を固定401 challengeで拒否する。query value、body、cookieには触れない。Pure Lua/static testsはpassしたがexact runtime matrixでは未実行であり、最新receiptの受入結果には含めない。この補完をstock OIDCの機能として説明しない。
+WP3のquery-token guardは最新mainの37/37 isolated runtime receiptに含まれる。decoded query namesの`access_token`/alias、duplicate、PDK error/truncation、1000件境界を固定401 challengeで拒否し、query value、body、cookieは読まない。この補完はstock OIDCの機能ではない。
 
 > [!IMPORTANT]
 > この文書は Auth0 を使った初期デモの完了時点を記録しています。次の開発では Keycloak-only 構成を採用します。実装要件は [Keycloak FAPI 2.0 デモ要件](design/fapi2-keycloak-requirements.md)、設計判断は [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)を参照してください。

@@ -10,6 +10,21 @@
   "refreshTokenMaxReuse": 0,
   "ssoSessionIdleTimeout": 900,
   "ssoSessionMaxLifespan": 3600,
+  "components": {
+    "org.keycloak.keys.KeyProvider": [
+      {
+        "name": "fapi-demo-ps256-rsa-generated",
+        "providerId": "rsa-generated",
+        "config": {
+          "priority": ["101"],
+          "enabled": ["true"],
+          "active": ["true"],
+          "keySize": ["3072"],
+          "algorithm": ["PS256"]
+        }
+      }
+    ]
+  },
   "clients": [
     {
       "clientId": "third-party-fapi-mtls",
@@ -110,6 +125,7 @@
       "webOrigins": [],
       "attributes": {
         "jwt.credential.public.key": "__ROUTE_B_PUBLIC_KEY__",
+        "jwt.credential.kid": "__ROUTE_B_JWK_KID__",
         "token.endpoint.auth.signing.alg": "PS256",
         "token.endpoint.auth.signing.max.exp": "60",
         "pkce.code.challenge.method": "S256",

@@ -19,8 +19,10 @@ if [[ "$MODE" == "validate" ]]; then
   export DECK_ROUTE_B_JWK_E="AQAB"
   python3 "$ROOT/scripts/wp1_target.py" validate --root "$ROOT" --gateway api
   python3 "$ROOT/scripts/wp1_target.py" validate --root "$ROOT" --gateway third-party
+  python3 "$ROOT/scripts/wp1_target.py" validate --root "$ROOT" --gateway third-party --stage runtime
   deck file validate "$ROOT/kong/kong.yaml"
   deck file validate "$ROOT/kong/api-gateway.yaml"
+  deck file validate "$ROOT/kong/third-party-gateway.yaml"
   deck file validate "$ROOT/kong/foundation/api.yaml"
   deck file validate "$ROOT/kong/foundation/third-party.yaml"
   exit 0

@@ -50,7 +50,7 @@ Kongの挙動は、`kong-ee` sourceのmaster（2026-09-12）で確認した。**
 | C-10 | 5.3.3.1 | AS metadataはmetadata documentから得た値だけを使う。issuerは信頼できる経路で得て、metadataの`issuer`と一致させる | issuerはrepositoryの宣言値を正とする。endpointは、browser用とback-channel用のhostが分かれるため明示設定する。その値がdiscoveryと一致することをテストで保証する | Config | META-01、META-02 | P1 |
 | C-11 | 5.3.3.1 | 認可の開始はend-userの同意に基づくものに限り、開始をCSRFから保護する | UIの明示操作、stockのstate/PKCEを維持する。ただし開始CSRF防御を満たすと主張しない。専用開始endpoint等は将来対応 | Gap | CSRF-01 | F |
 | C-12 | 5.3.3.2 | authorization code grantを使う | `auth_methods: [authorization_code, session]` | Stock | A-PAR-01、B-PAR-01 | P1 |
-| C-13 | 5.3.3.2 | PARを使う | `require_pushed_authorization_requests: true` | Config | PAR-01 | P1 |
+| C-13 | 5.3.3.2 | RFC9126に従ってPARを使う | `require_pushed_authorization_requests: true`。固定版Route BのPKJWT分岐はform client_idを省略する既知gapがある。stock本文は維持し、デモでは実AS成功を別途確認する | Config / Gap（下記） | PAR-01 | P1（動作）/ F（仕様gap解消） |
 | C-14 | 5.3.3.2 | PKCE S256を使い、requestごとに新しいchallengeをclientとuser agentへ束縛する | `require_proof_key_for_code_exchange: true`。verifierはauthorization cookieに保存される | Config | PKCE-01 | P1 |
 | C-15 | 5.3.3.2 | 認可レスポンスの`iss`をRFC 9207に従って検証する | stockは、`iss`があってissuerと一致しない場合は拒否する。**`iss`が欠落した場合は拒否しない**（`kong/openid-connect/authorization.lua`）。Keycloakがiss対応を宣言する場合の欠落拒否は、本来必要な追加対策。今回guardは作らず、将来`pre-function`優先で補完する | Gap | ISS-01、ISS-02 | F |
 | C-16 | 5.3.3.2 | authorization endpointへは`client_id`と`request_uri`だけを送る | PAR使用時のredirect URLを証跡で確認する | Stock | PAR-02 | P1 |
@@ -60,6 +60,15 @@ Kongの挙動は、`kong-ee` sourceのmaster（2026-09-12）で確認した。**
 | C-20 | 5.3.3.1 | DPoPを使う場合はserver nonceをサポートする | 必須mTLS経路ではDPoPを使わない。DP1で追加経路のclient側proof生成・nonce対応を調査する | N/A | — | F |
 
 Route AのStock区分はclient認証方式を指す。Route Aの送信境界guardとmetadata mTLSにもcustom transportが介在する。AS側peer計測は[test-only証跡契約](third-party-as-peer-evidence.md)で固定し、標準認証機能とは説明しない。
+
+実装・検証の現在地は[WP5受入表](third-party-wp5-acceptance.md)を参照。AS直結v2でもstock本文を維持したPAR201を確認した。通常統合は未完了で、仕様適合を認定しない。
+
+### 既知のPARギャップ（2026-10-04）
+
+- **仕様との差分**: [FAPI 2.0 Security Profile §5.3.3.2](https://openid.net/specs/fapi-security-profile-2_0-final.html#section-5.3.3.2)はRFC9126に従うPARを要求し、[RFC 9126 §2.1](https://www.rfc-editor.org/rfc/rfc9126.html#section-2.1)はPARのclient_idを必須としている。
+- **確認した実装**: 固定版Kong 3.16.0.0のcached SDK分析では、Route Bのprivate_key_jwt認証分岐がform client_idを除去してPARをencodeする。v5 runtimeはharnessのID guardで拒否された。receiptだけでは欠落と値の不一致を区別できず、実署名やAS成功の証拠にはならない。v7で項目欠落を実測し、署名検証と無変更転送を確認した。v8でfixtureのkid登録を補正した後、実ASのPAR201とRoute B mTLSをRootが受入済み。v9/v11もPAR201を再現した。fresh realmのPS256鍵providerを明示してcallback401を解消し、標準login_tokens設定を合わせたv15でsession/logoutとaccess/refresh両revoke200もRoot受入済み。PARの機能成功からRFC 9126準拠とは主張しない。
+- **今回の扱い**: 利用者はstockの現状維持を指定した。harnessはID欠落を許容し、実署名のiss/subで固定clientを照合する。本文・assertionは無変更で送信し、ID補完・再署名は行わない。IDがある場合の不一致・重複、署名不正などは拒否する。
+- **説明・受入**: gapは開示にとどめ、デモ動作の完成を止める条件にしない。実PAR成功を確認できてもRFC9126/FAPI 2.0準拠とは説明しない。今回のゴールは顧客要件をなるべくKong標準で実装し実演することで、本番準拠環境や認定の取得ではない。[ADR 0019](../decisions/0019-wp5-stock-claim-fixture-boundaries.md)に決定と実行証跡を記録する。
 
 ### 補完の優先順位
 

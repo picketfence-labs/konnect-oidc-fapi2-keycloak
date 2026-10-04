@@ -1,6 +1,46 @@
 # 障害対応記録
 
+## 2026-10-04: WP5 stock fixture v8 — PAR成功後のcallback 4xx
+
+fixtureの`jwt.credential.kid`をKong JWKと一致させるとPAR201になった。実署名とRoute BのAS mTLSをRootが受入済み。ログイン1回の後、code交換のAS呼出しは観測されたがKong callbackが4xxで、session/logoutは未完成。次の試行はcallbackの固定error enumを取得し、fixture設定の問題を絞る。stockのPAR本文は変更しない。v8の専用環境は完全回収、秘密値検出は0。証跡はADR 0019を参照。
+
 予期しない動作、失敗した操作、原因、対処、再確認事項を記録します。認証情報や token の実値は記載しません。
+
+## 2026-10-04: stock PARは実ASへ到達したがclient認証が401となった
+
+- v7ではstockのclient_id欠落を実測し、PS256・issuer aud・iss/sub・TTLを検証した上で元本文を無変更転送した。ASは401/invalid_request。PAR peerの相関IDと期待Route B certは一致し、chain2・PKIX・期限・clientAuth EKUは成功。session/logoutは未実行。
+- 公開Keycloakの鍵loaderはrealmの`jwt.credential.kid`を使い、欠落時はpublic key由来のIDを生成する。fixtureは別kidをKong JWKに設定しており、realmへkidを登録していなかった。同一kid登録へ補正して再検証する。内部例外は保持していないため、401の原因と断定しない。
+- Root監査`.generated/evidence/wp5-root-stock-v7-terminal-review-1791096012489613000.json`、terminal SHA-256 `d8215f38fe5b167faf2fa1e7cbc3b6f2ff6bf51532700bb138452135032ce8f1`。cleanup・port・private fixtureの回収、input hashes、v5 receipt不変を独立確認した。102件のfocused testsはPASS。
+
+## 2026-10-04: stock PKJWT PARがclient_id guardで拒否された
+
+- 期待: 固定版Kongの実PARを無変更で転送し、署名・issuer aud・TTL・実AS201・peer joinを確認する。
+- 実際: v5はHTTP500、relayの固定結果は`par_client_id`。署名検証前に停止し、PARはASへ未送信、stage 2は未実行。metadata補助3行はすべて`correlation_invalid`でpeer確認の証拠ではない。
+- 調査: receiptではID欠落と値の不一致を区別できない。cached exact SDKではPKJWT分岐がフォーム`client_id`を除去し、encode前に復元しないことを確認。同じ署名方式で保持できる公開設定は見つからなかった。[RFC 9126 §2.1](https://www.rfc-editor.org/rfc/rfc9126.html#section-2.1)ではPARのIDが必須。Keycloakのassertionによるclient解決処理を根拠にRFC条件を緩和しない。
+- 保全: terminal SHA-256 `7c2d9f71fde9d626e7e04a209f70c0f0f3b8256f5543ff36f64584a51a1c06ce`。Root audit `.generated/evidence/wp5-root-stock-v5-terminal-review-1791093611939675000.json`はinputs、旧receipt不変、専用リソース消滅、port8443/8444/19445解放、private fixture回収を独立確認。bounded log scanにleakなし。
+- 次: [ADR 0019の判断案](decisions/0019-wp5-stock-claim-fixture-boundaries.md#v5で判明したpar契約の相違とデモ範囲の決定)。利用者の最新指示により、stock本文を無変更で維持し、ID欠落をharnessで許容する。仕様gapは記録・開示だけとし、未検証claimやFAPI適合をPASSと扱わない。
+
+## 2026-10-04: WP5 direct TLS fixture expired-certificate case was unclassified
+
+- 期待: expired client certificateをTLSで拒否し、その前後のtrusted HTTP controlsが成功することを確認する。TLS拒否はcertificate-relatedのfixed alert categoryとして識別し、HTTP responseとobserver rowがないことも確かめる。
+- 実際: pinned image `sha256:a337f1fa03b83468fa7234f11ff507fa57cfff67e1769fcc55676acbdc1618ff`でsingle direct fixtureを実行。30/32 cases passed。`on_client_tls_expired`が`tls_negative_unclassified`で失敗し、端末receiptはcleanup=pendingを記録した。raw TLS errorは保持されず、実原因は不明。expired leafのfixture factsと直前controlは確認済み。untrusted-client rejection、trusted before/after controls、Rootのreceipt reviewではOFF/ONのHTTP status 8組が一致し、concurrent A/B HTTP operationsへ到達したことも確認した。ただしON observer-row joinsとcomplete ON log scanは行われていない。receiptの`observer_rows_on=0`は初期値であり、observer rowが無かった証拠ではない。
+- 一次コードに基づく仮説: [OpenJDK 21u `CertificateMessage.checkClientCerts`](https://github.com/openjdk/jdk21u/blob/master/src/java.base/share/classes/sun/security/ssl/CertificateMessage.java)はpeer certificateの`CertificateException`を`CERTIFICATE_UNKNOWN` alertへ変換する。これは固定imageで使われたTLS provider/negotiated TLS versionを採取していないため、今回の原因確認ではない。generic EOF/timeoutはcertificate rejectionとして受理しない。
+- 対処とcleanup: 失敗を受けてretryしない。Rootは正確なCompose project/container、volume、networkがなく、19443 portが解放されたことを独立確認した。initial port-release checkが後でpassした原因はtimingという推測に留まり、証明されていない。17-file fixture treeを再検証後にhostから削除し、元のrun/prep/intent receiptsは変更せず保持した。supplemental cleanup receipt `/private/tmp/wp5-as-mtls-observer-cleanup-receipt-20261004-v1-supplemental.json` (SHA-256 `c6a715fa511e5bff49331834ff5a271a34046b6925c5a67da96c76807447beaf`)、Root audit `.generated/evidence/wp5-root-direct-failed-attempt-review-1791077971231895000.json`。
+- 次回の受入条件: (1) expired fixture事実とcertificate-related alert familyを別々に検証し、EOF/timeoutは失敗扱いにする。(2) 実alertのfixed enum、negotiated TLS version、failure phaseを失わず記録する。(3) 異常終了でもstop、bounded ON log scan/partial joins、downの順で診断証跡を取る。(4) port解放は上限付きで待ち、一時的なport判定失敗が専用PKI回収を止めない。(5) 新しい試行には別のimmutable receiptとfresh fixtureを使い、今回のv1 fixture/receiptを再利用しない。これを小さなdiagnostic contractとしてreviewしてから次を決める。stock-Kong 5aと5bは未着手。
+
+## 2026-10-04: WP5 observer v3 runtime module compile failed
+
+- 期待: pinned Keycloak sourceへtest-only observer patchを適用し、bounded `quarkus/runtime` compileを通してからserver distribution buildへ進む。
+- 実際: pinned source/patch、Git-only derived builder、tool preflightは成功したが、compileはexit 1で`compiler_failure`となった。safe receiptには失敗project、goal、source locationがなく、raw stdout/stderrは保存していない。Rootのread-only output metadata確認ではupstream reactor outputsが見え、`quarkus/runtime` targetはなかった。observer compile成功も、具体的な原因も確定していない。distribution buildはcompile-success gateにより起動せず、runtime/TLSは未実施。
+- 対処: v3のimmutable terminal receipt `/private/tmp/wp5-as-observer-build-receipt-20261003-v3.json`（SHA-256 `56a9c53d77513c69dd1671d9a7943431d59fbf5728cf1c8bb743b54614a3bb0f`）を保全し、exact owner-labeled workspace/image/cache cleanupを独立確認した。ANSI除去後の安全なMaven goal/reactor parsing、fixed diagnostic categoriesとtracked-source locations、parser-completeness gateを含むv4 runnerへ改善。Maven commandへ`-B -Dstyle.color=never`を加える。これらは原因特定の証拠ではなく、次回の安全な分類を改善する措置。
+- 再確認: capture tests 20/20、observer source-contract tests 7/7、Root独立real-pipe parser review 8/8。v4 source/buildは未実行で、別承認待ち。既存v3 receiptは変更しない。
+
+## 2026-10-04: local Terraform provider schema validation could not start
+
+- 期待: repository validation scriptがTerraform configurationのprovider schemaを読み、後続の静的検証へ進む。
+- 実際: sandbox内の`terraform -chdir=infra validate`はcached provider plugin handshakeに失敗してschema取得へ進めなかった。RootはhostがDarwin arm64であることを確認し、同じrepositoryの`make validate`を狭い権限昇格で再実行してexit 0を確認した。provider binaryのarchitecture問題ではなく、sandbox内のplugin起動制限として解消した。
+- 対処: provider cacheの再取得やTerraform変更は行わず、plan/applyや外部環境変更も行っていない。
+- 再確認: `make validate` pass。Terraform fmt、decK validate、Compose config、static checks、WP5 focused tests、`git diff --check`もpass。
 
 ## 2026-10-03: WP3 API応答scannerがPoP証明用thumbprintを誤検出した
 
@@ -440,3 +480,95 @@
 - Actual: CI run `37113019492` failed in the unit/static test step at `test_port_guard_rejects_active_listener_and_accepts_time_wait_only` on the TIME_WAIT setup with `EADDRINUSE`; the Kong job was cancelled by fail-fast. No image-build failure was established. The test client had not enabled `SO_REUSEADDR` before bind/connect; the Linux socket rules require the previous and replacement binders to set it for this reuse case ([`socket(7)`](https://man7.org/linux/man-pages/man7/socket.7.html)).
 - Fix: set `SO_REUSEADDR` on the test client before binding. The production port guard and its active-listener, process-owned socket, and permission-error checks are unchanged. This is test setup only and does not invalidate or change the isolated runtime receipt.
 - Verification: the focused OS test passed after the change; full approved-venv `make test` passed with zero skips and `make validate` passed. The test-only change does not alter the accepted runtime receipt.
+
+## 2026-10-03: WP5 5a v1 derived-builder build stopped before Java compilation
+
+- Expected: after a user-approved build-only preview, check out the pinned public Keycloak source, apply the reviewed two-file observer patch, verify the pinned Temurin base, install only Git in a minimal derived builder, and compile the observer before the server-only distribution build.
+- Actual: the exact source commit and two-file patch passed review; the pinned Temurin base pull and network-none Ubuntu/Java preflight passed. The first derived-builder image build exited 1 without timing out. Root's memory-only BuildKit history diagnosis found both package inventory inputs reported by `comm` as not sorted. Dockerfile apt output was discarded, so no additional apt diagnosis is claimed. The Java compile and server build did not start. No derived image or Maven cache volume was created.
+- Correction: explicitly sort both dpkg inventories with `LC_ALL=C` and invoke `comm` with `LC_ALL=C`, retaining the positive `git --version` preflight and nonempty added-package inventory check. Do not infer why implicit locale ordering differed beyond the confirmed `comm` ordering error.
+- Cleanup/evidence: the v1 source/output workspace was removed; the v1 failure receipt and approval record remain immutable, mode 0600, at `/private/tmp/wp5-as-observer-build-receipt-20261003.json` and `/private/tmp/wp5-as-observer-build-intent-20261003.json`. The pinned Temurin base remains cached. Raw BuildKit output was not persisted in the repository or receipt. No Java compilation, Keycloak runtime, realm, normal Control Plane, or 5b operation occurred.
+- Next: the v1 approval was consumed by its single failed attempt. A v2 preview uses distinct container, image tag, Maven volume, workspace, intent, and receipt names, verifies the retained base image ID without pulling again, and waits for a new user approval before any execution.
+
+## 2026-10-03: WP5 5a v2 Maven compile ended without a safe failure diagnosis
+
+- Expected: after a separate user-approved build-only attempt, acquire the pinned public Keycloak source, apply the reviewed two-file observer patch, reuse the cached pinned Temurin base, build the corrected Git-only derived image, run network-none tool preflight, then compile `quarkus/runtime` before attempting the server distribution.
+- Actual: source checkout/patch, exact base check, derived image build, and derived-image tool preflight passed. The bounded `quarkus/runtime` compile command exited 1 before its 20-minute timeout. Its stdout/stderr were discarded, so the failing Maven module, goal, and cause are unknown. Root's later read-only inspection of compiler output metadata found entries for 17 reactor modules but no `quarkus/runtime` target; this does not prove the observer compiled. The server distribution build and ZIP were not produced.
+- Cleanup/evidence: the immutable v2 failure receipt `/private/tmp/wp5-as-observer-build-receipt-20261003-v2.json` (mode 0600, SHA-256 `40a7c28d5148fbc3bd256a398037b53fedc080bffd99e771c2c185795220717c`) and separate cleanup receipt `/private/tmp/wp5-as-observer-build-cleanup-receipt-20261003-v2.json` (mode 0600, SHA-256 `27e8d0bf7454df0e167f0ae92e9c5405fc160f6e98bf777fcea16e68b49a132f`) remain unchanged. Root independently confirmed the v2 source/output workspace, labeled cache volume, derived image, and compile container were removed. The pinned base image remains cached. No raw Maven output was retained.
+- Historical next step at that time: the v2 single-attempt approval was consumed, and the v3 build-only preview proposed bounded, memory-only output classification and exclusive per-phase attempt receipts. That preview was later approved and run once; its compile failure is recorded in the 2026-10-04 entry above.
+
+## 2026-10-04: WP5 direct TLS v2 observer path failed before endpoint metadata
+
+- Expected: the second isolated direct-runtime attempt would validate the unchanged TLS matrix and join observer rows to generated operation IDs. The test image and one fresh host fixture were used; no normal Compose services, realm changes, Gateway fixture, or Control Plane action was in scope.
+- Actual: the immutable terminal receipt `/private/tmp/wp5-as-mtls-observer-run-receipt-20261004-v2.json` (SHA-256 `e7d049f4e662e8cfdc62d11c9f797a2906ba84e55aa2c4b635e7527739aa7d61`) records 39/40 cases pass, one failure at `on_log_scan_and_join`, 22 rows parsed, zero rows joined, and cleanup complete. Root confirmed all 22 rows carried fixed `observer_failure`, unknown endpoint/method/path, correlation ID `none`, and no peer metadata. The scan was complete; these are failed observer records, not evidence that the observer emitted no rows. All four TLS negatives had their before/after HTTP liveness controls. Expired and untrusted client certificates were rejected with `SSLV3_ALERT_CERTIFICATE_UNKNOWN` over TLSv1.3 at `response_read`; wrong server CA and SAN were client-side `server_certificate_verify` failures at `handshake`. No peer evidence or AS-peer acceptance was established.
+- Cause evidence: the v2 source called `request.getUri().getPath(false)` before endpoint matching. Root's `javap` inspection of the actual published `io.quarkus.resteasy.reactive.resteasy-reactive-3.33.3.2.jar` shows `UriInfoImpl.getPath(false)` immediately calls its unsupported-encoding path and throws `IllegalArgumentException` before reading the request context. A private offline Java probe against that exact JAR reproduced the exception class. This proves the source uses an unsupported API and is a strong explanation for the 22 early rows. The immutable runtime receipt retained only `observer_failure`; it did not retain the Java exception class, so do not state that this exact class was captured from the runtime.
+- Correction: use `RoutingContext.request().path()` and compare only the five exact absolute `/realms/fapi-demo/...` paths before storing a canonical path. Encoded variants, extra prefixes, double slashes, unknown paths, and trailing slashes remain unobserved. No query, body, cookie, or arbitrary header API is read. Keycloak `HttpRequest` remains the source of method, correlation header, and peer chain. Root's JDK 23 host compile against all 471 identity-checked release JARs and 50 raw-path controls passed; this is not pinned JDK 21 image-build or runtime acceptance.
+- Cleanup/evidence: Root independently confirmed the v2 Docker project resources, listener, and host fixture were removed; the already-reviewed v2 image remains retained. V1/v2 snapshots and receipts remain immutable. Root evidence includes `wp5-root-direct-v2-failed-attempt-review-1791082004720495000.json`, `wp5-root-direct-v2-cleanup-review-1791082009858439000.json`, and `wp5-root-fixed-raw-path-probe-1791082728330707000.json`. A fresh seven-file v3 image context is prepared and reviewed at `/private/tmp/wp5-as-peer-minimal-image-build-20261004-v3/context`; no Docker build or runtime has run for v3. See the current bounded command and approval boundary in `docs/design/third-party-wp5-observer-preview.md`.
+
+## 2026-10-04: WP5 corrected published-JAR image v3 built and reviewed
+
+- Actual: one approved pinned Temurin 21 build completed with exit 0 and no timeout. Image `wp5-as-peer-observer:20261004-minimal-v3` is `sha256:3c89b8de02b358f39b0d2b7f47c1505a61087112f9ec81aed712f4b7db777953`; stdout/stderr were discarded. Immutable build receipt `/private/tmp/wp5-as-peer-minimal-image-build-receipt-20261004-v3.json` has SHA-256 `8f809827b499eb73b05eb365a1d28e26196a190cb7b6c2874702d7104abcc64a`.
+- Review: Root verified the image archive and bytecode: 471 classpath JARs, 470 unchanged, one replaced handler and one added helper, 256 other runtime archive entries unchanged, class major 61, and unchanged handler ABI/hook order. Patched runtime JAR SHA-256 is `3ef3660cf08ed1ca8b627852a4ddf625e05c18b189680e9bf38e0d9b08b4ded2`; evidence is `.generated/evidence/wp5-root-minimal-built-image-review-1791083985580572000.json`.
+- Runtime boundary at the image-build review: the fresh v3 17-file fixture and PKI/read-only Compose preflight passed (`wp5-root-direct-preflight-review-1791084160366181000.json`, `wp5-root-direct-docker-preflight-1791084203507501000.json`). Focused checks pass 58/58. V1/v2 receipts remain immutable; the later v3 direct-runtime result is recorded below.
+
+- Review tooling: the private audit initially expected the older receipt result name and used a PATH-based Java invocation. The v3 result is `pass`; the completed review uses the absolute paths to the existing host JDK. The final read-only artifact review passed, and no image rebuild was performed.
+
+## 2026-10-04: WP5 corrected direct observer runtime v3 passed
+
+- Actual: the one user-approved OFF→ON attempt passed 40/40 case gates across 34 operations. Observer OFF emitted zero rows; the complete bounded ON scan parsed 21 rows, including 18 positive joins to the expected peer-certificate digests. The eight OFF/ON HTTP baseline statuses matched. Route A/B concurrent POST-token controls mapped correctly; no-certificate, malformed/duplicate correlation, unknown-path, and all four TLS-negative controls passed with their required observer behavior. Raw logs and TLS errors were not retained.
+- Receipt/review: immutable mode-0600 terminal receipt `/private/tmp/wp5-as-mtls-observer-run-receipt-20261004-v3.json`, SHA-256 `93f3503abff52ee38449130bc131484664d0c96f8ad35e45b8a6f4924b97709c`. Root independently verified the receipt, exact Docker cleanup, fixture removal, port availability, retained image, and unchanged v1/v2 receipts in `.generated/evidence/wp5-root-direct-terminal-review-1791085120188078000.json`.
+- Remaining: the direct AS-peer observation sub-gate passed. The repeated-handler runtime trigger remains `not_run`; stock-Kong signed PAR and both access/refresh-token logout revoke-claim cases remain before full 5a. No stock fixture, 5b, normal services, realm update, or Control Plane action was part of this run.
+
+
+## 2026-10-04 — WP5 stock/re-entryの起動前確認
+
+### stock stage 1 v1: Kong entrypointのパス不一致
+
+隔離stock PAR fixtureのv1は、Kong containerがexit 127となり、TLS readinessで停止した。wrapperが`/docker-entrypoint.sh`を呼んでいたが、固定Kong 3.16.0.0 imageの`Config.Entrypoint`は`/entrypoint.sh`だった。起動前レビューでimageのentrypointとの一致確認が不足していた。
+
+認可開始は未実行で、PAR・session・logoutは送信していない。terminal receiptは`/private/tmp/wp5-as-peer-stock-par-run-receipt-20261004-v1.json`、SHA-256は`24da33f60085f2fdc5d4ffa61ca87c93c0da4d51f70e5ec4d2f2ab50bc27a6a0`。Rootは専用project・volume・networkの不在、8443/8444/19445の解放、private fixtureの削除を独立確認した。確認記録は`.generated/evidence/wp5-root-stock-v1-terminal-review-1791090386611238000.json`。
+
+v1の失敗記録を変更せず、wrapperを実imageのentrypointへ修正する。次のfixtureは別のv2名で準備し、TLS readiness中に所有containerの終了も検出して早期停止する。通常環境やclaim契約の変更は含めない。
+
+### stock stage 1 v2: 起動監視のread-only timeout
+
+v2はTLS startup中の`command_timeout`で停止した。認可開始は未実行で、PAR/session/logoutも未実行。terminal receiptは`/private/tmp/wp5-as-peer-stock-par-run-receipt-20261004-v2.json`、SHA-256は`19f514a6e23d1896ff321585a8c4f4718a0f7e7ecd1f48c4a1399c966c996505`。ログのbounded scanは完了し、observer行0件、leak検出0件。Rootは専用Dockerリソースの不在、3ポートの解放、private fixtureの削除を独立確認した。
+
+起動監視には各3秒のDocker query timeoutが設定されていた。追加のコード分析では、`docker ps -aq`の短縮IDと`inspect .Id`の完全IDを比較する不具合も見つかった。v2の記録はtimeoutであり、ID不一致がruntimeで発生したとは主張しない。v3は`--no-trunc`を指定し、startup共通deadline内で最大10秒のqueryを使う。read-only queryの一時失敗では認可開始に進まず、running状態の確認とTLS検証が揃うまで待機する。v1/v2のreceiptは保持する。
+
+### その他の起動前確認
+
+- 再入r3は`internal:true`のnetworkでreadiness timeoutとなり、PAR送信前に停止した。Rootは専用環境の回収と失敗receiptの保持を確認した（terminal SHA `7fedd3fb1db05e84ec80395cb1bd405cd6d7b98c676bb4d0915b1fbeb125c27b`）。小さいHTTP対照ではinternal networkのhost loopback到達が失敗し、通常bridgeで成功した。対照記録は`.generated/evidence/wp5-root-loopback-topology-control-1791091960731873000.json`、最終cleanupは`wp5-root-loopback-topology-cleanup-1791092179087784000.json`。r4は成功済みdirect v3と同じ専用bridgeへ戻して3モードPASS、同一PARの再入2/3/4・canonical1件・HTTP401一致をRootが独立確認した。stock/OAuth成功はこの受入に含まれない。
+- stock v4はhostgateway TLS確認を通過し、実stock PARがrelayへ到達したが、`par_form`で署名検査前に拒否された（auth-start HTTP500）。`relay_attempted=false`なので実ASへ未転送、claimも未検証。terminal SHA `af2864155cabc2439f418859539d714fc68aa9e448bebdae1ae1f8e58b7be27a`、Root回収確認は`.generated/evidence/wp5-root-stock-v4-terminal-review-1791092440403184000.json`。固定版のschema/authorization builderのコード分析で`response_mode`のdefaultが`query`であることを確認し、v5 harnessはこの単一field/valueだけを受け付ける。client_id/response_type/署名/claimの条件は維持し、拒否原因を固定enumへ分けた。v4にfield名は保持されていないため、拒否したfieldがresponse_modeだったとruntimeで確認したとは主張しない。
+
+- 固定Kong 3.16.0.0のcached schemaを依存mock付きで読み取り専用評価し、OIDC `config.discovery_endpoint`が存在しないことを確認した。bridge独自設定とは別である。runtimeへ未対応fieldを渡す前に案を除外した。これはschema shape確認で、実validation/ネットワーク成功ではない。Root記録: `.generated/evidence/wp5-root-stock-schema-shape-1791087866759294000.json`。
+- re-entry contextのmanifest SHAがpreviewで転記されていた。実ファイルとRoot独立記録の正値は`d0338f1f3b45023c15d8916e8a7189f3574ca5cf3eea6e7a95a0818d4cf3484f`。contextのinput hash・sourceには不一致がなく、build前に文書・intentの基準値を訂正した。Root記録: `.generated/evidence/wp5-root-reentry-offline-review-1791087577986295000.json`。
+- relay用のこのrepoのcached image `sha256:8832f9ad3ee60b05d2d0e87a1e998eec2b211d65634a5d073ce8c2193b6ae831`は、networkなし・mountなし・最大30秒の所有preflightコンテナでRSA-PSS SHA-256（salt長32）の実署名検証とSNI可用性を確認した。exit 0、timeoutなし、コンテナ削除を独立確認。stdout/stderrは破棄し、raw log scan成功とは記録しない。Root記録: `.generated/evidence/wp5-root-stock-crypto-preflight-1791088300740352000.json`。stock PAR/session/revokeの実行成功はこの確認に含まれない。
+
+## 2026-10-04: WP5 stock fixture v9 — callback HTTP401
+
+v8の4xx bucketから400と推測した記録を訂正した。v9で専用callback status計測を追加すると401で、固定OAuth error enumはunknownとなった。PAR201を再現し、ログの秘密値検出0、専用環境の後片付けも完了した。次はKongのlog levelをerrとし、メモリ内の既知AS/Kongエラー分類だけを取得する。terminal SHA-256 `8ab39ff08151fd543742da47e04bbde7f6ca726dfc0714ede3b5bed002955acf`。
+
+## 2026-10-04: WP5 v10 — 診断用log levelの指定誤り
+
+Rootが診断用fixtureへ指定した`KONG_LOG_LEVEL=err`によりKongが起動前に終了した。PDKの`kong.log.err()`と環境設定値を混同していた。設定値は`error`である（[公式設定例](https://developer.konghq.com/gateway/manage-kong-conf/)）。認証要求は未送信、秘密値検出0、専用リソース・PKI・3ポートは回収済み。v11では値だけを訂正して同じ診断を続ける。
+
+
+## 2026-10-04: WP5 stock fixtureのcallbackとredirect
+
+v14では隔離realmへ標準のPS256鍵providerを明示し、AS token endpoint HTTP200、Kong callback302を確認した。fresh realmのPS256鍵が初回token時に生成され、先行取得したJWKSとずれるコード経路があった。従来の401はこの設定後に解消した。続いてhelperがredirectのfragmentを拒否した。OIDCの既定login_tokensはid_token、login_redirect_modeはfragmentであり、fixtureのlogin_tokens未指定がhelperの固定terminal契約と不整合だった。公開設定login_tokens=nullを明示してtokenをredirectへ載せない。stock PAR/revoke本文は変更しない。v14 receipt SHA-256: `1c75fc9fbd6b401a2ad6c3e4bb44602d75a0ebf78ae8da0e470b750195a372e9`。session/logoutはまだ受入対象で、cleanupは独立確認済み。
+
+## 2026-10-04: WP5直結fixtureのNGINX起動停止
+
+- 事象: transport v1はstartup timeout。Kongが`env env FAPI_AS_TRANSPORT_ISSUER`の構文エラーで終了し、AS操作は0件だった。
+- 原因: `KONG_NGINX_MAIN_ENV`の値に先頭の`env`を重複指定した。runningのみのcontainer検索も、終了済みKongの早期検出を妨げた。
+- 修正: 先頭値から`env`を除去し、全stateからKongを探してexitを早期検出する。TLS timeoutには秘密値を含まない例外種別/検証codeだけを記録する。
+- 検証: 専用環境を完全回収し、別v2の24ファイルを生成。実`kong prepare`とmanifest preflight通過後、A/B直結フローは44.564秒でaccepted。後続v3の2 worker guardも45.681秒でaccepted、AS送信0。通常環境は変更していない。
+- 証跡: [直結preview](design/third-party-wp5-transport-preview.md)。v1 receiptは履歴として保持し、成功へ書き換えない。
+
+## 2026-10-04: WP5追加issuer試験のharness判定
+
+拡張v4/v5はissuer不一致拒否のHTTP400固定判定で停止した。実Kongは401を返す。v5ではRoute Aの401拒否後、正規callback・2回のrefresh・stock logoutが成功していた。harnessの拒否判定を400/401にし、重複した固定判定を削除した。実code交換各1回、正規control成功、rotation使用の照合は維持する。失敗時の固定outcome/status/countもreceiptへ残す。別v6でA/B全体がaccepted、実AS15件join、秘密値検出0、専用環境回収をRoot独立確認した。stock本文や認証方式は変更していない。
+
+## 2026-10-04: PR #21のLinux CIでunit fixture生成失敗
+
+CIの`make test`はstock fixtureの4件で`FileNotFoundError`となった。unit testがmacOS専用の`/private/tmp`へ一時ディレクトリを生成していたため、Linux runnerでは作成できなかった。unit fixtureはホストの既定temp directoryを使う。runnerの失敗経路2件では固定パス専用の削除関数をstubし、要求された削除対象と実際の一時ファイル削除を検査する。実fixtureの固定パス・所有確認・削除guardは変更せず、別パスの削除拒否検査も維持する。修正後のstock fixture unit testは16件PASS。通常環境は変更していない。

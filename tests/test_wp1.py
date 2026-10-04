@@ -96,7 +96,8 @@ class WP1FoundationTests(unittest.TestCase):
         expected = {
             "kong-api": {"API_INTROSPECTION_KEY", "API_UPSTREAM_KEY"},
             "kong-third-party": {"ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY",
-                                 "FAPI_AS_TRANSPORT_ISSUER", "FAPI_AS_TRANSPORT_INTERNAL_ORIGIN"},
+                                 "FAPI_AS_TRANSPORT_ISSUER", "FAPI_AS_TRANSPORT_INTERNAL_ORIGIN",
+                                 "FAPI_AS_TRANSPORT_STATUS_DIR", "FAPI_AS_TRANSPORT_GENERATION"},
         }
         for name, required in expected.items():
             value = services[name]["environment"]["KONG_NGINX_MAIN_ENV"]

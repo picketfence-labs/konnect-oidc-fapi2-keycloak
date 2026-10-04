@@ -4,7 +4,9 @@
 
 このデモは、FAPI 2.0対応の検討材料として、3rd Partyを含む構成でKongの主要機能を実演するものです。完全適合・認定済み・そのまま本番投入可能という説明はしません。
 
-**この文書は目標設計です。3rd Party追加は未実装・未検証です。** 既存の二経路デモの実績と、これから追加する機能を混同しません。以下の「今回」は採用予定の範囲であり、実装後の証跡を確認した機能だけを「動作確認済み」と説明します。
+受け取った顧客要件をなるべくKong標準機能で実装し、その環境をデモすることをゴールとします。2026-10-04に確認した固定版Route BのPKJWT PARのform client_id省略は、RFC9126/FAPI 2.0適合上のgapとして開示します。stock本文へのID補完は行わず、実フローの動作確認を進めます。[既知gapの記録](third-party-fapi2-conformance.md#既知のparギャップ2026-10-04)
+
+**3rd PartyのAS向け実装と隔離検証は完了し、通常デモの統合受入は未完了です。** Route A/BのPAR・code・refresh・stock logoutとAS側のmTLS/PKJWT/cnfを確認しました。通常UI→API→Upstreamの実演結果とは分けます。現在の証跡と未実行項目は[WP5受入表](third-party-wp5-acceptance.md)を参照し、確認した範囲だけを「動作確認済み」と説明します。
 
 ## お客様の要望と今回の優先順位
 
@@ -29,7 +31,7 @@ Route Bは「PKJWTを使うのでmTLSは不要」ではありません。PKJWT�
 | TLS・server certificate検証 | 安全なTLSとserver検証が必要 | 開発CAでserverを検証。browserはHTTPS、server間はmTLS | OIDC/core TLS設定。metadata取得は専用transport pluginで補完（DP0/ADR 0012） |
 | mTLS client認証（Route A） | 認められるclient認証方式 | 採用 | client認証とcertはstock OIDCの`tls_client_auth`。送信境界guardとmetadata mTLSにはcustom transportが介在 |
 | PKJWT client認証（Route B） | 認められるclient認証方式 | 採用。mTLS transportと併用 | PKJWT自体はstock対応。ただし同一requestでのmTLS併用はbridge等で補完 |
-| AS全back-channelのmTLS | すべてのendpointへの一律mTLSはFAPIの一般要件とは別 | 顧客向け接続方針として採用。PAR/token/refresh/revoke、discovery/JWKSも対象 | token/refreshはbridge送信時delegate。PAR/revokeはstock PKJWT + transport、metadataも専用transportで補完（設計確定・未実装） |
+| AS全back-channelのmTLS | すべてのendpointへの一律mTLSはFAPIの一般要件とは別 | 顧客向け接続方針として採用。PAR/token/refresh/revoke、discovery/JWKSも対象 | token/refreshはbridge送信時delegate。PAR/revokeはstock PKJWT + transport、metadataも専用transportで補完（実装・隔離AS検証済み） |
 | certificate-bound tokenの検証 | sender constraintを検証する | 両Routeで採用 | API側stock OIDC `proof_of_possession_mtls: strict` + certificate取得plugin。Upstream verifierはデモ固有の追加コード |
 | PAR | 認可パラメーターをASへ事前登録する | 採用。browserへ認可パラメーターを直接並べない価値を説明 | stock OIDC + Keycloak設定。Route Bのtransport併用は追加補完 |
 | PKCE S256・state | code flowとuser agentを保護する | 採用。認可コードの不正利用対策として説明 | stock OIDC + Keycloak設定 |
@@ -48,15 +50,15 @@ Route Bは「PKJWTを使うのでmTLSは不要」ではありません。PKJWT�
 
 ### 今回の必須範囲
 
-1. **Route BのPKJWT + mTLS併用**。stock PKJWTの存在だけでは、同じAS requestでclient certも送れることを保証しません。既存bridgeはtoken/refreshを補完しています。token/refreshは送信時署名へ限定変更し、PAR/revokeはstock PKJWTと新規transport pluginを組み合わせる方式をDP0で選びました。実装・受入はこれからです。
-2. **AS metadata取得のmTLS**。stock OIDCとbridgeの独自discovery/JWKS等について、専用metadata certでcold/shared cache・background取得を補完するtransport pluginを設計しました。動作確認は実装後です。
+1. **Route BのPKJWT + mTLS併用**。stock PKJWTの存在だけでは、同じAS requestでclient certも送れることを保証しません。既存bridgeはtoken/refreshを補完しています。token/refreshは送信時署名へ限定変更し、PAR/revokeはstock PKJWTと新規transport pluginを組み合わせる方式をDP0で選びました。実装と隔離AS検証は完了し、通常統合の受入が残っています。
+2. **AS metadata取得のmTLS**。stock OIDCとbridgeの独自discovery/JWKS等について、専用metadata certでcold/shared cache・background取得を補完するtransport pluginを設計しました。隔離ASでdiscovery/JWKSの専用peerを確認済みです。backgroundの全形態と通常統合の確認が残っています。
 3. **UpstreamのPoP verifier**。転送されたcertificateとtokenを再検証し、UIへ安全な証跡を返すデモ用コードです。Kong標準機能とは区別します。
 
 pre/post functionなら何でも補えるとは想定しません。ASへの送信処理は内部HTTP呼出しのため、単にrequest headerを追加するだけでPAR/revokeやmetadata取得のTLS設定を変えられるとは断定しません。[DP0契約](third-party-as-mtls-transport.md)で内部HTTP APIのmethod decoratorを選びました。これはworker-wideのcustom補完であり、標準設定や本番推奨方式とは説明しません。固定版のオフラインprobeでは呼出し境界を確認しましたが、実TLS・Keycloak・lifecycleの受入が未成立なら設計へ戻します。
 
 ### 受入試験だけの追加計測
 
-ASが実際に受け取ったTLS peerの証跡は[test-only Keycloak observer](third-party-as-peer-evidence.md)で計測します。26.7.4 public sourceへの観測専用patchと相関IDを使う設計で、build/実行は未実施です。これは通常デモの認証機能・Kong標準機能ではなく、試験用imageに限定します。通常デモは標準Keycloak imageで別途確認します。
+ASが実際に受け取ったTLS peerの証跡は[test-only Keycloak observer](third-party-as-peer-evidence.md)で計測します。26.7.4 public sourceへの観測専用patchと相関IDを使い、image build・direct TLS観測・再入計測は検証済みです。stock claimとAS直結の認可・refresh・logoutは検証済みで、通常デモ全体の受入は続行中です。これは通常デモの認証機能・Kong標準機能ではなく、試験用imageに限定します。通常デモは標準Keycloak imageで別途確認します。
 
 ### 完全対応へ進む場合の追加候補
 
