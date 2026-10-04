@@ -123,6 +123,12 @@ end
 local private_key = write_temporary("test private key")
 local tls_certificate = write_temporary("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n")
 local bridge = dofile("kong/plugins/fapi-client-auth-bridge/handler.lua")
+bridge:configure(nil)
+assert(not bridge.status_snapshot().delegate_ready,
+  "an initial nil configure waits for hybrid CP state without selecting header mode")
+bridge:configure({})
+assert(not bridge.status_snapshot().delegate_ready,
+  "an initial empty configure also waits for hybrid CP state")
 local conf = {
   issuer = discovery_issuer,
   discovery_endpoint = "https://keycloak.test/.well-known/openid-configuration",

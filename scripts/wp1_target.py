@@ -381,7 +381,7 @@ def validate_third_party_runtime_state(root: Path) -> dict:
         "auth_methods": ["authorization_code", "session"],
         "scopes": ["openid", "profile"],
         "response_mode": "query",
-        "login_tokens": None,
+        "login_tokens": ["id_token"],
         "require_proof_key_for_code_exchange": True,
         "require_pushed_authorization_requests": True,
         "login_action": "redirect",

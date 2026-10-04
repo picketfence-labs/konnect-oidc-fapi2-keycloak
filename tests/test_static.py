@@ -418,6 +418,7 @@ assert ".generated/pki/route-a.key:/etc/kong/fapi/route-a.key:ro" in third_party
 assert ".generated/pki/route-b-pkj.key:/etc/kong/fapi/route-b-pkj.key:ro" in third_party_mounts
 assert "API_INTROSPECTION_KEY; env API_UPSTREAM_KEY" in service_blocks["kong-api"]
 assert "ROUTE_A_TLS_KEY; env ROUTE_B_TLS_KEY" in service_blocks["kong-third-party"]
+assert "env ROUTE_B_JWK" in service_blocks["kong-third-party"]
 assert "FAPI_AS_TRANSPORT_ISSUER" in service_blocks["kong-third-party"]
 assert "KONG_NGINX_MAIN_ENV" in service_blocks["kong-third-party"]
 assert "path: ./.generated/runtime-api.env" in service_blocks["kong-api"]

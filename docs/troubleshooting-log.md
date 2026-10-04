@@ -1,5 +1,14 @@
 # 障害対応記録
 
+## 2026-10-04: 通常third-party runtimeのJWK引継ぎと初期configure待機
+
+- third-party用runtime env生成で既存の `.generated/keycloak/route-b-private.jwk` を渡しておらず、workerへも公開されないため、Route BのVault参照解決とKonnect設定受領を妨げていた。JWKをthird-party専用envにだけ追加し、NGINX worker envへ引き継ぐ。
+- Hybrid DPの初期起動でCP設定前にtransport `configure(nil/empty)` が呼ばれると、初期configがない状態を永久失敗としてlatchし、後続の正しいCP設定も拒否していた。初回のnil/空だけ待機扱いにし、初期config後のnil/変更・不正設定は引き続きfail-closedにする。
+- decK stateのOIDC `login_tokens` がnullの一方、CPは既定値 `[id_token]` を返し、post-sync diffに設定差が残っていた。両Routeへ既定値を明示する。
+- bridgeも初回空設定でheader modeを固定し、後続のtransport_delegate設定を変更扱いで拒否していた。未設定のnil/空では方式を選ばず待機し、設定受領後の変更拒否とlegacy header動作を維持する。
+- 公開amd64 imageのarm64互換実行では全worker statusがreadyでも `/proc` のworker process名が表示されず、入口チェックは閉鎖を維持した。同じDockerfile baseのcached native arm64 imageとread-only plugin sourceをprivate overrideで使い、機能確認を続ける。公開済みamd64 artifactでの通常supervisor受入とは区別する。
+- focused source testsはPASS。Rootは公開imageに修正handlerをread-only mountし通常hybridを確認中。修正後に4 workerのwrapper/registry/bridge/delegate準備完了、修正stateでthird-party diff=0を確認した。native arm64 baseでは既存の全worker readiness checkもPASS。API同期と通常A/B E2Eは未実行。
+
 ## 2026-10-04: WP5 stock fixture v8 — PAR成功後のcallback 4xx
 
 fixtureの`jwt.credential.kid`をKong JWKと一致させるとPAR201になった。実署名とRoute BのAS mTLSをRootが受入済み。ログイン1回の後、code交換のAS呼出しは観測されたがKong callbackが4xxで、session/logoutは未完成。次の試行はcallbackの固定error enumを取得し、fixture設定の問題を絞る。stockのPAR本文は変更しない。v8の専用環境は完全回収、秘密値検出は0。証跡はADR 0019を参照。

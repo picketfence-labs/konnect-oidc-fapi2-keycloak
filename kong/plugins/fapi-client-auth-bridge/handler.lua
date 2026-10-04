@@ -276,6 +276,18 @@ function Bridge:init_worker()
 end
 
 function Bridge:configure(configs)
+  local initial_config_absent = configs == nil
+    or (type(configs) == "table" and next(configs) == nil)
+  if initial_config_absent and state.configured_delivery == nil
+    and not state.config_signature and not state.delegate_failed then
+    state.delegate_ready = false
+    if transport then
+      transport.mark_bridge_loaded()
+      transport.mark_bridge_status(false, nil)
+    end
+    return
+  end
+
   local conf = read_one_config(configs)
   local delivery = conf and conf.assertion_delivery or "header"
   if state.configured_delivery ~= nil and state.configured_delivery ~= delivery then

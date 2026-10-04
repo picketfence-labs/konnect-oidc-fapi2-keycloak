@@ -169,6 +169,7 @@ class WP5DeckSelectorTests(unittest.TestCase):
             lambda state: state["services"][0].update(tls_verify=False),
             lambda state: state["services"][0].update(ca_certificates=[]),
             lambda state: state["services"][0]["plugins"][1]["config"].update(login_tokens=["cached"]),
+            lambda state: state["services"][0]["plugins"][1]["config"].update(login_tokens=None),
             lambda state: state["services"][0]["plugins"][1]["config"].update(logout_revoke_refresh_token=False),
             lambda state: state["plugins"][0]["config"].update(
                 token_url="http://keycloak:8443/realms/fapi-demo/protocol/openid-connect/token"
