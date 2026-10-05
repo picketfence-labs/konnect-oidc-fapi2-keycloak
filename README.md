@@ -13,7 +13,7 @@ Kong Gateway 3.16 を Konnect の data plane として動かし、同じ Keycloa
 
 ## Enhancementの現在地: WP5通常デモ統合
 
-APIとthird-partyの二つのKonnect CP、用途別証明書、runtime state、AS mTLS transportを実装済みです。PR #21の隔離AS検証では両Routeの認証・更新・ログアウトが成功しました。通常環境の統合・利用者受入は未完了です。`make up`の既定経路は閉じており、通常入口とUIは全worker readiness確認後にsupervisorから公開します。現在の対象差分と実行順序は[通常デモ統合プレビュー](docs/design/third-party-wp5-normal-preview.md)、確認済みの範囲は[WP5受入表](docs/design/third-party-wp5-acceptance.md)を参照してください。
+APIとthird-partyの二つのKonnect CP、用途別証明書、runtime state、AS mTLS transportを実装済みです。PR #21の隔離AS検証では両Routeの認証・更新・ログアウトが成功しました。通常A/Bの統合と代表redirect負例は確認済みです。重い網羅検証の省略は承認され、revocation metadataの通知/public URLと設定/internal URLの差分に対する受入判断が残ります。`make up`の既定経路は閉じており、通常入口とUIは全worker readiness確認後にsupervisorから公開します。現在の対象差分と実行順序は[通常デモ統合プレビュー](docs/design/third-party-wp5-normal-preview.md)、確認済みの範囲は[WP5受入表](docs/design/third-party-wp5-acceptance.md)を参照してください。
 
 公開済みGateway imageはamd64向けです。arm64端末で取得・互換実行する場合は `DOCKER_DEFAULT_PLATFORM=linux/amd64` を設定します。ただしDocker Desktopの互換実行ではNGINX worker名を入口チェックが識別できないため、通常supervisorにはnative arm64 imageを使ってください。
 

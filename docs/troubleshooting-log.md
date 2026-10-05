@@ -595,3 +595,15 @@ CIの`make test`はstock fixtureの4件で`FileNotFoundError`となった。unit
 post-syncの読み取り専用diffはcreate0/update1/delete0。唯一の変更フィールドはOIDC `config.cache_tokens_salt`で、liveは非空string、stateは未指定/null。移行専用wrapperは0/0/0か6/0/13以外を拒否するため、通常のdiffコマンドはこの残差分を拒否した。読み取り専用の詳細確認だけを行い、追加syncやguard変更はしていない。`cache_tokens:false`を確認したが、salt生成元までのコード証明はしていない。秘密値は報告・Gitへ保存せず、raw diffはGit外のprivate証跡だけに保持した。
 
 main `f8c3a8f`の通常A/Bでログイン・API200・署名/証明書binding・claim/header一致・偽装header上書き・期限後refresh・stock logoutが成功した。UI HTTPS200、4 worker readinessもpass。通常DPを一度reloadするとsupervisorがworker変更を検出し、8443/3443を閉鎖、UI/third-party DPを停止した。確認後は同じ構成を再起動し、readinessを再確認して監視付きデモを再開した。AS観測imageや全隔離matrixの再実行は行っていない。
+
+## 2026-10-05: metadata照合と通常認可開始500
+
+受入範囲の縮小を利用者が承認し、通常metadata endpoint照合と代表的redirect負例を残した。discoveryを通常DP内から既存OpenResty CLIで取得した（CA/SAN検証、metadata cert付き）。curlはnative baseに存在せず、最初のCLI準備とdecK templateのYAML parseも補正した。確認用手順の失敗であり、Gateway設定は変更していない。
+
+issuer、authorization/end-session、token/PAR/JWKSとtoken/PAR aliasは静的設定に一致。revocationのみ、通知とaliasが`https://localhost:8444/realms/fapi-demo/protocol/openid-connect/revoke`、静的設定は`https://keycloak:8443/realms/fapi-demo/protocol/openid-connect/revoke`。Keycloak 26.7.4 sourceの`OIDCWellKnownProvider` lines 206–211 / 342–345でfrontend URI使用とaliasコピーを確認した。前日の実revoke成功証跡は維持するが、metadataの完全一致は未達として記録し、runtimeは書き換えていない。
+
+通常Route A開始が不正queryあり・なしともHTTP500。全4 worker readinessはpass、OIDCエラーの固定診断はclient key読込時の`PEM_read_bio_PrivateKey`失敗。DPの停止→supervisor閉鎖→同一構成の再起動を一度実施したが回復しなかった。CP証明書のA/B鍵は期待するenv Vault参照、certはPKI一致。コンテナ環境内のA/B鍵もPKI一致・crypto parse成功。raw log/鍵/証明書は出力・保存していない。代表redirect負例の完了と前日の正常フロー再現は、この500の原因分析後に進める。
+
+続報: stock OIDCはDAOで選んだcertificate entityのkeyを下流TLSへ渡す。コンテナのenv鍵が正常なことだけでは、その取得値が解決済みPEMであることを証明しない。restartはDP writable layerの保存データを残すため、同じimage/config/PKIでTPだけをforce-recreateし、CP再取得・全worker gateを通したところ認可開始302へ回復した。保存済みデータ/Vault解決との関連は候補であり、根本原因は断定しない。CP書き換え・source修正・buildは行っていない。
+
+復旧後は通常Route Aでcallbackに外部login_redirect_uri、logoutに外部logout_redirect_uri/post_logout_redirect_uriを指定しても固定UIへ戻り、REDIR-01の代表1件がpass。A/Bのlogin/API200/binding/signature/header/spoof/logoutも短い既存helperでpassした。refresh期限待ちと隔離matrixは繰り返さず、以前のreceiptは維持した。通常環境は監視付きで再開済み。metadata差分の扱いだけはADR0021案で受入判断を求める。
