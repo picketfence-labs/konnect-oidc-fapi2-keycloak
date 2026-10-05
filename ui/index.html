@@ -59,13 +59,17 @@
       <div class="eyebrow">検証結果</div>
       <div class="grid">
         <div class="metric"><div class="label">選択したルート</div><div class="value" id="route">—</div></div>
+        <div class="metric"><div class="label">認可クライアント（azp）</div><div class="value" id="azp">—</div></div>
         <div class="metric"><div class="label">クライアント認証</div><div class="value" id="client-auth">—</div></div>
         <div class="metric"><div class="label">部門（署名済み claim）</div><div class="value" id="department">—</div></div>
         <div class="metric"><div class="label">論理ルート（署名済み claim）</div><div class="value" id="logical-route">—</div></div>
         <div class="metric"><div class="label">上流ヘッダー（部門）</div><div class="value" id="department-header">—</div></div>
         <div class="metric"><div class="label">上流ヘッダー（論理ルート）</div><div class="value" id="logical-route-header">—</div></div>
         <div class="metric"><div class="label">claim とヘッダー</div><div class="value status" id="header-match">—</div></div>
+        <div class="metric"><div class="label">Upstream verifier の署名再検証</div><div class="value status" id="signature">—</div></div>
         <div class="metric"><div class="label">証明書束縛</div><div class="value status" id="binding">—</div></div>
+        <div class="metric"><div class="label">3rd Party → API Gateway: token binding thumbprint（先頭12文字）</div><div class="value" id="token-thumbprint">—</div></div>
+        <div class="metric"><div class="label">3rd Party → API Gateway: client certificate thumbprint（先頭12文字）</div><div class="value" id="client-thumbprint">—</div></div>
       </div>
       <div class="actions">
         <button id="again">再検証</button>
@@ -73,12 +77,14 @@
         <a class="button secondary" id="logout" href="#">このルートからログアウト</a>
       </div>
       <p id="check" hidden></p>
-      <h2>サニタイズ済み証跡</h2>
-      <pre id="raw"></pre>
+      <p>表示する thumbprint は 3rd Party → API Gateway 間の token と client certificate の照合結果です。</p>
     </section>
     <p class="error" id="error" hidden></p>
   </main>
+  <script src="/evidence.js"></script>
   <script>
+    if (location.hash) history.replaceState(null, '', `${location.pathname}${location.search}`);
+
     const routes = {
       'route-a': { endpoint: 'https://localhost:8443/api/fapi/mtls', logout: 'https://localhost:8443/api/fapi/mtls/logout' },
       'route-b': { endpoint: 'https://localhost:8443/api/fapi/pkj-mtls', logout: 'https://localhost:8443/api/fapi/pkj-mtls/logout' }
@@ -90,6 +96,39 @@
     const check = document.querySelector('#check');
     let baseline;
 
+    function setMetric(id, value) {
+      document.querySelector(`#${id}`).textContent = value;
+    }
+
+    function setBooleanMetric(id, passed, positive, negative) {
+      const element = document.querySelector(`#${id}`);
+      element.textContent = passed ? positive : negative;
+      element.className = passed ? 'value status' : 'value error';
+    }
+
+    function showEvidence(evidence) {
+      const display = FapiDemoEvidence.project(evidence, selectedRoute);
+      setMetric('route', display.route);
+      setMetric('azp', display.azp);
+      setMetric('client-auth', display.clientAuth);
+      setMetric('department', display.department);
+      setMetric('logical-route', display.logicalRoute);
+      setMetric('department-header', display.departmentHeader);
+      setMetric('logical-route-header', display.logicalRouteHeader);
+      setMetric('token-thumbprint', display.tokenThumbprintPrefix);
+      setMetric('client-thumbprint', display.clientThumbprintPrefix);
+      setBooleanMetric('header-match', display.headerMatches, '一致', '不一致');
+      setBooleanMetric('signature', display.signatureVerified, '検証成功', '検証失敗');
+      setBooleanMetric('binding', display.bindingVerified, '検証成功', '検証失敗');
+      return display;
+    }
+
+    function spoofMatches(display, original) {
+      return ['department', 'logicalRoute', 'departmentHeader', 'logicalRouteHeader']
+        .every((field) => display[field] === original[field]) &&
+        display.headerMatches;
+    }
+
     async function run(spoof = false) {
       if (!config) return;
       error.hidden = true;
@@ -100,30 +139,17 @@
           headers: spoof ? { 'X-Demo-Department': 'forged', 'X-Demo-Route': 'forged-route' } : {}
         });
         if (!response.ok) throw new Error(`Gateway が HTTP ${response.status} を返しました`);
-        const evidence = await response.json();
-        document.querySelector('#route').textContent = evidence.route || selectedRoute;
-        document.querySelector('#client-auth').textContent = evidence.client_authentication || '不明';
-        document.querySelector('#department').textContent = evidence.department || 'なし';
-        document.querySelector('#logical-route').textContent = evidence.logical_route || 'なし';
-        document.querySelector('#department-header').textContent = evidence.department_header || 'なし';
-        document.querySelector('#logical-route-header').textContent = evidence.logical_route_header || 'なし';
-        document.querySelector('#header-match').textContent = evidence.header_claims_match ? '一致' : '不一致';
-        document.querySelector('#header-match').className = evidence.header_claims_match ? 'value status' : 'value error';
-        document.querySelector('#binding').textContent = evidence.binding_verified ? '検証成功' : '検証失敗';
-        document.querySelector('#raw').textContent = JSON.stringify(evidence, null, 2);
+        const responseEvidence = await response.json();
+        const display = showEvidence(responseEvidence);
         result.hidden = false;
         document.querySelector(`[data-route="${selectedRoute}"]`).classList.add('active');
         if (spoof) {
-          const passed = evidence.department === baseline.department &&
-            evidence.logical_route === baseline.logical_route &&
-            evidence.department_header === baseline.department_header &&
-            evidence.logical_route_header === baseline.logical_route_header &&
-            evidence.header_claims_match;
+          const passed = spoofMatches(display, baseline);
           check.textContent = passed ? '成功: 外部から送った偽装ヘッダーは、署名済み claim の値を変更できませんでした。' : '失敗: 偽装ヘッダーの影響を検出しました。';
           check.className = passed ? 'status' : 'error';
           check.hidden = false;
         } else {
-          baseline = evidence;
+          baseline = display;
         }
       } catch (e) {
         error.textContent = `${e.message}\nセッションがない場合は、上の該当ルートからログインしてください。`;

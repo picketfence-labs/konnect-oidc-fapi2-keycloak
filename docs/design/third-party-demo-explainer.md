@@ -6,7 +6,7 @@
 
 受け取った顧客要件をなるべくKong標準機能で実装し、その環境をデモすることをゴールとします。2026-10-04に確認した固定版Route BのPKJWT PARのform client_id省略は、RFC9126/FAPI 2.0適合上のgapとして開示します。stock本文へのID補完は行わず、実フローの動作確認を進めます。[既知gapの記録](third-party-fapi2-conformance.md#既知のparギャップ2026-10-04)
 
-**3rd PartyのAS向け実装と隔離検証は完了し、通常デモの統合受入は未完了です。** Route A/BのPAR・code・refresh・stock logoutとAS側のmTLS/PKJWT/cnfを確認しました。通常UI→API→Upstreamの実演結果とは分けます。現在の証跡と未実行項目は[WP5受入表](third-party-wp5-acceptance.md)を参照し、確認した範囲だけを「動作確認済み」と説明します。
+**Route A/Bの通常フローとreset/switchは確認済みです。** UIの表示allowlist、azp固定mapping、thumbprint先頭12文字、fragment除去は静的検証しました。初期UIとfragment除去のHTTP previewも確認しましたが、HTTPS result画面の実browser表示とclean checkoutからのoverride再現は未確認です。確認層と証跡は[WP6受入表](third-party-wp6-acceptance.md)に記録します。WP5の隔離試験・通常統合・受入範囲は[WP5受入表](third-party-wp5-acceptance.md)を参照してください。
 
 ## お客様の要望と今回の優先順位
 
@@ -46,19 +46,21 @@ Route Bは「PKJWTを使うのでmTLSは不要」ではありません。PKJWT�
 
 詳細な仕様行との対応は[要件対応表](third-party-fapi2-conformance.md)を参照します。表の機能数から「何％適合」とは計算しません。
 
+Keycloak 26.7.4のdiscoveryはrevocation endpointにbrowser-facing hostを返し、Kongの明示的back-channel設定はcontainer-internal hostを使います。両方とも同じrealmとpathを指し、通常A/B logoutは成功していますが、metadata URLの文字列完全一致はしていません。この既知差分は[ADR 0021](../decisions/0021-wp5-revocation-metadata-gap.md)で受け入れています。revocation SLAやMETA-02完全一致を主張しません。
+
 ## 追加実装が必要なもの
 
 ### 今回の必須範囲
 
-1. **Route BのPKJWT + mTLS併用**。stock PKJWTの存在だけでは、同じAS requestでclient certも送れることを保証しません。既存bridgeはtoken/refreshを補完しています。token/refreshは送信時署名へ限定変更し、PAR/revokeはstock PKJWTと新規transport pluginを組み合わせる方式をDP0で選びました。実装と隔離AS検証は完了し、通常統合の受入が残っています。
-2. **AS metadata取得のmTLS**。stock OIDCとbridgeの独自discovery/JWKS等について、専用metadata certでcold/shared cache・background取得を補完するtransport pluginを設計しました。隔離ASでdiscovery/JWKSの専用peerを確認済みです。backgroundの全形態と通常統合の確認が残っています。
+1. **Route BのPKJWT + mTLS併用**。stock PKJWTの存在だけでは、同じAS requestでclient certも送れることを保証しません。既存bridgeはtoken/refreshを補完しています。token/refreshは送信時署名へ限定し、PAR/revokeはstock PKJWTとtransport pluginを組み合わせています。隔離AS検証と承認範囲での通常Route A/B統合は完了しました。
+2. **AS metadata取得のmTLS**。stock OIDCとbridgeのdiscovery/JWKS取得を専用metadata certificateで補完しています。隔離ASと通常metadata取得を確認しました。background/threadの全形態はWP5の合意範囲で網羅対象から除外し、未網羅として記録しています。
 3. **UpstreamのPoP verifier**。転送されたcertificateとtokenを再検証し、UIへ安全な証跡を返すデモ用コードです。Kong標準機能とは区別します。
 
-pre/post functionなら何でも補えるとは想定しません。ASへの送信処理は内部HTTP呼出しのため、単にrequest headerを追加するだけでPAR/revokeやmetadata取得のTLS設定を変えられるとは断定しません。[DP0契約](third-party-as-mtls-transport.md)で内部HTTP APIのmethod decoratorを選びました。これはworker-wideのcustom補完であり、標準設定や本番推奨方式とは説明しません。固定版のオフラインprobeでは呼出し境界を確認しましたが、実TLS・Keycloak・lifecycleの受入が未成立なら設計へ戻します。
+pre/post functionなら何でも補えるとは想定しません。ASへの送信処理は内部HTTP呼出しのため、単にrequest headerを追加するだけでPAR/revokeやmetadata取得のTLS設定を変えられるとは断定しません。[DP0契約](third-party-as-mtls-transport.md)で内部HTTP APIのmethod decoratorを選びました。これはworker-wideのcustom補完であり、標準設定や本番推奨方式とは説明しません。実TLS・Keycloak・lifecycleの受入は承認範囲で完了し、全background/thread形態の網羅はWP5の合意により省略しています。
 
 ### 受入試験だけの追加計測
 
-ASが実際に受け取ったTLS peerの証跡は[test-only Keycloak observer](third-party-as-peer-evidence.md)で計測します。26.7.4 public sourceへの観測専用patchと相関IDを使い、image build・direct TLS観測・再入計測は検証済みです。stock claimとAS直結の認可・refresh・logoutは検証済みで、通常デモ全体の受入は続行中です。これは通常デモの認証機能・Kong標準機能ではなく、試験用imageに限定します。通常デモは標準Keycloak imageで別途確認します。
+ASが実際に受け取ったTLS peerの証跡は[test-only Keycloak observer](third-party-as-peer-evidence.md)で計測しました。26.7.4 public sourceへの観測専用patchと相関IDを使い、image build・direct TLS観測・再入計測は検証済みです。observerは通常デモへ入れません。通常デモは標準Keycloak imageで確認済みです。残るWP6の確認はHTTPS result画面のbrowser表示とclean checkoutからの起動です。
 
 ### 完全対応へ進む場合の追加候補
 
@@ -77,7 +79,7 @@ ASが実際に受け取ったTLS peerの証跡は[test-only Keycloak observer](t
 
 1. 3rd Party / AS / API提供者の境界と、接続ごとのmTLS対象を図で説明する。
 2. Route Aでlogin → token取得 → API成功。certificateとtoken bindingの一致を見せる。
-3. resetしてRoute Bへ切替。同じmTLS経路でもclient認証だけをPKJWTへ変えられることを見せる。
+3. Route Aをlogout/resetし、Route Bへ切替。同じmTLS経路でもclient認証をPKJWTへ変えられることを見せる。通常フローではA→B→A→Bの切替とdemo userごとの新規loginを確認済みです。
 4. certなし・別certでAPIが拒否されることを見せる。
 5. PAR、PKCE、issuer/audience/scope等の標準機能の価値を説明する。
 6. 標準機能、今回のcustom補完、未対応の完全適合項目、DPoP追加候補を区別して締める。

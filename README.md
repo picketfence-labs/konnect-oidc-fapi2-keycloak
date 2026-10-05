@@ -11,32 +11,22 @@ Kong Gateway 3.16 を Konnect の data plane として動かし、同じ Keycloa
 
 > このリポジトリは FAPI 2.0 の学習・比較用デモです。認定試験への適合を主張するものではありません。
 
-## Enhancementの現在地: WP5通常デモ統合
+## 現在の状態と範囲
 
-APIとthird-partyの二つのKonnect CP、用途別証明書、runtime state、AS mTLS transportを実装済みです。PR #21の隔離AS検証では両Routeの認証・更新・ログアウトが成功しました。通常A/Bの統合と代表redirect負例は確認済みです。重い網羅検証の省略とrevocation metadataの通知/public URL・設定/internal URLの既知差分を受け入れ、WP3/WP5は受入確認・Close済みです。残るWP6でUI表示・reset/切替・再現手順を仕上げます。`make up`の既定経路は閉じており、通常入口とUIは全worker readiness確認後にsupervisorから公開します。現在の対象差分と実行順序は[通常デモ統合プレビュー](docs/design/third-party-wp5-normal-preview.md)、確認済みの範囲は[WP5受入表](docs/design/third-party-wp5-acceptance.md)を参照してください。
+WP1～WP5は受入済み・closedです。通常Route A/Bの認証、API応答、証明書binding、claim/header、偽装header拒否、logoutは確認済みです。WP6ではUIの安全な表示、reset/switch、clean checkoutの手順を仕上げています。検証層と未実行項目は[WP6受入表](docs/design/third-party-wp6-acceptance.md)、WP5のP0/P1/Dと承認済み未網羅範囲は[WP5受入表](docs/design/third-party-wp5-acceptance.md)を参照してください。
 
-公開済みGateway imageはamd64向けです。arm64端末で取得・互換実行する場合は `DOCKER_DEFAULT_PLATFORM=linux/amd64` を設定します。ただしDocker Desktopの互換実行ではNGINX worker名を入口チェックが識別できないため、通常supervisorにはnative arm64 imageを使ってください。
+このデモは本番FAPI 2.0完全準拠、認定、production readinessを主張しません。Route BのPKJWT PARにおけるform `client_id`省略はRFC 9126の既知gapとして開示します。stock本文は変更しません。Keycloak 26.7.4のrevocation metadata URL差分は[ADR 0021](docs/decisions/0021-wp5-revocation-metadata-gap.md)のとおり既知差分として記録し、META-02完全一致とは扱いません。
 
-開発依存を入れてから、credential-free検証を実行します。
+Apple Siliconでは[ローカルCompose override](docker-compose.demo-native.yml)を使います。API Gatewayとverifierは公開amd64 imageを使い、third-party Data PlaneはKong Gateway 3.16.0.0のnative arm64 baseから起動して、このcheckoutのtransport/bridge sourceをread-onlyでmountします。overrideはimageをbuildせず、source treeだけを反映します。
+
+開発依存を入れ、credential-freeの静的検証を行います。
 
 ```bash
 python3 -m pip install --requirement requirements-dev.txt
 make validate
 make test
+node tests/test_wp6_ui.js
 ```
-
-foundationの対象は明示的に選びます。以下は対象CPの作成とschema照合の前提が揃った後に使うlive read-only diffの例です。
-
-```bash
-GATEWAY=api STAGE=foundation make deck-diff
-GATEWAY=third-party STAGE=foundation make deck-diff
-```
-
-`make plan`は適用前のread-only previewです。適用・同期・Docker起動・realm更新は、具体的な差分と起動対象をレビューした後に実行します。後続のsetup節はv1デモの設計記録を含みます。現在の二Gateway構成では、上記の通常デモ統合プレビューに従ってください。RFC 9126の既知gapは開示し、本番FAPI完全準拠は主張しません。
-
-[![Route A の検証結果。署名済み claim、Kong が設定したヘッダー、証明書束縛を表示](docs/assets/ui-results.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
-
-*検証結果画面。画像をクリックすると Route A のインタラクティブ workflow を開きます。*
 
 ## 構成
 
@@ -53,74 +43,55 @@ GATEWAY=third-party STAGE=foundation make deck-diff
 
 - Terraform 1.11 以降
 - decK 1.53 以降
-- Docker Compose
+- `!reset`をサポートするDocker Compose（Compose 5.2.0で確認済み。[mergeの説明](https://docs.docker.com/reference/compose-file/merge/#reset-value)を参照）
 - Python 3 と OpenSSL
-- control plane を作成できる Konnect PAT
+- 既存2 Control Planeを読み取れるKonnect token
+- Apple Siliconまたはarm64端末（third-party Data Planeはnative arm64で起動）
+- Node.js（UI単体検査だけに使用。runtime依存ではありません）
 
 Data plane は Konnect control plane から Enterprise ライセンスを取得します。ローカルの `KONG_LICENSE_DATA` は不要です。
 
-## セットアップ
+## clean checkoutから既存デモを再現する
 
-環境変数ファイルを作り、`KONNECT_TOKEN` と利用リージョンの `KONNECT_SERVER_URL` を設定します。
+この手順は、受入済みの既存API/third-party Control PlaneとそのData Plane identityを再利用します。新しいControl Plane、Terraform apply、decK sync、Keycloak realm更新は行いません。新規Konnect環境のbootstrapにはTerraform、schema、foundation、runtimeの別previewと個別レビューが必要で、この再現手順の対象外です。
 
-```bash
-cp .env.example .env
-$EDITOR .env
-```
-
-設定と静的検査を実行します。この段階では外部リソースを変更しません。
+1. `.env.example`を`.env`へコピーし、利用するKonnect regionの`KONNECT_SERVER_URL`、`KONNECT_TOKEN`、`TF_VAR_control_plane_name`、`TF_VAR_third_party_control_plane_name`を既存のAPI/third-party環境に合わせます。
+2. `.env`、`.generated`のruntime/PKI/realm/credentials、`infra/certs/`、既存Keycloak realmを再利用するなら`keycloak/data/`を、許可されたGit外backupから復元します。これらに含まれるtoken、password、secret、証明書と秘密鍵をcommitしません。
+3. 既存2 Control Planeに対応するTerraform stateがある場合は`make render-runtime`でhostを再描画します。stateがない場合はbackupの`.generated/runtime.env`を使います。Control Planeが既に存在する環境へ、stateなしのTerraform workspaceから`make apply`を実行しません。
+4. `make validate`、`make test`、`node tests/test_wp6_ui.js`を実行します。次にread-onlyのruntime diffを確認します。
 
 ```bash
-make validate
+GATEWAY=api STAGE=runtime make deck-diff
+GATEWAY=third-party STAGE=runtime make deck-diff
 ```
 
-Konnect の変更計画を確認し、承認した計画だけを適用します。
+既存環境では、APIの既知差分`openid-connect.config.cache_tokens_salt`の1 update（live値は非空、state未指定）とthird-party diff 0を期待します。strict migration guardはnon-zero diffを拒否するため、APIのread-only `make deck-diff`は既知の1行だけでもnon-zeroで終了する場合があります。guardを緩めず、Control Plane ownerへread-only diffの確認を依頼します。この既知行に対する追加syncは行いません。ほかの差分もsyncせず、対象と理由をownerに確認します。`plugin-schema-sync`、`deck-sync`、`make apply`をこの再現手順で実行しません。
+
+5. Composeの対象とmerge結果をread-onlyで確認します。`COMPOSE_FILE`をexportするとreadiness supervisorも同じoverrideを使います。
 
 ```bash
-make plan
-make apply
+export COMPOSE_FILE=docker-compose.yml:docker-compose.demo-native.yml
+docker compose --env-file .env --env-file .generated/runtime.env --profile gateway --profile demo config --quiet
 ```
 
-ローカル開発用 CA、サーバー／クライアント証明書、Route B の署名鍵、Keycloak realm、デモユーザーを生成します。再実行しても既存の鍵と資格情報は保持されます。
+6. Dockerのimage取得・container起動は、対象imageとserviceをレビューして明示的に承認した後に行います。必要なpublic imageは先にpullし、起動時はbuild/pullを無効にします。third-party Data Planeのlistenerはこの承認済みdemo runにだけ明示して開きます。
 
 ```bash
-make generate-dev-assets
+docker compose --env-file .env --env-file .generated/runtime.env --profile gateway --profile demo pull keycloak ui pop-verifier kong-api kong-third-party
+FAPI_DEMO_PROXY_LISTEN='0.0.0.0:8443 ssl' docker compose --env-file .env --env-file .generated/runtime.env --profile gateway up -d --no-build --pull never keycloak pop-verifier kong-api kong-third-party
+scripts/require-wp5-readiness.sh --wait --timeout 120
+FAPI_DEMO_PROXY_LISTEN='0.0.0.0:8443 ssl' scripts/require-wp5-readiness.sh --supervise
 ```
 
-デモユーザーを明示的に確認する場合だけ、次を実行します。
+`--supervise`は全workerのreadinessを確認してからloopbackの8443入口を開き、UIを起動します。worker状態が変わると入口とUIを閉じます。ブラウザーでは <https://localhost:3443> を開き、Route A/Bを選択します。開発CAを信頼済みの端末でだけHTTPS result画面を確認してください。`https://localhost:8444`はKeycloak、`https://localhost:8443`はGateway入口です。
 
-```bash
-sed -n '1,2p' .generated/demo-users.txt
-```
+### Routeを切り替えてdemo userをresetする
 
-username と password を個別の値として取り出す場合は、全行をループで読み込みます。
+同じbrowser profileを使い、Route Aでsales demo userとしてloginし、claim/headerを確認してからRoute Aのlogoutを選びます。Route Bへ進み、engineering demo userで新しくloginして同じ確認を行い、Route Bのlogoutを選びます。A→B→A→Bの順で繰り返し、毎回Keycloakのlogin formが表示されてから資格情報を入力します。結果画面ではRoute、azpから決まる認証方式、department、claim/header、binding、thumbprint先頭12文字を確認します。
 
-```bash
-while read -r DEMO_USERNAME DEMO_PASSWORD; do
-  echo "username: ${DEMO_USERNAME}"
-  echo "password: ${DEMO_PASSWORD}"
-done < .generated/demo-users.txt
-```
+logout後もKeycloakが既存SSO sessionを使ってlogin formを省く場合は、対象demo userだけをresetします。Keycloak Admin Consoleの`fapi-demo` realmで`Users`から対象ユーザーを開き、`Sessions`の`Logout all sessions`を実行してください。影響を受けるbrowserのlocalhost site cookieも消してから同じflowをやり直します。realm全体や別の利用者をresetしません。HTTPS警告を無視して先へ進まず、開発CAが信頼されていなければそのbrowser evidenceは未実行として記録します。
 
-Gateway 設定の差分を確認し、承認後に同期します。
-
-```bash
-make plugin-schema-sync
-make deck-diff
-make deck-sync
-```
-
-`plugin-schema-sync` は custom plugin の `schema.lua` だけを対象Control Planeへ登録または更新します。これは外部変更なので、schemaをレビューしてから実行してください。`deck-diff` と `deck-sync` は事前に登録状態をread-onlyで確認します。
-
-最後にローカルサービスを起動します。
-
-```bash
-make up
-```
-
-`make up` は Keycloak のユーザープロファイルとclient mapperを同期し、既存realmのデモユーザーにも `department`、`departement`、`route` を補正します。コンテナーを再作成せずデータだけを補正する場合は、`make sync-demo-data` を実行します。既存のブラウザーセッションは補正前のtokenを保持するため、同期後はログアウトしてからログインし直します。
-
-ブラウザーで <https://localhost:3443> を開き、Route A または Route B を選択します。`http://localhost:3000` は HTTPS のUIへリダイレクトします。ブラウザーは Gateway の `https://localhost:8443` と Keycloak の `https://localhost:8444` に接続します。3つのサーバー証明書は `.generated/pki/ca.crt` で署名されています。開発端末でこの CA を信頼する場合は、このファイルだけを対象にし、デモ終了後に信頼設定を取り消してください。
+新しい隔離Keycloak環境を作る場合にだけ`make generate-dev-assets`を使い、空の`keycloak/data/`へrealmをimportします。既存DBを再利用する場合、生成し直したpassword/realmと混在させません。`make render-runtime`には対応するTerraform output stateが必要です。
 
 [![Route A と Route B を選択するデモ開始画面](docs/assets/ui-main.png)](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)
 
@@ -133,28 +104,29 @@ make up
 ## 確認ポイント
 
 - Route A は `tls_client_auth` と表示される。
-- Route B は `private_key_jwt+mtls` と表示される。
-- `binding_verified` が `true` で、token thumbprint と TLS peer thumbprint が一致する。
+- Route B は `private_key_jwt` と表示される。
+- `binding_verified` と署名再検証が成功する。
+- UIのthumbprintは3rd Party→API Gateway間のtoken bindingとclient certificateを表し、それぞれ先頭12文字だけを表示する。
 - デモユーザーに応じて `department` と `logical_route` が変わる。
 - `department_header` と `logical_route_header` が署名済み claim と一致し、UI に「claim とヘッダー: 一致」と表示される。
 - UI の偽装テストで送った `X-Demo-*` ヘッダーが、署名済み claim の値を上書きしない。
-- 各ルートのログアウト後、対応するセッション cookie が再利用できない。
+- Route A/Bのlogout後は同じcookie jarからfresh loginし、旧Route sessionを再利用できない。
 
 ## 現在の実装範囲
 
-Route A のログイン、トークン交換、失効は stock OIDC plugin の mTLS 機能で構成しています。Route B のtokenとrefreshでは、preprocessorがリクエストごとに`private_key_jwt`を生成し、stock OIDC pluginのmTLS transportへ渡します。PARとrevocationでは、同じ鍵を環境変数Vaultから解決し、stock OIDC pluginの`private_key_jwt`認証を使います。秘密JWKの値はdecK stateへ入りません。
+Route Aはstock OIDCの`tls_client_auth`を使います。Route Bはstock OIDCのPKJWTとmTLS transportへ既存bridge/custom transportを組み合わせます。API側はstock Resource Server設定と追加のPoP verifierを使い、認証済みclaimからUpstream headerを作ります。Kongが標準で行う処理とdemo固有の補完は[顧客向け説明](docs/design/third-party-demo-explainer.md)に分けて記載しています。
 
-Route AとRoute Bのbrowser login、code exchange、Upstream mTLS、証明書束縛はlive環境で確認済みです。残る完了条件は、refresh、revocation、logoutのwire-level証跡と、要件書の異常系を実行して記録することです。現在の設定は失敗を隠さず、Keycloak側の検証結果をそのまま反映します。
+通常Route A/BのloginからAPI response、claim/header、binding、logoutと、A→B→A→Bのreset/switchは確認済みです。UIのresponse allowlistとazp mappingは単体検査済みです。HTTPS result画面はbrowserのCA信頼エラーにより未確認です。clean checkoutのnative compose overrideはstatic configまで確認済みで、起動・fresh checkoutからのflowはまだ実行していません。受入層ごとの状態は[WP6受入表](docs/design/third-party-wp6-acceptance.md)に記録しています。
 
 ## 停止と削除
 
-ローカルコンテナーだけを停止します。
+ローカルコンテナーの停止も環境変更です。停止対象をレビューし、明示的な承認を得てから実行してください。`COMPOSE_FILE`をexportしたshellでは、以下の停止が同じnative overrideを使います。
 
 ```bash
 make down
 ```
 
-`make destroy` はローカルコンテナーを停止し、Terraform が管理する Konnect リソースを削除します。`.generated/` の鍵と資格情報は自動削除しません。削除計画を確認できる状況でのみ実行してください。
+このデモの再現に`make destroy`は使いません。Terraformが管理するKonnectリソースの削除が必要な場合は、別途具体的な削除planをレビューして承認を得てください。
 
 ## セキュリティ上の注意
 

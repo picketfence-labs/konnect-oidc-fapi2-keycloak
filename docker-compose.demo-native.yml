@@ -1,0 +1,26 @@
+# Local Apple Silicon demo profile. Keep API and verifier on their published
+# amd64 images; run the third-party DP on native arm64 with reviewed source
+# mounted read-only. No image build or publication is needed.
+services:
+  pop-verifier:
+    build: !reset null
+    image: ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak/pop-verifier@sha256:e7f129e2f863830c17faec256a57d64a250ef85ec99800d49491aa6187e2cb89
+    platform: linux/amd64
+    pull_policy: if_not_present
+
+  kong-api:
+    build: !reset null
+    image: ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak@sha256:4d152ec6c035db6c72155f7a8a2fedadb4c3ff2b529029298cfedac0ac110077
+    platform: linux/amd64
+    pull_policy: if_not_present
+
+  kong-third-party:
+    build: !reset null
+    image: kong/kong-gateway:3.16.0.0@sha256:e2678b4cb534fc9d6a17288d83457d6cbea235a6331dc4982e021300ccb668c4
+    platform: linux/arm64
+    pull_policy: if_not_present
+    tmpfs:
+      - /run/kong:uid=1001,gid=0,mode=0700
+    volumes:
+      - ./kong/plugins/fapi-as-mtls-transport:/usr/local/share/lua/5.1/kong/plugins/fapi-as-mtls-transport:ro
+      - ./kong/plugins/fapi-client-auth-bridge:/usr/local/share/lua/5.1/kong/plugins/fapi-client-auth-bridge:ro
