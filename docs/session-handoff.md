@@ -4,7 +4,7 @@
 
 2026-10-05追記: 利用者が重い網羅検証の省略を承認した。代表外部redirect負例は通常Route Aでpass。metadata照合はrevocationだけ通知/public originと設定/internal originが不一致（Keycloak 26.7.4のfrontend builder仕様）。[ADR0021](decisions/0021-wp5-revocation-metadata-gap.md)の現構成維持・既知差分記録を、利用者のPR #25 mergeと受入実行指示に基づいて受け入れた。META-02完全一致はpassにしない。main `72a6426`を同期し、証跡のhash/結果/private modeと現行readiness/UIを確認、WP3 #9・WP5 #11は最終報告後Close済み。
 
-通常認可開始のclient key PEM読込500を発見し、restartでは回復しなかった。同じimage/config/PKIでTPのみforce-recreateするとCP再受領後に復旧。全worker gate、代表redirect、A/B login/API200/binding/signature/header/spoof/logoutがpassした。根本原因は断定せず、保存済みDPデータに関わる問題の可能性と回復手順を記録する。CPへのwrite・source変更・新image buildは実施していない。現在は監視付きでデモを再開済み。次の実装packageはWP6。WP5の受入に追加の網羅検証を戻さない。
+通常認可開始のclient key PEM読込500を発見し、restartでは回復しなかった。同じimage/config/PKIでTPのみforce-recreateするとCP再受領後に復旧。全worker gate、代表redirect、A/B login/API200/binding/signature/header/spoof/logoutがpassした。根本原因は断定せず、保存済みDPデータに関わる問題の可能性と回復手順を記録する。CPへのwrite・source変更・新image buildは実施していない。現在は監視付きでデモを再開済み。WP6も承認範囲で受入済み・closed。WP5の受入に追加の網羅検証を戻さない。
 
 
 main `f8c3a8f`（PR #23 merge後）で通常デモの統合確認が通った。利用者の具体的な承認を受け、API CPの旧A/B構成13件を削除し、Resource Server構成6件を追加した。共有CAとfoundation certificateは維持し、旧設定のprivate backupはGit外に保存している。third-party CPの追加11件、標準Keycloakの3 clientsとPS256 providerも反映済み。
@@ -18,9 +18,11 @@ main `f8c3a8f`（PR #23 merge後）で通常デモの統合確認が通った。
 | WP1 #7、WP2 #8、WP4 #10 | 受入済み・closed | なし |
 | WP3 #9 | isolated 37/37と通常統合がpass、受入済み・closed | なし |
 | WP5 #11 | 承認範囲で受入済み・closed。網羅縮小とmetadata差分を記録 | なし |
-| WP6 #12 | Luna / xHighで実装、レビュー・受入待ち | UIのazp固定mapping・thumbprint・表示allowlist・fragment除去、native source override、READMEを更新。通常reset/switchはA→B→A→Bで4/4 pass。clean checkout起動は未実行 |
+| WP6 #12 | PR #27 merge後、承認範囲で受入済み・closed | clean checkout起動・代表A/B・UI/JS HTTPS配信を確認。HTTPS認証済み結果画面の実browser表示はnot_run、READMEに文書手順を用意 |
 
-WP6はmain `ff0a29a`（PR #26 merge）から着手した。UIとComposeの静的確認、代表resetの証跡と未実行項目は[WP6受入表](design/third-party-wp6-acceptance.md)を参照する。残るruntime確認は、レビュー後に既存2 CP/DP identityとGit外の材料を再利用し、clean checkoutでnative overrideから起動して両Routeを確認すること。新規Control Plane作成、追加sync、realm再初期化、新image buildは行わない。HTTPS result画面のbrowser evidenceは開発CAの信頼エラーで未実行だが、READMEに実演手順を用意した。
+WP6のmain `82d7ab2`受入が完了し、WP6 #12とEpic #6をCloseした。WP1～WP6に残る実装タスクはない。既存2 CP/DP identity・秘密材料と停止済みDBを新しいcheckoutへ復元し、native source overrideから5サービスを起動して全worker readiness、A/B login/API200/claim/header/PoP/signature/spoof/logout、UI/JSのHTTPS配信とsource一致がpassした。一次receiptは `.generated/evidence/wp6-clean-checkout-acceptance-20261005.json`、SHA-256 `da3117feef563a91cdcf0eecd1f3c0822f7af74aa782abb4f9bd639a6f1e6a29`。詳細は[WP6受入表](design/third-party-wp6-acceptance.md)。CP sync、realm再初期化、新image build/pull、網羅検証の再開は行っていない。
+
+確認後は停止済みDBとreceiptをprimaryへ戻し、通常作業ディレクトリの `COMPOSE_FILE=docker-compose.yml:docker-compose.demo-native.yml`、`COMPOSE_PROJECT_NAME=konnect-oidc-fapi2-keycloak` でデモを再開した。supervisor sessionは `91090`。HTTPS認証済み結果画面の実browser表示はCA信頼エラーでnot_runだが、契約の文書化したbrowser evidence手順をREADMEに用意した。
 
 Git外の通常証跡: `.generated/evidence/wp5-normal-flow-route_a.json`（SHA-256 `0050094f0f7c31b08cbbd433bbf58f771a1f0c046b23173e5085ac0648a0286d`）、`wp5-normal-flow-transport_route_b.json`（`4340fad6e39b197c8d5106b28a199af64a6be2a6394298197ca4483ac2c82bd8`）、`wp5-normal-supervisor-reload.json`、`wp5-normal-integration-progress.json`。raw token/cookie/password/鍵は報告に含めない。
 

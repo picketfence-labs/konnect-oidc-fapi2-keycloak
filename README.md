@@ -7,13 +7,13 @@ Kong Gateway 3.16 を Konnect の data plane として動かし、同じ Keycloa
 | Route A | `/api/fapi/mtls` | `tls_client_auth` |
 | Route B | `/api/fapi/pkj-mtls` | `private_key_jwt`（PS256）+ mTLS |
 
-両ルートで PAR、PKCE S256、短命な認可コード、証明書に束縛されたアクセストークンを要求します。Upstream の PoP verifier は JWT の署名・issuer・audience・時刻・scope と、`cnf.x5t#S256` が実際の TLS peer 証明書に一致することを確認します。
+両ルートで PAR、PKCE S256、短命な認可コード、証明書に束縛されたアクセストークンを要求します。Upstream の PoP verifier は JWT の署名・issuer・audience・時刻・scope、`cnf.x5t#S256` と API Gateway が転送した3rd Partyのclient certificateとの一致を確認します。UpstreamへのTLS peerはAPI Gatewayとして別に検証します。
 
 > このリポジトリは FAPI 2.0 の学習・比較用デモです。認定試験への適合を主張するものではありません。
 
 ## 現在の状態と範囲
 
-WP1～WP5は受入済み・closedです。通常Route A/Bの認証、API応答、証明書binding、claim/header、偽装header拒否、logoutは確認済みです。WP6ではUIの安全な表示、reset/switch、clean checkoutの手順を仕上げています。検証層と未実行項目は[WP6受入表](docs/design/third-party-wp6-acceptance.md)、WP5のP0/P1/Dと承認済み未網羅範囲は[WP5受入表](docs/design/third-party-wp5-acceptance.md)を参照してください。
+WP1～WP6とEpic #6は承認範囲で受入済み・closedです。通常Route A/Bの認証、API応答、証明書binding、claim/header、偽装header拒否、logoutは確認済みです。WP6もUI表示、reset/switch、既存2 CPを使うclean checkout再現の受入確認を完了しました。検証層と未実行項目は[WP6受入表](docs/design/third-party-wp6-acceptance.md)、WP5のP0/P1/Dと承認済み未網羅範囲は[WP5受入表](docs/design/third-party-wp5-acceptance.md)を参照してください。
 
 このデモは本番FAPI 2.0完全準拠、認定、production readinessを主張しません。Route BのPKJWT PARにおけるform `client_id`省略はRFC 9126の既知gapとして開示します。stock本文は変更しません。Keycloak 26.7.4のrevocation metadata URL差分は[ADR 0021](docs/decisions/0021-wp5-revocation-metadata-gap.md)のとおり既知差分として記録し、META-02完全一致とは扱いません。
 
@@ -116,7 +116,7 @@ logout後もKeycloakが既存SSO sessionを使ってlogin formを省く場合は
 
 Route Aはstock OIDCの`tls_client_auth`を使います。Route Bはstock OIDCのPKJWTとmTLS transportへ既存bridge/custom transportを組み合わせます。API側はstock Resource Server設定と追加のPoP verifierを使い、認証済みclaimからUpstream headerを作ります。Kongが標準で行う処理とdemo固有の補完は[顧客向け説明](docs/design/third-party-demo-explainer.md)に分けて記載しています。
 
-通常Route A/BのloginからAPI response、claim/header、binding、logoutと、A→B→A→Bのreset/switchは確認済みです。UIのresponse allowlistとazp mappingは単体検査済みです。HTTPS result画面はbrowserのCA信頼エラーにより未確認です。clean checkoutのnative compose overrideはstatic configまで確認済みで、起動・fresh checkoutからのflowはまだ実行していません。受入層ごとの状態は[WP6受入表](docs/design/third-party-wp6-acceptance.md)に記録しています。
+通常Route A/BのloginからAPI response、claim/header、binding、logoutと、A→B→A→Bのreset/switchは確認済みです。UIのresponse allowlistとazp mappingは単体検査済みです。HTTPS result画面はbrowserのCA信頼エラーにより未確認です。clean checkoutのnative compose overrideから5サービスを起動し、全worker readiness、UI/JSのHTTPS200・source一致、両Routeの代表フローを確認しました。確認後は通常作業ディレクトリから同じ構成でデモを再開しています。受入層ごとの状態は[WP6受入表](docs/design/third-party-wp6-acceptance.md)に記録しています。
 
 ## 停止と削除
 
