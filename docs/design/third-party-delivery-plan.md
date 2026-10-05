@@ -47,7 +47,7 @@ RS側stock検証とclient側proof生成を分け、Keycloak対応、nonce、repl
 
 ## Work packages
 
-2026-10-04現在: WP5は5a spike受入、5b実装、5c隔離AS直結v2と2 worker guard v3まで通過。A/B各PAR/code/session/refresh/logout/revoke成功、実AS13件joinとtoken cnf4件一致、guard時AS送信0を確認した。通常third-party CP diffはcreate11/update0/delete0、適用していない。詳細と未実行項目は[WP5受入表](third-party-wp5-acceptance.md)を参照。PRレビュー・利用者merge・main通常統合・利用者受入が残り、Issue #11はopen。RFC 9126のPAR client_id gapは開示のみ。
+2026-10-05現在: WP1〜WP5は受入済み・closed。WP5は隔離AS証跡と通常A/B、refresh/logout、代表redirect、全worker readiness・入口閉鎖を確認し、PR #25 merge後のmain `72a6426`で最終証跡照合を完了した。全workerへの全HTTP負例、全background/thread形態、負例全組合せ、別開始間PKCE challenge比較、隔離matrix全面再実行は利用者承認により今回の受入ゲートから省略した。revocation metadataの公開通知URLと静的内部URLの差分は[ADR0021](../decisions/0021-wp5-revocation-metadata-gap.md)で既知差分として受け入れる。PAR client_id gapも維持。次はWP6 #12のUI/reset/Route切替/再現手順。過去のsnapshotを現在の未完了条件として再実行しない。
 
 Epic #6とWP #7〜#12はmerge前に起票済み。設計とWP1実装・修正のPR #5／#13／#15／#16／#17は利用者がmainへmerge済み。**2026-10-02時点の履歴**として、main `4ce796d`で両diff=0と既存entity不変を独立確認し、利用者がWP1受入・#7 close・WP2着手を承認した。環境変更は具体的preview後の別承認。最終runtime stateはAPIがWP3、third-partyがWP5で完成させる。
 

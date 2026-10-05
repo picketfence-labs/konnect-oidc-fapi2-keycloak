@@ -1,8 +1,8 @@
 # WP5実装・受入対応表
 
-## 判定（2026-10-04）
+## 判定（2026-10-05）
 
-顧客向けデモのAS側の必須機能と、issuer不一致拒否・refresh rotation・PAR parameterは隔離環境で動作した。main `f8c3a8f`で通常環境への適用とA/B統合確認もpassした。重い網羅検証の省略は2026-10-05に利用者が承認した。代表redirect負例もpass。metadata照合でrevocationの通知URL差分を確認し、その受入判断が残る。Issue #11を自動closeしない。
+顧客向けデモのAS側の必須機能と、issuer不一致拒否・refresh rotation・PAR parameterは隔離環境で動作した。main `f8c3a8f`で通常環境への適用とA/B統合確認もpassした。重い網羅検証の省略は2026-10-05に利用者が承認した。代表redirect負例もpass。metadataのrevocation通知URL差分はADR0021の既知差分として利用者が受け入れた。PR #25 merge後のmain `72a6426`で証跡を照合し、WP3 #9・WP5 #11を受入確認完了としてCloseした。
 
 目的は、顧客要件をなるべくKong標準機能で実装して実演すること。本番FAPI 2.0完全準拠、認定、iss欠落guard、開始CSRF追加防御、DPoP、厳格な個別失効SLAは今回の完成条件に追加しない。stock PAR/revoke本文を維持し、PARのclient_id欠落はRFC 9126の既知gapとして開示する。
 
@@ -57,11 +57,11 @@ redirect確認時に通常の認可開始controlもHTTP500で停止した。clie
 
 通常証跡はGit外の`wp5-normal-flow-route_a.json`、`wp5-normal-flow-transport_route_b.json`、`wp5-normal-supervisor-reload.json`。A/Bのreceipt SHA-256は[引き継ぎ](../session-handoff.md)に記録した。通常ASにはobserverを入れず、AS peerとassertion/rotationの詳細証明には通過済み直結v2/v6を使う。通常refresh後200は正常動作の証明であり、新たなrotation内部観測ではない。logout成功も個別token失効SLAの証明ではない。
 
-[ADR0021案](../decisions/0021-wp5-revocation-metadata-gap.md)では、現行の静的内部revocation URLを維持し、通知URLとの不一致を既知差分として受け入れることを提案する。META-02を完全一致passへ読み替えず、追加のKeycloak実装はしない。利用者の判断は未記録。
+[ADR0021](../decisions/0021-wp5-revocation-metadata-gap.md)に従い、現行の静的内部revocation URLを維持し、通知URLとの不一致を既知差分として受け入れる。2026-10-05の利用者merge・受入指示に基づく判断で、META-02を完全一致passへ読み替えず、追加のKeycloak実装はしない。
 
 追加証跡: Git外`wp5-final-two-checks-20261005.json`（SHA-256 `e23fdc0e40b51dabc3a04f2abe3434e9c0c4a8c6b72e2f8c4a1920cd0f84456e`）。redirectはpass、metadataはrevocation差分ありのため全体ok=false。復旧A/Bは`wp5-normal-recovery-route_a-20261005.json`（`1f715d179d1f5bd39ad47fd2ed8c7f30606542218ed7ed858aa91216adf436ac`）、`wp5-normal-recovery-transport_route_b-20261005.json`（`5f1ef70faf861a96d4dbaf02d57ef161b2a6feb7204c07de2071604de793f74d`）。以前のrefresh証跡は上書きしない。
 
-Issue #9/#11へ成果・証跡・確認手順・制約を報告し、利用者の受入でcloseする。次の実装packageはWP6 #12（UI表示、reset/切替、再現手順）。
+Issue #9/#11へ最終Technical Completion Reportを記録し、利用者の指示に基づき受入確認・Close済み。受入時の現行全worker readinessとUI HTTPS200もpass。通過済みmatrixは再実行せず、一次receiptのhash/結果/private modeと、metadataの差分が承認対象だけであることを確認した。最終受入receiptはGit外`wp5-final-acceptance-20261005.json`、SHA-256 `4843f9d7a11e7e3a0655bc3bf0993589e7b393a2293281bfe24d84a32228eec3`。次の実装packageはWP6 #12（UI表示、reset/切替、再現手順）。
 
 ## 証跡の保存
 

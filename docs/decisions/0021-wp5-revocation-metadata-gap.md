@@ -1,6 +1,6 @@
-# ADR 0021案: WP5のrevocation metadata差分を記録して現構成を維持する
+# ADR 0021: WP5のrevocation metadata差分を記録して現構成を維持する
 
-- Status: Proposed（metadata差分の受容は未承認）
+- Status: Accepted（2026-10-05、PR #25の利用者mergeと受入実行指示）
 - Date: 2026-10-05
 - 関連: ADR0011、ADR0012、WP5 META-02
 
@@ -17,12 +17,12 @@
 
 現構成の内部revokeは同じKeycloakの同じrealm/pathへ接続する。実AS observer付きの直結v2/v6でRoute別mTLSとrevokeを確認済みで、通常A/Bのstock logoutも成功している。HTTP200/logout成功は個別token失効SLAの保証とは区別する。
 
-## 提案
+## 決定
 
 静的内部URLとmTLS transportを維持する。META-02の文字列完全一致は未達として既知差分を記録し、この差分をデモ受入の阻害条件から除外する。通知と設定が一致したとは主張しない。Keycloak providerや通知URLを書き換える追加実装を作らない。
 
-目的は受け取った要件をKong標準優先で実装して実演すること。API binding、ASへのmTLS、PKJWTと正常logoutの実証は維持する。FAPI完全準拠の認定には使わない。今回の提案は実行時のendpoint・origin許可範囲を広げず、runtimeの設定変更も伴わない。
+目的は受け取った要件をKong標準優先で実装して実演すること。API binding、ASへのmTLS、PKJWTと正常logoutの実証は維持する。FAPI完全準拠の認定には使わない。この決定は実行時のendpoint・origin許可範囲を広げず、runtimeの設定変更も伴わない。
 
 ## 受入への影響
 
-重い網羅検証の省略は利用者が2026-10-05に承認済み。代表redirect負例もpassした。このADR案で未決なのはrevocation通知URL差分の受容だけである。承認後もmetadata全項目完全一致をpassにせず、証跡と差分を残す。公開image/clean checkout再現はWP6で扱う。
+重い網羅検証の省略は利用者が2026-10-05に承認済み。代表redirect負例もpassした。利用者が現構成維持・revocation通知URL差分の記録を受け入れ、WP3 #9とWP5 #11は受入確認後にCloseした。metadata全項目完全一致をpassにせず、証跡と差分を残す。公開image/clean checkout再現はWP6で扱う。

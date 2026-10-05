@@ -51,6 +51,8 @@ unchanged vendor bytecode + disposable decorator/interface mockの**42チェッ�
 
 Keycloakのback-channel dynamic設定を維持し、内部URLで取得したdiscoveryのissuerは`I`、token/PAR/revoke/JWKSは表の値であることをMETA-01/02で確認する。token/revocationのmTLS aliasは同じ内部URLを明示設定する。PAR aliasがmetadataにあれば同じURLへの一致を検査し、なければ通常PAR endpointにmTLSを付ける。aliasの動的追従や未知のURLへの書換えをしない。現在のmetadata値と一致しなければ、Workerが検査を外さずDesign ownerへ戻す。
 
+2026-10-05の通常照合ではrevocationだけ、Keycloak 26.7.4がfrontend/public URLを通知・aliasへコピーするため静的internal URLと異なった。[ADR0021](../decisions/0021-wp5-revocation-metadata-gap.md)で、実証済みの内部revoke/mTLSを維持し、このrevocation差分を記録してデモ受入する例外を合意した。他のendpoint照合やorigin guardは維持し、完全一致passとはしない。
+
 discoveryのlocator mappingはissuer・OAuth audience・browser authorization/end-session URLを変えない。SNIは内部接続先`keycloak`とし、開発CAとSANでserverを検証する。stockとbridgeで別のmetadata identityを使わない。cold/shared cache、background rediscovery、JWKS light-threadでも常にmetadata certを選ぶ。
 
 ## Custom pluginの契約
