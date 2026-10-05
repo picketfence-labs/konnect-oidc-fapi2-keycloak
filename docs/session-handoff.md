@@ -1,10 +1,10 @@
 # OIDC デモのセッション引き継ぎ
 
-## 現在の作業状態（2026-10-04）
+## 現在の作業状態（2026-10-05）
 
-2026-10-05追記: 利用者が重い網羅検証の省略を承認した。代表外部redirect負例は通常Route Aでpass。metadata照合はrevocationだけ通知/public originと設定/internal originが不一致（Keycloak 26.7.4のfrontend builder仕様）。[ADR0021案](decisions/0021-wp5-revocation-metadata-gap.md)で現構成維持・既知差分受容を提案する。これは未承認で、META-02完全一致はpassにしない。
+2026-10-05追記: 利用者が重い網羅検証の省略を承認した。代表外部redirect負例は通常Route Aでpass。metadata照合はrevocationだけ通知/public originと設定/internal originが不一致（Keycloak 26.7.4のfrontend builder仕様）。[ADR0021](decisions/0021-wp5-revocation-metadata-gap.md)の現構成維持・既知差分記録を、利用者のPR #25 mergeと受入実行指示に基づいて受け入れた。META-02完全一致はpassにしない。main `72a6426`を同期し、証跡のhash/結果/private modeと現行readiness/UIを確認、WP3 #9・WP5 #11は最終報告後Close済み。
 
-通常認可開始のclient key PEM読込500を発見し、restartでは回復しなかった。同じimage/config/PKIでTPのみforce-recreateするとCP再受領後に復旧。全worker gate、代表redirect、A/B login/API200/binding/signature/header/spoof/logoutがpassした。根本原因は断定せず、保存済みDPデータに関わる問題の可能性と回復手順を記録する。CPへのwrite・source変更・新image buildは実施していない。現在は監視付きでデモを再開済み。次の判断はmetadata差分の受容、次の実装packageはWP6。
+通常認可開始のclient key PEM読込500を発見し、restartでは回復しなかった。同じimage/config/PKIでTPのみforce-recreateするとCP再受領後に復旧。全worker gate、代表redirect、A/B login/API200/binding/signature/header/spoof/logoutがpassした。根本原因は断定せず、保存済みDPデータに関わる問題の可能性と回復手順を記録する。CPへのwrite・source変更・新image buildは実施していない。現在は監視付きでデモを再開済み。次の実装packageはWP6。WP5の受入に追加の網羅検証を戻さない。
 
 
 main `f8c3a8f`（PR #23 merge後）で通常デモの統合確認が通った。利用者の具体的な承認を受け、API CPの旧A/B構成13件を削除し、Resource Server構成6件を追加した。共有CAとfoundation certificateは維持し、旧設定のprivate backupはGit外に保存している。third-party CPの追加11件、標準Keycloakの3 clientsとPS256 providerも反映済み。
@@ -16,8 +16,8 @@ main `f8c3a8f`（PR #23 merge後）で通常デモの統合確認が通った。
 | WP / Issue | 現状 | 残件 |
 |---|---|---|
 | WP1 #7、WP2 #8、WP4 #10 | 受入済み・closed | なし |
-| WP3 #9 | isolated 37/37と通常統合がpass | 利用者受入・close |
-| WP5 #11 | AS直結・guard・通常A/B・supervisor・代表redirectがpass。網羅縮小承認済み | metadata revocation差分の受容判断と利用者受入・close |
+| WP3 #9 | isolated 37/37と通常統合がpass、受入済み・closed | なし |
+| WP5 #11 | 承認範囲で受入済み・closed。網羅縮小とmetadata差分を記録 | なし |
 | WP6 #12 | 未開始 | UI表示・reset/切替手順・clean checkout再現の仕上げ。既存証跡を再利用し、全テストの再実行を前提にしない |
 
 Git外の通常証跡: `.generated/evidence/wp5-normal-flow-route_a.json`（SHA-256 `0050094f0f7c31b08cbbd433bbf58f771a1f0c046b23173e5085ac0648a0286d`）、`wp5-normal-flow-transport_route_b.json`（`4340fad6e39b197c8d5106b28a199af64a6be2a6394298197ca4483ac2c82bd8`）、`wp5-normal-supervisor-reload.json`、`wp5-normal-integration-progress.json`。raw token/cookie/password/鍵は報告に含めない。
