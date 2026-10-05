@@ -18,7 +18,9 @@ main `f8c3a8f`（PR #23 merge後）で通常デモの統合確認が通った。
 | WP1 #7、WP2 #8、WP4 #10 | 受入済み・closed | なし |
 | WP3 #9 | isolated 37/37と通常統合がpass、受入済み・closed | なし |
 | WP5 #11 | 承認範囲で受入済み・closed。網羅縮小とmetadata差分を記録 | なし |
-| WP6 #12 | 未開始 | UI表示・reset/切替手順・clean checkout再現の仕上げ。既存証跡を再利用し、全テストの再実行を前提にしない |
+| WP6 #12 | Luna / xHighで実装、レビュー・受入待ち | UIのazp固定mapping・thumbprint・表示allowlist・fragment除去、native source override、READMEを更新。通常reset/switchはA→B→A→Bで4/4 pass。clean checkout起動は未実行 |
+
+WP6はmain `ff0a29a`（PR #26 merge）から着手した。UIとComposeの静的確認、代表resetの証跡と未実行項目は[WP6受入表](design/third-party-wp6-acceptance.md)を参照する。残るruntime確認は、レビュー後に既存2 CP/DP identityとGit外の材料を再利用し、clean checkoutでnative overrideから起動して両Routeを確認すること。新規Control Plane作成、追加sync、realm再初期化、新image buildは行わない。HTTPS result画面のbrowser evidenceは開発CAの信頼エラーで未実行だが、READMEに実演手順を用意した。
 
 Git外の通常証跡: `.generated/evidence/wp5-normal-flow-route_a.json`（SHA-256 `0050094f0f7c31b08cbbd433bbf58f771a1f0c046b23173e5085ac0648a0286d`）、`wp5-normal-flow-transport_route_b.json`（`4340fad6e39b197c8d5106b28a199af64a6be2a6394298197ca4483ac2c82bd8`）、`wp5-normal-supervisor-reload.json`、`wp5-normal-integration-progress.json`。raw token/cookie/password/鍵は報告に含めない。
 

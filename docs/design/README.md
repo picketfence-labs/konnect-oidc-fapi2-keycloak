@@ -12,7 +12,9 @@ Demonstrate mTLS and private_key_jwt, not full FAPI 2.0 compliance. DP0 selects 
 - [FAPI 2.0要件と顧客向けデモ対応範囲](third-party-fapi2-conformance.md): implementation-agnostic FAPI 2.0 client and resource server requirements, mapped to Kong Gateway 3.16, with demo priorities and future work.
 - [Delivery plan](third-party-delivery-plan.md): work packages (Issue drafts), roles, and verification method.
 
-- [Luna / xHigh開発移譲契約](third-party-luna-handoff.md): Issue #6〜#12の実装境界、開始条件、受入IDと証跡。設計とWP1実装はmainへmerge・受入済み。WP2を利用者指定のLuna / xHighで開始。
+- [Luna / xHigh開発移譲契約](third-party-luna-handoff.md): Issue #6〜#12の実装境界、開始条件、受入IDと証跡。WP1～WP5はmainへmerge・受入済み。WP6 #12はUI、reset/switch、clean checkout手順を仕上げ中。
+- [WP5受入表](third-party-wp5-acceptance.md): 通常Route A/Bと承認済み検証範囲、metadata revocation既知差分。
+- [WP6受入表](third-party-wp6-acceptance.md): UI allowlist、reset/switch、clean checkout再現の検証層と残件。
 - [WP2隔離検証preview](third-party-wp2-validation-preview.md): Keycloakだけを専用projectで起動する候補、token/introspectionの判定条件と停止範囲。環境変更の承認待ち。
 - [ADR 0013: schema準備とruntime受入の分担](../decisions/0013-work-package-schema-and-acceptance-boundaries.md): WP1のschema準備とWP5の本体実装を分ける設計補足。
 - [ADR 0014: APIの既存CA再利用](../decisions/0014-reuse-existing-api-ca.md): 受入済みのCA一意制約への対応。API foundationは既存CAを変更せず、decK起動前にID・タグ・公開DERを照合する。

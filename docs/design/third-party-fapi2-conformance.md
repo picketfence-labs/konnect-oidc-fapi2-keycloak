@@ -47,7 +47,7 @@ Kongの挙動は、`kong-ee` sourceのmaster（2026-09-12）で確認した。**
 | C-07 | 5.3.3.1 | open redirectorを公開しない | `login_redirect_uri`と`logout_redirect_uri`は固定値だけにする。UIはredirect先をquery parameterから受け取らない | Config | REDIR-01 | P1 |
 | C-08 | 5.3.3.1 | `private_key_jwt`の`aud`はissuer identifierとし、配列ではなく文字列で送る | DP0で確定したtoken/refresh/PAR/revokeの全実装で、`aud`がissuer文字列であることを確認する | Stock / Custom（ADR 0012） | B-AUD-01、B-AUD-02 | P0 |
 | C-09 | 5.3.3.1 | refresh tokenとそのrotationをサポートする | refresh responseに新しいrefresh tokenがあれば、それをsessionへ保存する。無ければ既存の値を保持する（`handler.lua`） | Stock | RT-01、RT-ROT-01 | P1 |
-| C-10 | 5.3.3.1 | AS metadataはmetadata documentから得た値だけを使う。issuerは信頼できる経路で得て、metadataの`issuer`と一致させる | issuerはrepositoryの宣言値を正とする。endpointは、browser用とback-channel用のhostが分かれるため明示設定する。その値がdiscoveryと一致することをテストで保証する | Config | META-01、META-02 | P1 |
+| C-10 | 5.3.3.1 | AS metadataはmetadata documentから得た値だけを使う。issuerは信頼できる経路で得て、metadataの`issuer`と一致させる | issuerはrepositoryの宣言値を正とする。endpointは、browser用とback-channel用のhostが分かれるため明示設定する。discoveryとの比較ではrevocation URLにKeycloak 26.7.4の既知差分があるため、META-02完全一致は主張しない（[ADR 0021](../decisions/0021-wp5-revocation-metadata-gap.md)） | Config / known difference | META-01、META-02 | P1 |
 | C-11 | 5.3.3.1 | 認可の開始はend-userの同意に基づくものに限り、開始をCSRFから保護する | UIの明示操作、stockのstate/PKCEを維持する。ただし開始CSRF防御を満たすと主張しない。専用開始endpoint等は将来対応 | Gap | CSRF-01 | F |
 | C-12 | 5.3.3.2 | authorization code grantを使う | `auth_methods: [authorization_code, session]` | Stock | A-PAR-01、B-PAR-01 | P1 |
 | C-13 | 5.3.3.2 | RFC9126に従ってPARを使う | `require_pushed_authorization_requests: true`。固定版Route BのPKJWT分岐はform client_idを省略する既知gapがある。stock本文は維持し、デモでは実AS成功を別途確認する | Config / Gap（下記） | PAR-01 | P1（動作）/ F（仕様gap解消） |
