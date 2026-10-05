@@ -4,20 +4,20 @@
 
 WP6は顧客向けデモのUI表示、logout/reset後のroute切替、clean checkout手順を仕上げるpackageです。WP1～WP5の受入結果を再実行せず再利用します。WP5のP0/P1/D判定と承認済みの未網羅範囲は[WP5受入表](third-party-wp5-acceptance.md)、顧客への説明は[デモ説明](third-party-demo-explainer.md)を正とします。
 
-UIのNode単体検査はpassし、HTTPの静的previewでは初期画面とfragment除去を確認しました。通常HTTPフローで4回のlogout/resetとroute切替もpassしています。HTTPS result画面の実browser表示とsource-controlled Compose overrideを使うclean checkoutの起動は未実行です。この区分を通常routeのruntime受入と混同しません。UI previewとCompose configのsanitized review receiptはGit外に保存し、それぞれ`wp6-ui-root-review-20261005.json`（SHA-256 `57fb46d5e2409a2a2c685e19e5880a5d3ecaf0a12d29034403c83a55ca0055be`）、`wp6-native-compose-review-20261005.json`（SHA-256 `15afcf69404671eacc7f5323bad1b46de45cf6feb6bdc446c866ca778786da37`）です。Compose receiptはstatic_not_runtimeです。
+2026-10-05、利用者のPR #27 merge後のmain `82d7ab2`で受入確認を完了し、[WP6 #12](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/12#issuecomment-5986628372)と[Epic #6](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/6#issuecomment-5986628351)をCloseしました。新しいcheckoutへGit外の既存PKI・DP identity・runtime inputs・停止済みKeycloak DBを復元し、既存2 CPを再利用して5サービスを起動しました。全worker readiness、両Routeのlogin/API200/claim/header/binding/signature/spoof/logout、UIとJSのHTTPS配信・source一致がpassしました。Node単体検査、HTTP静的browser previewの初期画面・fragment除去、同じcookie jarでのreset/switch 4/4も既存証跡として受け入れました。HTTPS result画面の実browser表示はCA信頼エラーでnot_runのまま、契約で認められたREADMEのbrowser evidence手順を用意しています。UI previewとCompose configのsanitized review receiptはGit外に保存し、それぞれ`wp6-ui-root-review-20261005.json`（SHA-256 `57fb46d5e2409a2a2c685e19e5880a5d3ecaf0a12d29034403c83a55ca0055be`）、`wp6-native-compose-review-20261005.json`（SHA-256 `15afcf69404671eacc7f5323bad1b46de45cf6feb6bdc446c866ca778786da37`）です。Compose receiptはstatic_not_runtimeです。
 
 ## WP6 acceptance ID
 
 | 受入ID | 実装・操作 | 検証層・結果 | 既存証跡と限界 |
 |---|---|---|---|
-| A/B-E2E-01 | UIはAPI responseのallowlistを表示。Route A/Bは既存通常flowで確認 | normal HTTP flow pass。HTTPSのresult画面はnot_run | `wp5-normal-flow-route_a.json` SHA-256 `0050094f0f7c31b08cbbd433bbf58f771a1f0c046b23173e5085ac0648a0286d`、`wp5-normal-flow-transport_route_b.json` SHA-256 `4340fad6e39b197c8d5106b28a199af64a6be2a6394298197ca4483ac2c82bd8`。API/Upstream成功の証跡で、今回のHTTPS UI renderingは証明しない |
+| A/B-E2E-01 | UIはAPI responseのallowlistを表示。Route A/Bは既存通常flowで確認 | normal HTTP flow pass。clean checkoutの通常HTTPフローもpass。HTTPSのresult画面はnot_run | `wp5-normal-flow-route_a.json` SHA-256 `0050094f0f7c31b08cbbd433bbf58f771a1f0c046b23173e5085ac0648a0286d`、`wp5-normal-flow-transport_route_b.json` SHA-256 `4340fad6e39b197c8d5106b28a199af64a6be2a6394298197ca4483ac2c82bd8`。API/Upstream成功の証跡で、今回のHTTPS UI renderingは証明しない |
 | CLAIM-01 | department、logical route、azpから固定Route/auth methodを表示 | UI projector unit pass。A/B runtime claims pass | 表示値はAPI responseの短い文字列と固定azp mappingだけ。画面のHTTPS実表示はnot_run |
 | HEADER-01 | claimとUpstream header、spoof結果を表示 | projector unit pass。通常A/Bでclaim/headerとspoof上書きを確認 | WP5通常A/B証跡を再利用。個別header matrixはWP5受入表の範囲を維持 |
 | LEAK-01 | raw JSONを画面に出さず、token/cookie/assertion等を表示・保存しない。login URL fragmentを初期化時に除去 | allowlist unit pass。HTTP previewのfragment sentinel除去pass。HTTPS result画面はnot_run | projectorは表示フィールドのみを返し、thumbprintは先頭12文字。WP5 secret scan/response evidenceはWP5受入表を参照 |
 | ALG-01 | azpからclient認証方式を固定表示し、署名検証booleanを表示 | projector unit pass。署名/algorithmのruntime証跡はWP5受入表を再利用 | `token_signature_verified=true`は署名検証の成功を示すだけで、JWT `alg`を示さない。UIはalgを推定・表示しない |
 | RESET-01 | 同じcookie jarでRoute A/Bを交互に実行し、各logout後に対象Routeを再確認 | normal HTTP flow pass: A(sales) → B(engineering) → A(sales) → B(engineering)、4/4 | Git外 `.generated/evidence/wp6-reset-review-1791160856983744000.json` SHA-256 `00a7a916ab41194477d5bc4d493054116a1d0074c66c53906b2bd305e5a0c2b4`、mode 0600。各開始302、Keycloak login submission 1回、期待azp/claim、API 200、logout完了、対象route cookie activeなし。browser UIの実演ではない |
 | LOGOUT-A/B-01 | どちらのRouteからもstock logoutへ進む | normal HTTP flow pass。Route A/Bそれぞれ2回 | RESET-01証跡とWP5通常A/B証跡を再利用。logout成功は個別token失効SLAを意味しない |
-| SWITCH-01 | logout後に別Route・別demo userでfresh loginを行う | normal HTTP flow pass: A→B、B→Aを確認 | RESET-01証跡を再利用。SSO再利用なしは各flowのlogin form submissionで確認。HTTPS画面とclean checkoutでの切替はnot_run |
+| SWITCH-01 | logout後に別Route・別demo userでfresh loginを行う | normal HTTP flow pass: A→B、B→Aを確認 | RESET-01証跡を再利用。SSO再利用なしは各flowのlogin form submissionで確認。HTTPS画面はnot_run。clean checkoutの代表A/Bはpass、4回の切替証跡は再実行せず再利用 |
 
 ## UI表示契約
 
@@ -33,7 +33,7 @@ UIのNode単体検査はpassし、HTTPの静的previewでは初期画面とfragm
 
 clean checkoutでは`.env`、既存2 CP/DPのruntime inputs、開発用PKI・Keycloak realm/credentialsをGit外の許可されたbackupから復元します。Keycloakの既存DBを再利用する場合は、そのDBとrealm/usersに一致する`.generated`入力を一緒に使います。新しいdemoを初期化するときにだけ`make generate-dev-assets`を実行し、既存realmのpasswordと置き換えません。新規Konnect環境の作成・bootstrap・migrationはWP6に含みません。新環境にはTerraform、schema、foundation、runtimeの各previewと別のレビューが必要です。
 
-現時点でoverrideのHTTP compose config確認までは行っています。fresh checkoutからのimage pull、Data Plane起動、readiness、supervisor、HTTPS画面、A/Bブラウザーフローはnot_runであり、利用者のレビュー後に代表実行します。既存2 CP再利用時は、APIの既知`openid-connect.config.cache_tokens_salt` 1 updateとthird-party diff 0を期待します。この既知API差分に対する追加syncは行いません。想定外の差分があればsyncせず、人が内容をレビューします。
+clean checkout `/private/tmp/konnect-oidc-fapi2-wp6-acceptance`で起動・全worker readiness・supervisor・UI/JS HTTPS200とsource一致・代表A/B HTTPフローがpassしました。imageはすべてcachedだったためpull/buildは不要でした。CP write、realm再初期化、refresh待ち・隔離matrix再実行は行っていません。受入receiptはGit外 `.generated/evidence/wp6-clean-checkout-acceptance-20261005.json`（SHA-256 `da3117feef563a91cdcf0eecd1f3c0822f7af74aa782abb4f9bd639a6f1e6a29`）。確認後は停止済みDBと証跡を通常作業ディレクトリへ戻し、同じsource overrideでsupervisorを再開しました。HTTPSの認証済み結果画面だけは実browserでnot_runを維持し、通常HTTPフローやHTTPS配信の成功から目視成功を推論しません。既存2 CP再利用時は、APIの既知`openid-connect.config.cache_tokens_salt` 1 updateとthird-party diff 0を期待します。この既知API差分に対する追加syncは行いません。想定外の差分があればsyncせず、人が内容をレビューします。
 
 ## 明示する未対応・既知差分
 

@@ -6,7 +6,7 @@
 
 受け取った顧客要件をなるべくKong標準機能で実装し、その環境をデモすることをゴールとします。2026-10-04に確認した固定版Route BのPKJWT PARのform client_id省略は、RFC9126/FAPI 2.0適合上のgapとして開示します。stock本文へのID補完は行わず、実フローの動作確認を進めます。[既知gapの記録](third-party-fapi2-conformance.md#既知のparギャップ2026-10-04)
 
-**Route A/Bの通常フローとreset/switchは確認済みです。** UIの表示allowlist、azp固定mapping、thumbprint先頭12文字、fragment除去は静的検証しました。初期UIとfragment除去のHTTP previewも確認しましたが、HTTPS result画面の実browser表示とclean checkoutからのoverride再現は未確認です。確認層と証跡は[WP6受入表](third-party-wp6-acceptance.md)に記録します。WP5の隔離試験・通常統合・受入範囲は[WP5受入表](third-party-wp5-acceptance.md)を参照してください。
+**Route A/Bの通常フローとreset/switchは確認済みです。** UIの表示allowlist、azp固定mapping、thumbprint先頭12文字、fragment除去は静的検証しました。初期UIとfragment除去のHTTP previewも確認しましたが、clean checkoutからの起動と両Routeの代表HTTPフローも確認済みです。HTTPS result画面の実browser表示はCA信頼エラーで未確認のまま、READMEにbrowser evidence手順を用意しました。確認層と証跡は[WP6受入表](third-party-wp6-acceptance.md)に記録します。WP5の隔離試験・通常統合・受入範囲は[WP5受入表](third-party-wp5-acceptance.md)を参照してください。
 
 ## お客様の要望と今回の優先順位
 
@@ -60,7 +60,7 @@ pre/post functionなら何でも補えるとは想定しません。ASへの送�
 
 ### 受入試験だけの追加計測
 
-ASが実際に受け取ったTLS peerの証跡は[test-only Keycloak observer](third-party-as-peer-evidence.md)で計測しました。26.7.4 public sourceへの観測専用patchと相関IDを使い、image build・direct TLS観測・再入計測は検証済みです。observerは通常デモへ入れません。通常デモは標準Keycloak imageで確認済みです。残るWP6の確認はHTTPS result画面のbrowser表示とclean checkoutからの起動です。
+ASが実際に受け取ったTLS peerの証跡は[test-only Keycloak observer](third-party-as-peer-evidence.md)で計測しました。26.7.4 public sourceへの観測専用patchと相関IDを使い、image build・direct TLS観測・再入計測は検証済みです。observerは通常デモへ入れません。通常デモは標準Keycloak imageで確認済みです。WP6のclean checkout起動と通常HTTPフローも確認済みです。HTTPS result画面の実browser表示は未実行として開示しています。
 
 ### 完全対応へ進む場合の追加候補
 
