@@ -1,5 +1,7 @@
 # WP1: 2 Gateway基盤と段階別設定の詳細設計
 
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+
 2026-10-02、PR #13の設計補足（`5ab6310`）に利用者が合意し、WP1への実装移譲を指示した。設計・実装・修正はPR #13／#15／#16／#17でmainへmerge済み。PR #5の認証・PoP・DP0方式を維持し、WP1が後続WPのhandlerやRoute設定なしで検証できる境界を定める。API CAの一意制約は[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)の既存CA再利用で解決した。main `4ce796d`で独立検証し、利用者がWP1受入とcloseを承認した。[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)のTechnical Completion Reportを参照する。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[Luna移譲契約](third-party-luna-handoff.md)を正本とする。
 
 ## Terraformと接続先
@@ -136,3 +138,7 @@ UI停止だけをAS通信の遮断とみなさない。起動直後やplugin欠�
 | WP5-BOOTSTRAP | WP5 | CP設定受領前／transportだけ／両plugin欠落で通常入口閉鎖、AS observer行0。全worker readyの正常系だけ開放。再起動／変更で再閉鎖 |
 
 静的testは選択・所有範囲・identity・secret配置の意味あるnegativeを検証する。TLS/worker/networkは実runtime evidenceで判定する。WP1の受入後もWP3/WP5のruntimeとmigrationは未完成であり、demo成功とは説明しない。
+
+## バックエンド追加時のfoundation差分
+
+承認済み設計ではA/BのServiceを`third-party-backend:9444`の固定pathへ向け、静的UI用のService/Routeを追加します。Kong→バックエンド専用Certificate entityを新設し、AS用のA/B Certificate entityを置換しません。既存のService数、直接upstream、Service証明書とOAuth証明書の一致、create11のみというguardは変更前の契約です。コード側では新しい明示entity集合とreview対象diffを定義し、任意の差分を許す緩和は行いません。Control Planeへの適用は具体的previewのレビュー後です。

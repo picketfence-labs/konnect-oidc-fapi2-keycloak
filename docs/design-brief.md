@@ -4,7 +4,11 @@
 
 全体構成、Route A/B、FAPI対応範囲は[ARCHITECTURE.md](../ARCHITECTURE.md)、実装契約は[3rd Partyデモ要件](design/third-party-fapi2-requirements.md)、操作手順は[README](../README.md)、詳細資料は[設計資料一覧](design/README.md)を参照してください。
 
-## 現在の到達点
+## バックエンド分離の承認済み設計
+
+図とARCHITECTUREは次期構成を先行説明します。UIをTP Kong経由で配信し、業務要求をTP Kong→TPバックエンド→API側Kong→Resource Serverへ分離します。OAuth/セッションはTP Kongに残し、内部hopには専用mTLS identity、外部APIにはASで使った同じA/B証明書を使います。コードは別ブランチで実装中で、実行受入は未実施です。[ADR 0023](decisions/0023-third-party-backend-separation.md)と[対応計画](design/third-party-backend-change-plan.md)を正とします。
+
+## 変更前の到達点
 
 WP1～WP6とEpic #6は合意した範囲で受入済みです。認証、API応答、署名・claim/header・証明書束縛、偽装拒否、logout、既存2 control planeを使うclean checkout再現を確認しています。試験の層と未検証項目は[WP5受入表](design/third-party-wp5-acceptance.md)と[WP6受入表](design/third-party-wp6-acceptance.md)に記録しています。
 
@@ -23,4 +27,4 @@ FAPI 2.0完全準拠や認定を主張しません。Route BのPAR form `client_
 
 2026-09-22にAuth0による初期デモを検証し、Keycloakを使う二経路のv1へ移行しました。2026-10-02以降は3rd PartyのクライアントGatewayを追加し、API側をResource Serverの入口へ変更しました。旧契約は[v1要件](design/fapi2-keycloak-requirements.md)、変更判断は[ADR 0009](decisions/0009-third-party-client-gateway-topology.md)以降に保持します。
 
-今回の資料整理では、全体構成図の利用者確認後、Route A/B図へ3rd Partyのswimlaneを追加しました。実行時の構成変更、Control Plane適用、Docker変更は行いません。
+前回の資料整理では、全体構成図の利用者確認後、Route A/B図へ3rd Partyのswimlaneを追加しました。実行時の構成変更、Control Plane適用、Docker変更は行いません。

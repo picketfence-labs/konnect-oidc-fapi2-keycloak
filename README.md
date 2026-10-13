@@ -11,7 +11,23 @@
 
 > このリポジトリは FAPI 2.0 の学習・比較用デモです。認定試験への適合を主張するものではありません。
 
-## 現在の状態と範囲
+## バックエンド分離の承認済み設計
+
+> **実装／受入前（2026-10-13）**: 図・資料を先行更新しています。mainの現行コードは5サービス構成で、TP KongがAPI側Kongへ直接転送します。バックエンド追加は別ブランチで実装中です。以下の再現手順とWP1～WP6の受入結果は変更前の構成を対象とします。
+
+目標では、UI配信と業務API処理を分離します。ブラウザーの共通入口はTP Kongです。OAuthとセッションをKongが管理し、API提供者への呼出しをバックエンドが担当します。
+
+```text
+UI:   ブラウザー → TP Kong → 静的UIサービス
+API:  ブラウザー → TP Kong → TPバックエンド → API側Kong → Resource Server
+応答: Resource Server → API側Kong → TPバックエンド → TP Kong → ブラウザー
+```
+
+[![承認済み設計・実装／受入前の全体構成](docs/design/workflows/third-party-architecture.architecture.png)](https://picketfence-labs.github.io/diagrams/16c30c21e271/)
+
+[Route Aの変更後フロー](https://picketfence-labs.github.io/diagrams/697f14e71ed9/) / [Route Bの変更後フロー](https://picketfence-labs.github.io/diagrams/31aaf1787cd8/)。内部mTLSとA/B証明書共有の境界は[ARCHITECTURE](ARCHITECTURE.md)、実装・受入契約は[対応計画](docs/design/third-party-backend-change-plan.md)を参照してください。
+
+## 変更前の状態と範囲
 
 WP1～WP6とEpic #6は承認範囲で受入済み・closedです。通常Route A/Bの認証、API応答、証明書binding、claim/header、偽装header拒否、logoutは確認済みです。WP6もUI表示、reset/switch、既存2 CPを使うclean checkout再現の受入確認を完了しました。検証層と未実行項目は[WP6受入表](docs/design/third-party-wp6-acceptance.md)、WP5のP0/P1/Dと承認済み未網羅範囲は[WP5受入表](docs/design/third-party-wp5-acceptance.md)を参照してください。
 
@@ -30,7 +46,7 @@ make test
 node tests/test_wp6_ui.js
 ```
 
-## 構成
+## 変更前の実装構成
 
 1. 3rd PartyサービスのUIをnginxから配信し、ブラウザーが3rd PartyのKongへ認証とAPI呼出しを要求します。
 2. 3rd PartyのKongがKeycloakでPAR、認可コード交換、セッション、refresh、logoutを扱います。
@@ -53,7 +69,7 @@ node tests/test_wp6_ui.js
 
 Data plane は Konnect control plane から Enterprise ライセンスを取得します。ローカルの `KONG_LICENSE_DATA` は不要です。
 
-## clean checkoutから既存デモを再現する
+## clean checkoutから変更前の既存デモを再現する
 
 この手順は、受入済みの既存API/third-party Control PlaneとそのData Plane identityを再利用します。新しいControl Plane、Terraform apply、decK sync、Keycloak realm更新は行いません。新規Konnect環境のbootstrapにはTerraform、schema、foundation、runtimeの別previewと個別レビューが必要で、この再現手順の対象外です。
 
@@ -114,7 +130,7 @@ logout後もKeycloakが既存SSO sessionを使ってlogin formを省く場合は
 - UI の偽装テストで送った `X-Demo-*` ヘッダーが、署名済み claim の値を上書きしない。
 - Route A/Bのlogout後は同じcookie jarからfresh loginし、旧Route sessionを再利用できない。
 
-## 現在の実装範囲
+## 変更前の実装と受入範囲
 
 Route Aはstock OIDCの`tls_client_auth`を使います。Route Bはstock OIDCのPKJWTとmTLS transportへ既存bridge/custom transportを組み合わせます。API側はstock Resource Server設定と追加のPoP verifierを使い、認証済みclaimからUpstream headerを作ります。Kongが標準で行う処理とdemo固有の補完は[顧客向け説明](docs/design/third-party-demo-explainer.md)に分けて記載しています。
 

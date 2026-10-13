@@ -2,7 +2,7 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route A：mTLSクライアント認証",
+    "title": "Route A：mTLSクライアント認証（バックエンド分離）",
     "animation": "none",
     "quality_profile": "showcase",
     "output": "route-a-mtls.workflow.html",
@@ -21,7 +21,11 @@
           "label": "API処理"
         }
       }
-    }
+    },
+    "viewBox": [
+      1213,
+      776
+    ]
   },
   "lanes": [
     {
@@ -56,39 +60,46 @@
       "id": "par-auth",
       "label": "PARと利用者認証",
       "fromCol": 1,
-      "toCol": 2,
+      "toCol": 1,
       "variant": "emphasis"
     },
     {
       "id": "exchange",
-      "label": "コード交換",
-      "fromCol": 3,
-      "toCol": 3,
+      "label": "コード交換・セッション",
+      "fromCol": 2,
+      "toCol": 2,
       "variant": "security"
     },
     {
       "id": "protected",
       "label": "API検査と結果表示",
-      "fromCol": 4,
-      "toCol": 5,
+      "fromCol": 3,
+      "toCol": 4,
       "variant": "security"
     }
   ],
   "groups": [
     {
-      "id": "service_group_a",
-      "label": "3rd Partyサービス",
+      "id": "ui_group_a",
+      "label": "静的UI（Kong経由）",
       "lane": "third-party",
       "fromCol": 0,
       "toCol": 0
     },
     {
       "id": "kong_group_a",
-      "label": "Kong Gateway（OAuthクライアント）",
+      "label": "Kong Gateway / OAuth",
       "lane": "third-party",
       "fromCol": 1,
-      "toCol": 4,
+      "toCol": 2,
       "variant": "security"
+    },
+    {
+      "id": "backend_group_a",
+      "label": "業務バックエンド",
+      "lane": "third-party",
+      "fromCol": 3,
+      "toCol": 3
     }
   ],
   "mainPath": [
@@ -97,11 +108,9 @@
     "par_a",
     "par_accept_a",
     "callback_a",
-    "token_a",
     "api_call_a",
     "api_validate_a",
-    "resource_a",
-    "result_a"
+    "resource_a"
   ],
   "semanticChecks": {
     "allowedRoots": [
@@ -117,7 +126,7 @@
       },
       {
         "from": "callback_a",
-        "to": "token_a"
+        "to": "api_call_a"
       },
       {
         "from": "api_call_a",
@@ -132,7 +141,7 @@
       "col": 0,
       "type": "frontend",
       "label": "デモUIを配信",
-      "sublabel": "nginx / 静的サービス",
+      "sublabel": "nginx / Kong経由で配信",
       "width": 200
     },
     {
@@ -156,43 +165,34 @@
     {
       "id": "par_accept_a",
       "lane": "idp",
-      "col": 2,
+      "col": 1,
       "type": "security",
       "label": "PAR受理・利用者認証",
-      "sublabel": "Keycloakのログイン画面",
+      "sublabel": "Keycloak / ログイン画面",
       "width": 200
     },
     {
       "id": "callback_a",
       "lane": "third-party",
-      "col": 3,
+      "col": 2,
       "type": "security",
-      "label": "callback・コード交換",
-      "sublabel": "state・提示issを確認",
-      "width": 200
-    },
-    {
-      "id": "token_a",
-      "lane": "idp",
-      "col": 3,
-      "type": "security",
-      "label": "認証・コード交換",
-      "sublabel": "TLS認証 / A証明書へ束縛",
+      "label": "callback・token取得",
+      "sublabel": "state・提示iss / AS mTLS",
       "width": 200
     },
     {
       "id": "api_call_a",
       "lane": "third-party",
-      "col": 4,
+      "col": 3,
       "type": "backend",
-      "label": "保護APIを呼び出す",
+      "label": "バックエンドがAPI呼出し",
       "sublabel": "Bearer + Route A証明書",
       "width": 200
     },
     {
       "id": "api_validate_a",
       "lane": "api",
-      "col": 4,
+      "col": 3,
       "type": "security",
       "label": "token・PoPを検査",
       "sublabel": "introspection / cnf照合",
@@ -201,7 +201,7 @@
     {
       "id": "resource_a",
       "lane": "resource",
-      "col": 5,
+      "col": 4,
       "type": "backend",
       "label": "JWTと束縛を再検証",
       "sublabel": "元client証明書とcnfを照合",
@@ -210,7 +210,7 @@
     {
       "id": "result_a",
       "lane": "user",
-      "col": 5,
+      "col": 4,
       "type": "external",
       "label": "UIで結果を確認",
       "sublabel": "claim/header・署名・束縛",
@@ -222,7 +222,7 @@
       "id": "ui-to-choose_a",
       "from": "ui_a",
       "to": "choose_a",
-      "label": "HTTPS / UI取得",
+      "label": "Kong経由 / UI取得",
       "variant": "default",
       "role": "main"
     },
@@ -251,22 +251,6 @@
       "role": "main"
     },
     {
-      "id": "callback-to-token_a",
-      "from": "callback_a",
-      "to": "token_a",
-      "label": "code + verifier",
-      "variant": "security",
-      "role": "main"
-    },
-    {
-      "id": "token-to-api_call_a",
-      "from": "token_a",
-      "to": "api_call_a",
-      "label": "証明書束縛token",
-      "variant": "emphasis",
-      "role": "main"
-    },
-    {
       "id": "api_call-to-api_validate_a",
       "from": "api_call_a",
       "to": "api_validate_a",
@@ -285,29 +269,45 @@
     {
       "id": "resource-to-result_a",
       "from": "resource_a",
-      "to": "result_a",
-      "label": "HTTPS / 検証結果",
+      "to": "api_call_a",
+      "label": "API Kong経由の応答",
       "variant": "default",
+      "role": "return"
+    },
+    {
+      "id": "callback-to-backend_a",
+      "from": "callback_a",
+      "to": "api_call_a",
+      "label": "専用mTLS + token",
+      "variant": "security",
       "role": "main"
+    },
+    {
+      "id": "backend-to-user_a",
+      "from": "api_call_a",
+      "to": "result_a",
+      "label": "TP Kong経由 / 応答",
+      "variant": "default",
+      "role": "return"
     }
   ],
   "cards": [
     {
-      "dot": "emerald",
-      "title": "認証方式と送信者制約",
+      "dot": "amber",
+      "title": "承認済み設計・実装／受入前",
       "items": [
-        "クライアント認証は標準OIDCのtls_client_auth",
-        "API呼出しにはtoken取得時と同じRoute A証明書を使用",
-        "PAR・コード交換はmTLS。認可画面への遷移はブラウザーのHTTPS"
+        "旧受入済みの直接転送から、バックエンド経由へ変更予定",
+        "応答: API Kong → バックエンド → TP Kong → ブラウザー",
+        "応答のTP Kong再訪は矢印の経由表示に集約"
       ]
     },
     {
-      "dot": "amber",
-      "title": "補完と検証範囲",
+      "dot": "emerald",
+      "title": "OAuthと証明書の分担",
       "items": [
-        "AS送信guard・metadata mTLSは専用transportで補完",
-        "API GatewayはKeycloakへmTLS introspection。保護APIはJWTを再検証",
-        "承認済みデモ範囲で受入済み。iss欠落・開始CSRFは未対応"
+        "OAuth・user tokenの管理はKong、外部API呼出しはバックエンド",
+        "ASとAPIは同じRoute A証明書。内部hopは別identity",
+        "KongがASとcode交換・session保持。詳細は本文を参照"
       ]
     }
   ]

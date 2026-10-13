@@ -1,5 +1,7 @@
 # お客様向けデモ: 対応範囲と追加実装
 
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+
 ## 最初に伝えること
 
 このデモは、FAPI 2.0対応の検討材料として、3rd Partyを含む構成でKongの主要機能を実演するものです。完全適合・認定済み・そのまま本番投入可能という説明はしません。

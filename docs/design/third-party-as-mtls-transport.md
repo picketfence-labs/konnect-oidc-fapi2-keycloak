@@ -1,5 +1,7 @@
 # DP0: 3rd Party → ASのmTLS補完契約
 
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+
 > 2026-10-04現在の実装・検証結果は[WP5受入表](third-party-wp5-acceptance.md)を参照。5a受入、5b実装、5c隔離AS直結・2 worker guardは通過した。通常環境での受入は未完了。以下の契約や過去の試行記録から、現在の成功・未実行範囲を推定しない。
 
 ## 状態と境界
@@ -126,3 +128,9 @@ WP5の最初に[Keycloak側peer証跡契約](third-party-as-peer-evidence.md)の
 ## 実装着手後の戻し条件
 
 callback contextが失われる、metadata取得が別HTTP APIへ変わる、worker-wide decoratorが他pluginに干渉する、固定alias/issuerが成立しない、server-side証跡を取れない、またはstock PAR/revoke JWTが文字列aud/PS256/TTL等の送信条件を満たさない場合は、WP5冒頭のspikeで本体実装前にneeds-designとする。claim不適合時の第一候補はPAR/revokeもstock TLS branch + signer delegateにする案だが、採否はDesign ownerが決め、Workerは切り替えない。Workerはprivate SDK patch、追加proxy、HTTPS downgradeを自己判断で採用しない。Design ownerが別adapter案とscope/工数を再提案する。
+
+## バックエンド分離後に維持するAS identity
+
+OAuth・セッションの主体はTP Kongです。`tls_client_auth_cert_id`、Route別transport manifest、Route B bridgeは従来のA/B identityを維持します。Serviceのクライアント証明書だけを専用内部hop identityへ分離します。バックエンドは同じA/B証明書でAPIを呼び出すため、Kongと限定的にRoute TLS鍵を共有します。metadata専用鍵、PKJWT署名鍵、refresh token、Cookieは共有しません。
+
+stock処理を含む実ASへのTLS peerがA/Bのまま、バックエンド入口のpeerが内部hop専用identityとなることを、新経路の結合試験で別々に観測します。ソース上の分離だけで実送信identityの成功とは扱いません。

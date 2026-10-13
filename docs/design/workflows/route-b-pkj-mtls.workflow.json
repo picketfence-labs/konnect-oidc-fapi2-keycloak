@@ -2,7 +2,7 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route B：private_key_jwtとmTLS証明書束縛",
+    "title": "Route B：PKJWT認証とバックエンド経由API",
     "animation": "none",
     "quality_profile": "showcase",
     "output": "route-b-pkj-mtls.workflow.html",
@@ -21,7 +21,11 @@
           "label": "API処理"
         }
       }
-    }
+    },
+    "viewBox": [
+      1213,
+      776
+    ]
   },
   "lanes": [
     {
@@ -56,39 +60,46 @@
       "id": "par-auth",
       "label": "PARと利用者認証",
       "fromCol": 1,
-      "toCol": 2,
+      "toCol": 1,
       "variant": "emphasis"
     },
     {
       "id": "exchange",
-      "label": "コード交換",
-      "fromCol": 3,
-      "toCol": 3,
+      "label": "コード交換・セッション",
+      "fromCol": 2,
+      "toCol": 2,
       "variant": "security"
     },
     {
       "id": "protected",
       "label": "API検査と結果表示",
-      "fromCol": 4,
-      "toCol": 5,
+      "fromCol": 3,
+      "toCol": 4,
       "variant": "security"
     }
   ],
   "groups": [
     {
-      "id": "service_group_b",
-      "label": "3rd Partyサービス",
+      "id": "ui_group_b",
+      "label": "静的UI（Kong経由）",
       "lane": "third-party",
       "fromCol": 0,
       "toCol": 0
     },
     {
       "id": "kong_group_b",
-      "label": "Kong Gateway（OAuthクライアント）",
+      "label": "Kong Gateway / OAuth",
       "lane": "third-party",
       "fromCol": 1,
-      "toCol": 4,
+      "toCol": 2,
       "variant": "security"
+    },
+    {
+      "id": "backend_group_b",
+      "label": "業務バックエンド",
+      "lane": "third-party",
+      "fromCol": 3,
+      "toCol": 3
     }
   ],
   "mainPath": [
@@ -97,11 +108,9 @@
     "par_b",
     "par_accept_b",
     "callback_b",
-    "token_b",
     "api_call_b",
     "api_validate_b",
-    "resource_b",
-    "result_b"
+    "resource_b"
   ],
   "semanticChecks": {
     "allowedRoots": [
@@ -117,7 +126,7 @@
       },
       {
         "from": "callback_b",
-        "to": "token_b"
+        "to": "api_call_b"
       },
       {
         "from": "api_call_b",
@@ -132,7 +141,7 @@
       "col": 0,
       "type": "frontend",
       "label": "デモUIを配信",
-      "sublabel": "nginx / 静的サービス",
+      "sublabel": "nginx / Kong経由で配信",
       "width": 200
     },
     {
@@ -156,43 +165,34 @@
     {
       "id": "par_accept_b",
       "lane": "idp",
-      "col": 2,
+      "col": 1,
       "type": "security",
       "label": "PAR受理・利用者認証",
-      "sublabel": "Keycloakのログイン画面",
+      "sublabel": "Keycloak / ログイン画面",
       "width": 200
     },
     {
       "id": "callback_b",
       "lane": "third-party",
-      "col": 3,
+      "col": 2,
       "type": "security",
-      "label": "callback・PKJWT署名",
-      "sublabel": "state・提示iss / bridge署名",
-      "width": 200
-    },
-    {
-      "id": "token_b",
-      "lane": "idp",
-      "col": 3,
-      "type": "security",
-      "label": "認証・コード交換",
-      "sublabel": "PKJWT / B証明書へ束縛",
+      "label": "callback・token取得",
+      "sublabel": "state・提示iss / AS mTLS",
       "width": 200
     },
     {
       "id": "api_call_b",
       "lane": "third-party",
-      "col": 4,
+      "col": 3,
       "type": "backend",
-      "label": "保護APIを呼び出す",
+      "label": "バックエンドがAPI呼出し",
       "sublabel": "Bearer + Route B証明書",
       "width": 200
     },
     {
       "id": "api_validate_b",
       "lane": "api",
-      "col": 4,
+      "col": 3,
       "type": "security",
       "label": "token・PoPを検査",
       "sublabel": "introspection / cnf照合",
@@ -201,7 +201,7 @@
     {
       "id": "resource_b",
       "lane": "resource",
-      "col": 5,
+      "col": 4,
       "type": "backend",
       "label": "JWTと束縛を再検証",
       "sublabel": "元client証明書とcnfを照合",
@@ -210,7 +210,7 @@
     {
       "id": "result_b",
       "lane": "user",
-      "col": 5,
+      "col": 4,
       "type": "external",
       "label": "UIで結果を確認",
       "sublabel": "claim/header・署名・束縛",
@@ -222,7 +222,7 @@
       "id": "ui-to-choose_b",
       "from": "ui_b",
       "to": "choose_b",
-      "label": "HTTPS / UI取得",
+      "label": "Kong経由 / UI取得",
       "variant": "default",
       "role": "main"
     },
@@ -251,22 +251,6 @@
       "role": "main"
     },
     {
-      "id": "callback-to-token_b",
-      "from": "callback_b",
-      "to": "token_b",
-      "label": "code + verifier + PKJWT",
-      "variant": "security",
-      "role": "main"
-    },
-    {
-      "id": "token-to-api_call_b",
-      "from": "token_b",
-      "to": "api_call_b",
-      "label": "証明書束縛token",
-      "variant": "emphasis",
-      "role": "main"
-    },
-    {
       "id": "api_call-to-api_validate_b",
       "from": "api_call_b",
       "to": "api_validate_b",
@@ -285,29 +269,44 @@
     {
       "id": "resource-to-result_b",
       "from": "resource_b",
-      "to": "result_b",
-      "label": "HTTPS / 検証結果",
+      "to": "api_call_b",
+      "label": "API Kong経由の応答",
       "variant": "default",
+      "role": "return"
+    },
+    {
+      "id": "callback-to-backend_b",
+      "from": "callback_b",
+      "to": "api_call_b",
+      "label": "専用mTLS + token",
+      "variant": "security",
       "role": "main"
+    },
+    {
+      "id": "backend-to-user_b",
+      "from": "api_call_b",
+      "to": "result_b",
+      "label": "TP Kong経由 / 応答",
+      "variant": "default",
+      "role": "return"
     }
   ],
   "cards": [
     {
-      "dot": "emerald",
-      "title": "認証方式と送信者制約",
+      "dot": "amber",
+      "title": "承認済み設計・実装／受入前",
       "items": [
-        "クライアント認証はPS256のprivate_key_jwt",
-        "JWT署名鍵と、tokenを束縛するRoute BのTLS鍵は別",
-        "PAR・コード交換はmTLS。認可画面への遷移はブラウザーのHTTPS"
+        "旧受入済みの直接転送から、バックエンド経由へ変更予定",
+        "応答: API Kong → バックエンド → TP Kong → ブラウザー"
       ]
     },
     {
-      "dot": "amber",
-      "title": "補完と検証範囲",
+      "dot": "emerald",
+      "title": "OAuthと証明書の分担",
       "items": [
-        "token/refreshはbridge署名、PAR/revokeは標準PKJWT＋mTLS補完",
-        "API Gatewayの検査・保護APIの再検証はRoute Aと共通",
-        "PARのform client_id省略は既知差分。完全FAPI適合は未主張"
+        "Kongがcode交換・session管理、バックエンドがAPI呼出し",
+        "ASとAPIは同じRoute B証明書。内部hopは別identity",
+        "Bのtoken/refreshはbridgeがPKJWT署名、TLS鍵とは分離"
       ]
     }
   ]

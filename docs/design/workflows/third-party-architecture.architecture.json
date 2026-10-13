@@ -2,13 +2,13 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "3rd Party経由のFAPI 2.0デモ構成",
+    "title": "3rd Partyバックエンド経由のFAPI 2.0構成",
     "animation": "none",
     "quality_profile": "showcase",
     "output": "third-party-architecture.architecture.html",
     "viewBox": [
-      1280,
-      760
+      1360,
+      830
     ],
     "legend": {
       "entries": {
@@ -32,42 +32,56 @@
       "id": "demo-browser",
       "type": "external",
       "label": "利用者",
-      "sublabel": "ブラウザー",
+      "sublabel": "ブラウザー / :8443",
       "pos": [
-        40,
-        400
+        30,
+        470
       ],
       "size": [
-        180,
-        72
-      ]
-    },
-    {
-      "id": "partner-ui",
-      "type": "frontend",
-      "label": "3rd Partyサービス",
-      "sublabel": "デモUI / nginx :3443",
-      "pos": [
-        320,
-        580
-      ],
-      "size": [
-        220,
-        72
+        160,
+        76
       ]
     },
     {
       "id": "partner-client",
       "type": "security",
       "label": "Kong Gateway",
-      "sublabel": "OAuthクライアント / A・B",
+      "sublabel": "OAuth・セッション / A・B",
       "pos": [
-        320,
-        400
+        290,
+        470
       ],
       "size": [
-        220,
-        72
+        200,
+        76
+      ]
+    },
+    {
+      "id": "partner-ui",
+      "type": "frontend",
+      "label": "静的UIサービス",
+      "sublabel": "nginx / 内部HTTP",
+      "pos": [
+        290,
+        680
+      ],
+      "size": [
+        200,
+        76
+      ]
+    },
+    {
+      "id": "partner-backend",
+      "type": "backend",
+      "label": "3rd Partyバックエンド",
+      "sublabel": "業務処理・外部API呼出し",
+      "pos": [
+        650,
+        470
+      ],
+      "size": [
+        210,
+        76
       ]
     },
     {
@@ -76,12 +90,12 @@
       "label": "Keycloak / IdP",
       "sublabel": "認証・認可 / AS :8444",
       "pos": [
-        680,
+        650,
         130
       ],
       "size": [
-        220,
-        72
+        210,
+        76
       ]
     },
     {
@@ -90,38 +104,39 @@
       "label": "Kong API Gateway",
       "sublabel": "introspection・PoP検証",
       "pos": [
-        680,
-        400
+        1070,
+        470
       ],
       "size": [
         220,
-        72
+        76
       ]
     },
     {
       "id": "protected-resource",
       "type": "backend",
       "label": "Resource Server",
-      "sublabel": "PoP verifier / 保護API",
+      "sublabel": "JWT・証明書束縛の再検証",
       "pos": [
-        1040,
-        400
+        1080,
+        680
       ],
       "size": [
-        200,
-        72
+        210,
+        76
       ]
     }
   ],
   "boundaries": [
     {
       "kind": "region",
-      "label": "3rd Party（サービスとクライアントGateway）",
+      "label": "3rd Party（OAuthクライアントの信頼領域）",
       "wraps": [
+        "partner-client",
         "partner-ui",
-        "partner-client"
+        "partner-backend"
       ],
-      "pad": 26
+      "pad": 30
     },
     {
       "kind": "region",
@@ -130,25 +145,33 @@
         "provider-gateway",
         "protected-resource"
       ],
-      "pad": 26
+      "pad": 24
     }
   ],
   "connections": [
     {
-      "id": "browser-session",
+      "id": "browser-entry",
       "from": "demo-browser",
       "to": "partner-client",
-      "label": "HTTPS / セッション",
-      "variant": "dashed"
+      "label": "HTTPS / UI・業務要求",
+      "variant": "dashed",
+      "labelAt": [
+        240,
+        560
+      ]
     },
     {
       "id": "ui-delivery",
-      "from": "demo-browser",
+      "from": "partner-client",
       "to": "partner-ui",
-      "label": "HTTPS / UI取得",
+      "label": "UI取得・配信",
       "variant": "dashed",
       "fromSide": "bottom",
-      "toSide": "left"
+      "toSide": "top",
+      "labelAt": [
+        390,
+        615
+      ]
     },
     {
       "id": "browser-auth",
@@ -160,16 +183,16 @@
       "toSide": "left",
       "via": [
         [
-          130,
+          110,
           70
         ],
         [
-          620,
+          590,
           70
         ],
         [
-          620,
-          166
+          590,
+          168
         ]
       ]
     },
@@ -180,13 +203,24 @@
       "label": "mTLS / PAR・token等",
       "variant": "dashed",
       "fromSide": "top",
-      "toSide": "bottom"
+      "toSide": "bottom",
+      "labelAt": [
+        520,
+        330
+      ]
+    },
+    {
+      "id": "backend-entry",
+      "from": "partner-client",
+      "to": "partner-backend",
+      "label": "専用mTLS + token",
+      "variant": "dashed"
     },
     {
       "id": "bound-api",
-      "from": "partner-client",
+      "from": "partner-backend",
       "to": "provider-gateway",
-      "label": "mTLS + Bearer",
+      "label": "A/B証明書 + Bearer",
       "variant": "dashed"
     },
     {
@@ -196,31 +230,47 @@
       "label": "mTLS / introspection",
       "variant": "dashed",
       "fromSide": "top",
-      "toSide": "right"
+      "toSide": "right",
+      "via": [
+        [
+          1180,
+          290
+        ],
+        [
+          930,
+          290
+        ],
+        [
+          930,
+          168
+        ]
+      ]
     },
     {
       "id": "trusted-upstream",
       "from": "provider-gateway",
       "to": "protected-resource",
       "label": "mTLS + 検証用証跡",
-      "variant": "dashed"
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left"
     }
   ],
   "cards": [
     {
-      "dot": "emerald",
-      "title": "Route A / Route B",
+      "dot": "amber",
+      "title": "承認済み設計・実装／受入前",
       "items": [
-        "A: tls_client_auth / B: private_key_jwt（PS256）",
-        "両Routeとも証明書に束縛されたトークンを使用"
+        "バックエンド追加は別ブランチで実装中。旧受入は新経路を証明しない",
+        "応答はResource Server → API Kong → バックエンド → TP Kong → UI"
       ]
     },
     {
       "dot": "emerald",
-      "title": "役割と管理の境界",
+      "title": "OAuthとAPI呼出しの分担",
       "items": [
-        "UIは画面配信のみ。OAuth処理・API呼出しは3rd PartyのKongが担当",
-        "2つのGatewayを別のKonnect control planeで管理"
+        "KongがOAuth・セッションを管理、バックエンドが外部APIを呼び出す",
+        "A: tls_client_auth / B: private_key_jwt。ASとAPIは同じA/B証明書"
       ]
     }
   ]
