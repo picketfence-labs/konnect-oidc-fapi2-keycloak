@@ -1,6 +1,6 @@
 # WP5実装・受入対応表
 
-> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離のソース実装・ローカル検証は完了し、新経路の実行受入は未実施です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
 
 ## 判定（2026-10-05）
 

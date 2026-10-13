@@ -2,7 +2,7 @@
 
 このデモは、3rd Partyサービスが利用者の認可を得てAPIを呼び出す構成で、Kong Gatewayの二つの役割を示します。3rd Party側ではOAuthクライアント、API提供者側ではResource Serverの入口として動作します。クライアント認証をRoute Aの`tls_client_auth`とRoute Bの`private_key_jwt`で比較し、両方でmTLSによるトークンの証明書束縛を検証します。
 
-> **承認済み設計・実装／受入前（2026-10-13）**: この資料と図は、3rd Partyバックエンドを追加する承認済みの目標構成を説明します。コードは別ブランチで実装中です。mainの現行コードにはバックエンドがなく、TP KongがAPI側Kongへ直接転送します。WP1～WP6の受入済み証跡は変更前の構成に対する履歴であり、新経路の成功証跡ではありません。
+> **ソース・ローカル検証済み／実行受入前（2026-10-13）**: 3rd Partyバックエンドを追加したソース実装とManager独立のローカル検証は完了しました。図・資料はPR #30で先行反映し、コードは別Draft PR #31です。実Kong/Keycloakによる新経路の受入は未実施です。WP1～WP6の旧証跡を新経路の成功証跡に流用しません。
 
 FAPI 2.0完全準拠、OIDF認定、本番運用への適合を主張しません。変更契約と新たな受入項目は[対応計画](docs/design/third-party-backend-change-plan.md)、設計判断は[ADR 0023](docs/decisions/0023-third-party-backend-separation.md)を参照してください。
 

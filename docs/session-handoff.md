@@ -1,5 +1,11 @@
 # OIDC デモのセッション引き継ぎ
 
+## バックエンド分離のソース完了・実行受入前（2026-10-13、最新）
+
+図・文書PR #30はmainへmerge済み。別Draft PR #31（feat/third-party-backend）へ実装・テストとCLI修正をpushし、mainの資料を取り込んだ。Manager独立のmake validate、380 unittest、UI/Lua/native設定が成功。CLIイベント出力を正規flagで抑制し、追加12検証/意味変異2検出が成功。下の資料先行・WP1～WP6の状態は時点付き履歴である。
+
+取得済み実diffのJSON診断はTP4create/6update/0delete・warnings/errorsなし、固定集合一致。修正後wrapperの再取得は、自動承認レビューが特定CPへの既存credential利用・external readの明示許可不足として実行前に拒否し、再試行していない。隔離6service候補、元DB/CA/A/B不変のsnapshot、全mountとloopback設定は検証済み。Python native image取得・CPsync・Docker起動・IdP2属性更新・新経路受入は未実施。受入前プレビューと承認待ち境界をGit外evidenceへ保存した。[準備・適用・受入手順](design/third-party-backend-runtime.md)からsource契約と未確認項目を確認する。PR #31はruntime受入までDraftを維持する。
+
 ## バックエンド分離: 資料先行・コード並行（2026-10-13）
 
 PR #29はmain `933a51a`へmerge済み。その後、利用者からUI提供と外部API呼出しの分離、3rd Partyバックエンド経由への修正指示を受けた。確認した目標経路は「ブラウザー → 3rd Party Kong → 3rd Partyバックエンド → API提供者側Kong → Resource Server」。バックエンドから再び3rd Party Kongを経由する必要はない。
