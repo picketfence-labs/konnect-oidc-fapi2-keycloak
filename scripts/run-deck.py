@@ -60,6 +60,42 @@ WP5_EXPECTED_CREATE_IDENTITIES = {
     ("plugin", "request-transformer for service third-party-route-b-api"),
 }
 
+# decK 1.53.1 uses reconciler 1.29.2. Its migration check accepts only "~/",
+# so the format-3.0 UI's fixed "~^/" paths trigger this false-positive advisory.
+# wp1_target validates the exact UI route ID/paths and format before execution.
+# Official producer and literal (the only framing accepted in addition to JSON):
+# https://github.com/Kong/go-database-reconciler/blob/v1.29.2/pkg/file/builder.go#L1388-L1406
+# https://github.com/Kong/go-database-reconciler/blob/v1.29.2/pkg/utils/utils.go#L238-L262
+# https://github.com/Kong/go-database-reconciler/blob/v1.29.2/pkg/utils/utils.go#L36-L49
+BACKEND_DECK_REGEX_ADVISORY = (
+    "1 unsupported routes' paths format with Kong version 3.0\n"
+    "or above were detected. Some of these routes are (not an exhaustive list):\n\n"
+    "aaced8a8-6936-520b-96ea-026a7b01b4b6\n"
+    " paths:~^/$\n"
+    "       ~^/index\\.html$\n"
+    "       ~^/evidence\\.js$\n\n"
+    "Please upgrade your configuration to account for 3.0\n"
+    "breaking changes using the following command:\n\n"
+    "deck convert --from kong-gateway-2.x --to kong-gateway-3.x\n\n"
+    "This command performs the following changes:\n"
+    "  - upgrade the `_format_version` value to `3.0`\n"
+    "  - add the `~` prefix to all routes' paths containing a regex-pattern\n\n"
+    "These changes may not be correct or exhaustive enough.\n"
+    "It is strongly recommended to perform a manual audit\n"
+    "of the updated configuration file before applying\n"
+    "the configuration in production. Incorrect changes will result in\n"
+    "unintended traffic routing by Kong Gateway.\n\n"
+    "For more information about this and related changes,\n"
+    "please visit: https://docs.konghq.com/deck/latest/3.0-upgrade\n\n"
+)
+
+
+def parse_backend_cli_runtime_diff(raw: str, secrets: list[str] | None = None) -> tuple[dict, str]:
+    """Remove at most one exact, fixed advisory at offset zero, then strict JSON."""
+    if raw.startswith(BACKEND_DECK_REGEX_ADVISORY):
+        raw = raw[len(BACKEND_DECK_REGEX_ADVISORY):]
+    return parse_sanitized_runtime_diff(raw, secrets)
+
 
 def sanitize_output(text: str, secrets: list[str]) -> str:
     text = re.sub(
@@ -520,7 +556,7 @@ def main() -> int:
     if wp5_runtime_sync:
         diff_command = [*common_command]
         diff_command[2] = "diff"
-        diff_command.extend(["--json-output", "--no-color", "--no-mask-deck-env-vars-value", "--silence-events"])
+        diff_command.extend(["--json-output", "--no-color", "--no-mask-deck-env-vars-value"])
         diff_result = run_deck_subprocess(
             diff_command,
             root=root,
@@ -532,7 +568,7 @@ def main() -> int:
         )
         if diff_result.returncode != 0 or diff_result.stderr.strip():
             raise ValueError("third-party runtime pre-sync diff failed; sync was not attempted")
-        current_operations, current_diff_sha256 = parse_sanitized_runtime_diff(
+        current_operations, current_diff_sha256 = parse_backend_cli_runtime_diff(
             diff_result.stdout, sensitive_values
         )
         validate_backend_scope(current_operations, wp5_receipt["plan_type"])
@@ -607,7 +643,6 @@ def main() -> int:
         command.append("--no-color")
         if third_party_runtime:
             command.append("--no-mask-deck-env-vars-value")
-            command.append("--silence-events")
     result = run_deck_subprocess(
         command,
         root=root,
@@ -631,7 +666,7 @@ def main() -> int:
             print(f"WP3_API_RUNTIME_STATE_SHA256={file_sha256(state)}")
             print(f"WP3_API_RUNTIME_ROLE_INPUTS_SHA256={role_inputs_sha256}")
         else:
-            operations, digest = parse_sanitized_runtime_diff(result.stdout, sensitive_values)
+            operations, digest = parse_backend_cli_runtime_diff(result.stdout, sensitive_values)
             print(json.dumps(operations, sort_keys=True, separators=(",", ":")))
             print(f"TP_BACKEND_RUNTIME_V2_STATE_SHA256={file_sha256(state)}")
             print(f"TP_BACKEND_RUNTIME_V2_ROLE_INPUTS_SHA256={role_inputs_sha256}")
