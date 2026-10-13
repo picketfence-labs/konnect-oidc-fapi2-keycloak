@@ -1,6 +1,6 @@
 # ADR 0023: 3rd PartyのUI配信と業務API呼出しを分離する
 
-- 状態: 承認済み。ソース・ローカル検証完了／実行受入前
+- 状態: 承認済み・実装済み。HTTP E2Eの範囲で受入完了（[ADR 0024](0024-third-party-backend-e2e-acceptance.md)）
 - 日付: 2026-10-13
 - 関連: [対応計画](../design/third-party-backend-change-plan.md)、[全体構成](../../ARCHITECTURE.md)
 
@@ -20,6 +20,6 @@ ASへのA/B identityと、API呼出し時の送信者制約を維持するため
 
 鍵の保持箇所が増える。限定した読み取り専用mount、バックエンドの非公開入口、専用peer照合、任意URL・redirect拒否、応答allowlist、秘密非露出で境界を定める。別の証明書でAPIを呼び出すと`cnf.x5t#S256`に一致しない。OAuth全体をバックエンドへ移す方式は今回採らない。
 
-ASへA/B identityが提示され、バックエンドには内部hop専用identity、APIには同じA/B identityが提示されることを新経路で観測する。refresh/logout、同時A/B、backend停止、迂回・偽装・漏洩の負例も新たに受入する。
+新経路の4セッションでAPI応答・署名・claim/header・A/B証明書束縛、期限越え継続・logout、入力負例とBackend停止時の入口閉鎖を確認した。ASの操作ごとのwire identityやrotation等は未観測で、受入結果と区別する。利用者が承認した完了範囲と未検証項目は[ADR 0024](0024-third-party-backend-e2e-acceptance.md)に記録する。
 
-資料と図をコードより先にmainへ提供し、実装／受入前と表示する。変更前のWP1～WP6受入とPagesは履歴として維持し、旧receiptを新経路の成功証跡に流用しない。コードは別ブランチ・別PRで実装する。
+資料と図はコードより先にmainへ提供した。コードは別ブランチのPR #31で実装し、利用者がmainへマージした。図の先行版は設計段階のartifactとして保持し、実行結果は独立した受入表へ記録する。変更前のWP1～WP6受入とPagesは履歴として維持し、旧receiptを新経路の成功証跡に流用しない。

@@ -6,7 +6,7 @@
 
 ## バックエンド分離の承認済み設計
 
-図とARCHITECTUREは次期構成を先行説明します。UIをTP Kong経由で配信し、業務要求をTP Kong→TPバックエンド→API側Kong→Resource Serverへ分離します。OAuth/セッションはTP Kongに残し、内部hopには専用mTLS identity、外部APIにはASで使った同じA/B証明書を使います。ソース実装とローカル検証は完了し、実行受入は未実施です。[ADR 0023](decisions/0023-third-party-backend-separation.md)と[対応計画](design/third-party-backend-change-plan.md)を正とします。
+UIをTP Kong経由で配信し、業務要求をTP Kong→TPバックエンド→API側Kong→Resource Serverへ分離します。OAuth/セッションはTP Kongに残し、内部hopには専用mTLS identity、外部APIにはASで使った同じA/B証明書を使います。PR #31はmainへマージ済みで、利用者はHTTP E2Eの確認範囲で受け入れ、今回の作業を完了しました。[ADR 0023](decisions/0023-third-party-backend-separation.md)に構成判断、[ADR 0024](decisions/0024-third-party-backend-e2e-acceptance.md)に受入範囲と未検証項目を記録しています。
 
 ## 変更前の到達点
 
