@@ -1,6 +1,6 @@
 # 3rd Partyバックエンド分離の影響と対応計画
 
-- 状態: 図・文書はPR #30でmainへ先行反映済み。コードは別Draft PR #31。承認済み残6操作のTP復旧同期が成功・実差分0。隔離IdPの限定更新の比較で停止し、原値を確認中。新経路の実行受入は未完了
+- 状態: 図・文書はPR #30でmainへ先行反映済み。コードは別Draft PR #31。TP復旧同期・postdiff0、隔離IdPの2属性更新・Backend/UI起動・Route Aの実API200を確認。Route B同意遷移へ受入ヘルパーを限定対応中で、新経路全体の受入は未完了
 - 日付: 2026-10-13
 - 基準: main `933a51a`（文書整備PR #29をmerge済み）
 - 役割: Coordinatorが全体条件と図・文書を統括。コード側はManagerがWorkerへ委譲し、成果を検証・統合する
@@ -46,7 +46,7 @@ API:  ブラウザー → localhost:8443 → TCP forward → TP Kong
 
 既存デモのKongによるFAPIクライアント認証を維持し、薄い3rd Partyバックエンドを追加する。OAuthクライアントをバックエンドへ移す方式は、認可開始・callback・セッション・refresh・PKJWTをアプリ側へ再実装することになり、今回の最小変更案には採らない。
 
-- Kongが利用者ごとのOAuthセッションを管理し、取得したアクセストークンを内部通信だけでバックエンドへ渡す。ブラウザーへtokenを返さない。client credentialsへの置換は行わない。
+- Kongが利用者ごとのOAuthセッションを管理し、取得したアクセストークンを内部通信だけでバックエンドへ渡す。アクセストークン／refresh tokenをブラウザーへ返さず、client credentialsへ置換しない。既存`login_tokens: [id_token]`によるIDトークンのUI URL fragment返却と、UIスクリプトによる除去は維持する。全トークン非返却を達成したとは扱わない。
 - バックエンドはRoute A/Bごとの固定内部エンドポイントを持ち、固定されたAPI側Kongへだけ送信する。呼出し元が指定したURL・証明書パス・認証方式を採用しない。
 - Kong→バックエンドは専用identityのmTLSとし、そのKongからの要求だけを受け付ける。ブラウザー由来のAuthorizationや内部用ヘッダーを、認証済み要求として信頼しない。
 - バックエンド→API側KongはBearer tokenとRoute A/B証明書によるmTLSを使う。tokenの`cnf.x5t#S256`に束縛された証明書と、API接続時の証明書を一致させる。
@@ -133,7 +133,7 @@ API:  ブラウザー → localhost:8443 → TCP forward → TP Kong
 
 ## 実装・プレビューの到達点（2026-10-13）
 
-最新: 利用者が下記の残6操作を承認し、新票・Routes validation・fresh diff・late rereadを経てTP同期1回が成功、postdiff0を確認しました。Python/UI imageをdigest固定して隔離first4を起動、Keycloak/TP worker readinessが成功。その後IdPのA postlogout更新の非対象field比較で停止しました。元DBを開かずコピーのoffline readで原値を確認中です。B更新・Backend/UI起動・新経路の受入は未実施。以下は復旧前までの経緯であり、最新の操作状態は[準備・適用・受入手順](third-party-backend-runtime.md)を参照してください。
+最新: 利用者が下記の残6操作を承認し、新票・Routes validation・fresh diff・late rereadを経てTP同期1回が成功、postdiff0を確認しました。隔離IdPは元停止DBコピーから再構成し、2属性だけの更新と他GETfield不変を確認。Backend/UI起動とRoute A/user slot0の実API200も成功しました。Route B初回同意へのヘルパー限定対応後に4session/refresh/logoutを続行します。以下は復旧前までの経緯であり、最新の操作状態は[準備・適用・受入手順](third-party-backend-runtime.md)を参照してください。
 
 バックエンド、専用hop、Gateway/UI/PKI/role、readiness、今回専用schema2 guardを実装。Manager独立でmake validate、380 unittest、UI/Lua、native Compose設定が成功しました。利用者の具体プレビュー一括承認後、fresh4create/6update/0deleteと承認票の一致を確認してTP同期を開始しましたが、CLI nonzeroで停止しました。read-only現状ではhop Certificate/UI Serviceの作成とA/B Service更新の4操作が反映済み。残りはUI Route/UI transformerの2create、A/B CORS/OIDCの4updateです。削除と予期しない対象変更はありません。
 

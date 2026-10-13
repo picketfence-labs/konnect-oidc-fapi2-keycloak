@@ -45,13 +45,15 @@ Route Bでは署名鍵によるクライアント認証と、TLS証明書によ�
 ## 認証からAPI応答まで
 
 1. 利用者がTP Kong経由で静的UIを取得し、UIでRouteを選びます。3rd PartyのKongがPARを送信し、ブラウザーをKeycloakへ遷移させます。認可コードフローとPKCE S256を使用します。
-2. Keycloakで利用者が認証され、コードが固定callbackへ返ります。Kongは選択Routeのクライアント認証でコードを交換し、セッションを保持します。raw tokenをUIへ返しません。
+2. Keycloakで利用者が認証され、コードが固定callbackへ返ります。Kongは選択Routeのクライアント認証でコードを交換し、セッションを保持します。アクセストークンとrefresh tokenをUIのAPI応答や表示へ返しません。
 3. 3rd PartyのKongは専用内部identityのmTLSでバックエンドへ要求を転送し、セッションに対応するアクセストークンを渡します。バックエンドは固定内部pathからA/Bを選択し、AS通信で使ったものと同じRoute証明書と`Authorization: Bearer`でAPI側Kongを呼び出します。バックエンドの外向き要求をTP Kongへ戻しません。
 4. API Gatewayは専用client `api-gateway-introspection`でKeycloakへmTLS introspectionを行います。`active`、issuer、audience `fapi-demo-api`、scope `openid`とPoPを確認します。introspection cacheは無効です。
 5. API Gatewayは呼出し元の証跡用ヘッダーを除去し、認証済みclaimからヘッダーを再生成します。元クライアント証明書を検証用に転送し、別のupstream用証明書でPoP verifierへmTLS接続します。
 6. PoP verifierはAPI GatewayのTLS identityを確認し、JWTのPS256署名・issuer・audience・時刻・scopeと、元クライアント証明書に対する`cnf.x5t#S256`の一致を再検証します。結果はAPI側Kong、バックエンド、TP Kongを通ってUIへ戻ります。バックエンドは許可項目だけを返し、UIはclaim/header、束縛結果、thumbprintの先頭12文字だけを表示します。
 
 期限更新はKongのrefresh処理を使い、新しいrefresh tokenが返れば保存します。logoutではtoken revocation、Kongセッション破棄、KeycloakのRP-Initiated Logoutを扱います。logoutのHTTP成功は個別トークンの失効反映時間を保証する証拠とは扱いません。
+
+既存OIDC設定の`login_tokens: [id_token]`は、ログイン後のUI URL fragmentへIDトークンを返します。UIのスクリプトはfragmentをURLから除去し、IDトークンを表示・API送信・利用者判定に使いません。ブラウザーへの全トークン非返却は達成しておらず、アクセストークン／refresh tokenの非露出と区別します。今回のバックエンド分離ではこの既存設定を維持します。図のAPI通信で渡すtokenはアクセストークンを指します。
 
 ## 証明書と信頼境界
 

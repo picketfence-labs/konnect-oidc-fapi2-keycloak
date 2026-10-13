@@ -679,3 +679,17 @@ commit c3b8595の実wrapper fresh diffは4create/6update/0delete、stderr/warnin
 承認済み隔離候補でPython/UI imageをdigest固定し、first4起動とKeycloak/TP worker readinessが成功した。A clientのpostlogout更新は、GETした全attributesの1キーだけを変更し、top-level `id`と`attributes`だけでPUTした。readbackの全clientfield不変比較がAssertionErrorとなったため追加PUTを止めた。B更新、Backend/UI起動、8443公開と新経路の受入は未実施。候補だけ停止し、原DB/PKI/入力のbefore-after不変を確認した。
 
 初回before/afterはmemoryで比較後に破棄しており、実失敗pairの直接diffを復元できない。現況と生成templateの差を、その失敗pairの差へ読み替えない。pinned Keycloak26.7.4のupdateとFAPI policyを調査し、省略webOriginsの補完、UPDATE前policyによる省略authenticatorのdefault適用経路を確認した。[更新変換](https://github.com/keycloak/keycloak/blob/26.7.4/server-spi-private/src/main/java/org/keycloak/models/utils/RepresentationToModel.java#L510)、[認証方式の補完](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/services/clientpolicy/executor/SecureClientAuthenticatorExecutor.java#L97)、[組込みFAPI2 profile](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/resources/keycloak-default-client-profiles.json#L140)を根拠とする。単なる配列順序とは断定せず、原DBを開かないcopyのoffline readで実beforeを確認する。以後は送信・読戻しをprivate0600へ保存し、assert前に安全な変更field分類を出す。証明のない値を推測投入せず、意図したpostlogout2属性だけの差へ復旧する方法を具体化する。
+
+続報: 同じKeycloakイメージ内のH2で原停止DBコピーだけを読み取り専用で調査し、元Aがclient-x509/空originsだったことを確認した。コピーと原本のhash不変、credentialは設定由来1回、限定SELECTのみを検証した。失敗candidate DBは保全し、元DBの不変コピーから同じprivate pathへ再構成した。fresh full GETを保存後、credential/read-only値を除く明示mutable modelで2postlogoutだけPUT。Worker5/Manager独立5が成功し、両clientのbefore/afterは対象属性を除く全raw fieldが完全一致。初回失敗pairは回復したとは扱わない。
+
+## 2026-10-13: 隔離TP/APIのstock OIDC PEM障害と同構成再作成
+
+Backend/UI/readiness成功後、TPログイン開始が500となりstock OIDCのPEM_read_bio_PrivateKey markerを確認した。A/B/hopのcontainer envは候補PEMと同じでcrypto parse・publickey対応も成功。同構成TP再作成を試みた初回はproxy listen指定漏れを検査で検出して停止し、元env/listener/bind/port/image/source/PKIへ是正して再作成した。TP再作成は計2回、誤設定の初回ではloginしていない。正しい構成へ復帰後302と認証callbackを確認した。
+
+次のAPI要求は401。API側stock OIDCのintrospection PEM読込markerを確認し、API introspection/upstream keysのenv/PEM/crypto/cert一致を検証した。同じ構成のAPIだけを1回再作成、起動待ち後にRoute Aの新Backend実API200と13field照合が成功した。API側は以前からAS用とService用のidentityが分離しており、TPの新hopだけが必須原因という仮説は弱まる。保存データ/Vault解決との関連は候補であり、根本原因を断定しない。CPwrite、鍵書換、build、元stack操作はしていない。
+
+## 2026-10-13: 受入ヘルパーのfragment・初回同意の仮定
+
+旧ヘルパーは全URL fragmentを拒否していたが、既存login_tokens:[id_token]はUI terminalへIDtoken fragmentを返す。実callbackの固定origin/path/queryとfragmentkeyだけを非秘密投影で確認した。固定terminalに単一非空bounded id_tokenだけを許容しHTTP送信前に破棄する限定対応を実施、Worker10/Manager独立6が成功。値をdecode/表示/転送せず、access/refresh/unknown/duplicate/offorigin等は拒否する。全tokenブラウザー非返却を証明したとは扱わない。
+
+Route A/user slot0のAPI200後、Route BはKeycloak required-actionへ遷移して旧path guardが停止した。B-only4request診断でsingle OAUTH_GRANTの通常同意と確認し、expected route clientとconsentだけの限定対応を進める。今後の実runは値を出さない観測adapterを常時併用し、失敗後の無観測fullrun反復を避ける。ブラウザー実表示は既存CA信頼エラーでnot_run、証明書検証の回避やOS truststore変更はしていない。

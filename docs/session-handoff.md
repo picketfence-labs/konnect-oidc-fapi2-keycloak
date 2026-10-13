@@ -1,6 +1,14 @@
 # OIDC デモのセッション引き継ぎ
 
-## TP復旧収束・隔離IdP検査で停止（2026-10-13、最新）
+## TP・IdP復旧完了、新BackendのRoute A実API200（2026-10-13、最新）
+
+TPは承認残6操作を1syncしてpostdiff0。IdPは失敗snapshotを保全し元停止DBコピーから再構成した。新before/PUT/afterをprivate600保存し、A/B postlogoutだけ更新、他の全GETfieldは正規化なしで不変を確認した。初回失敗pair消失は別のUNKNOWNとして維持する。
+
+Backend/UI起動・UID1000鍵読込・image固定・非公開port・worker/readinessが成功。TPとAPIのstock OIDC PEM読込障害を同構成のDP再作成で回復した。TP再create初回のlisten漏れも履歴保存し是正した。追加CP/IdP設定変更はしていない。Route A/user slot0は新Backend経由のAPI200と13field照合まで成功、専用hop以外のBackend呼出しは401で拒否した。
+
+次はRoute Bの初回OAuth同意（Keycloak required-action/OAUTH_GRANT）への限定ヘルパー対応後、常時観測を付けて4session/API/期限越えrefresh/logoutを続行する。既存IDtoken fragmentだけを固定terminalでHTTP前に破棄する対応は検証済み。AT/refresh非露出と全token非返却を混同しない。ブラウザー実表示はCA信頼エラーでnot_run。資料の説明訂正は先行PR #32（docs2files、全CI3成功）。以下の停止・未実施は時点付き履歴で読む。
+
+## TP復旧収束・隔離IdP検査で停止（2026-10-13、履歴）
 
 利用者が残6操作を承認。新`migration-recovery`票、Routes validation、fresh diff、late rereadを通してTP同期を1回だけ実行し成功した。適用後の実差分は0。Python/UI imageをdigest固定し隔離first4を起動、Keycloak/TP worker readinessが成功した。
 
