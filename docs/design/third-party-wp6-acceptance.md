@@ -1,5 +1,7 @@
 # WP6 UI・切替・再現受入表
 
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+
 ## 現在地
 
 WP6は顧客向けデモのUI表示、logout/reset後のroute切替、clean checkout手順を仕上げるpackageです。WP1～WP5の受入結果を再実行せず再利用します。WP5のP0/P1/D判定と承認済みの未網羅範囲は[WP5受入表](third-party-wp5-acceptance.md)、顧客への説明は[デモ説明](third-party-demo-explainer.md)を正とします。

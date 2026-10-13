@@ -3,30 +3,36 @@
   "date": "2026-10-13",
   "diagram_type": "architecture",
   "quality_profile": "showcase",
+  "design_state": "承認済み設計・バックエンド実装／受入前",
+  "runtime_acceptance": "not_run_for_backend_path",
+  "previous_accepted_artifact": {
+    "repository_revision": "933a51a",
+    "html_sha256": "5df854ebc9a61f820af09bd4361127bceeea869d40f2feb2a0665b453e559d1c",
+    "publication_url": "https://picketfence-labs.github.io/diagrams/b671e37f23de/"
+  },
   "deterministic_validation": {
     "command": "archify deliver architecture",
     "exit_code": 0,
     "artifact_checks_passed": 9,
     "artifact_checks_total": 9,
     "composition_errors": 0,
-    "warnings": 0,
-    "geometry_repairs": 2
+    "warnings": 0
   },
   "artifacts": [
     {
       "path": "third-party-architecture.architecture.json",
-      "bytes": 4599,
-      "sha256": "74cc25badde4debba801224b05a15214c7eff29a4c3fb97cedb9241f79a42e77"
+      "bytes": 5593,
+      "sha256": "c9341ef88f30b2b91c445fca77219dda2b708484548d126a4d1baf64403655be"
     },
     {
       "path": "third-party-architecture.architecture.html",
-      "bytes": 805501,
-      "sha256": "5df854ebc9a61f820af09bd4361127bceeea869d40f2feb2a0665b453e559d1c"
+      "bytes": 807750,
+      "sha256": "556333dab7aa17b5fb3f509c0727409a35276d7e59b67ee9a62e5986387135e6"
     },
     {
       "path": "third-party-architecture.architecture.png",
-      "bytes": 540873,
-      "sha256": "9e2713d4bbe73480a11caff465d355f48c273abd68c01ff8b15ac37d0c75f753"
+      "bytes": 430213,
+      "sha256": "e6ad18df6fd0f7e26029bddf6a9228b426f8a7c78fede077e1d8b32953eaf645"
     }
   ],
   "browser_evidence": {
@@ -57,40 +63,51 @@
       "2048x1320 light",
       "2048x1320 dark"
     ],
-    "private_receipt": ".generated/evidence/architecture-review-20261013/third-party-architecture.architecture.visual-check.json"
+    "private_receipt": ".generated/evidence/tp-backend-docs-20261013/third-party-architecture.architecture.visual-check.json"
   },
   "perceptual_review": {
     "status": "pass",
-    "reviewer": "image-capable assistant",
+    "reviewer": "image-capable diagram Worker",
     "examined": [
       "1440x900 light",
       "1440x900 dark",
       "2048x1320 light",
-      "2048x1320 dark",
-      "PNG export"
+      "2048x1320 dark"
     ],
-    "findings": "ノード・ラベルの重なりなし。主経路と組織境界を判読でき、最大サイズでも下部に過大な空白なし。"
+    "findings": "UI経路・バックエンド経由API呼出し・組織境界・状態表示を明暗で確認。ラベルの重なり、欠け、過大な下部空白なし。PNG exportは別途確認待ち。",
+    "coordinator_review": {
+      "examined": [
+        "2048x1320 light",
+        "1440x900 dark",
+        "exported PNG"
+      ],
+      "status": "pass"
+    }
   },
+  "correction_record": "Workerの元ループを停止後、Coordinatorが独立診断で入口ラベル位置1件を修正し9/9。以後ソース凍結。",
   "export": {
-    "method": "delivered Viewer PNG export",
-    "theme": "light",
-    "width": 5120,
-    "height": 3040
+    "status": "pass",
+    "format": "png",
+    "dimensions": [
+      4080,
+      2490
+    ],
+    "method": "frozen HTML Viewer export via Playwright",
+    "reviewer": "Coordinator",
+    "findings": "Exported PNG inspected; labels, boundaries and API path are visible without Viewer controls."
   },
   "locale": {
     "authored": "ja",
     "fixed_viewer_fallback": "en"
   },
-  "user_architecture_approval": "approved",
-  "route_a_b_rewrite": "complete",
-  "user_architecture_approval_date": "2026-10-13",
   "publication": {
+    "status": "pass",
     "date": "2026-10-13",
-    "url": "https://picketfence-labs.github.io/diagrams/b671e37f23de/",
+    "url": "https://picketfence-labs.github.io/diagrams/16c30c21e271/",
     "repository": "picketfence-labs/diagrams",
-    "commit": "4aac2e965d5ee642bf3fff4047cf1999815f6cf0",
+    "commit": "e87ebf8a22344110991576129e8b016a666b87a3",
     "http_status": 200,
-    "served_sha256": "5df854ebc9a61f820af09bd4361127bceeea869d40f2feb2a0665b453e559d1c",
+    "served_sha256": "556333dab7aa17b5fb3f509c0727409a35276d7e59b67ee9a62e5986387135e6",
     "matches_delivered_html": true
   }
 }
