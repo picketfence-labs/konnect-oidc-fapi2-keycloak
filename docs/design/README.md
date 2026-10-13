@@ -1,6 +1,6 @@
 # FAPI 2.0デモの設計資料
 
-この資料は、3rd PartyのKongでOAuth・セッションを管理し、独立した3rd PartyバックエンドからAPI提供者のKongへ接続する承認済み設計を説明します。**バックエンド追加は別ブランチで実装中であり、新経路の受入は未実施です。** WP1～WP6とEpic #6の受入はバックエンド追加前の構成に対する履歴です。FAPI 2.0完全準拠や認定を主張しません。
+この資料は、3rd PartyのKongでOAuth・セッションを管理し、独立した3rd PartyバックエンドからAPI提供者のKongへ接続する承認済み設計を説明します。**バックエンド追加のソース・ローカル検証は完了し、新経路の実行受入は未実施です。** WP1～WP6とEpic #6の受入はバックエンド追加前の構成に対する履歴です。FAPI 2.0完全準拠や認定を主張しません。
 
 ## 最初に読む資料
 
@@ -12,6 +12,8 @@
 - [WP5受入表](third-party-wp5-acceptance.md) / [WP6受入表](third-party-wp6-acceptance.md): 統合・UI・切替・再現の結果と未網羅範囲。
 
 ## 実装契約と検証履歴
+
+- [バックエンド分離構成の準備・適用・受入](third-party-backend-runtime.md): 新identity、schema2承認、native実行と未実施境界。
 
 - [3rd Party経由デモ要件](third-party-fapi2-requirements.md): 承認済みトポロジーと実装・受入の境界。
 - [AS mTLS補完契約（DP0）](third-party-as-mtls-transport.md): 固定版の挙動、送信境界、証明書identity、bridgeとの分担。

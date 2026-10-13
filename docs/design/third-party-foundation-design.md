@@ -1,6 +1,6 @@
 # WP1: 2 Gateway基盤と段階別設定の詳細設計
 
-> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離のソース実装・ローカル検証は完了し、新経路の実行受入は未実施です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
 
 2026-10-02、PR #13の設計補足（`5ab6310`）に利用者が合意し、WP1への実装移譲を指示した。設計・実装・修正はPR #13／#15／#16／#17でmainへmerge済み。PR #5の認証・PoP・DP0方式を維持し、WP1が後続WPのhandlerやRoute設定なしで検証できる境界を定める。API CAの一意制約は[ADR 0014](../decisions/0014-reuse-existing-api-ca.md)の既存CA再利用で解決した。main `4ce796d`で独立検証し、利用者がWP1受入とcloseを承認した。[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)のTechnical Completion Reportを参照する。[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[Luna移譲契約](third-party-luna-handoff.md)を正本とする。
 

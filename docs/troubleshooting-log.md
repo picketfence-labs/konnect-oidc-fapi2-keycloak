@@ -636,3 +636,76 @@ Python 3.14では`test_early_matrix_failure_scans_bounded_logs_before_down_and_r
 全体レビューの指示で全体構成図をPagesへ新規公開し、Route A/Bを既存URLへ再公開した。配信先commitは`4aac2e9`。3図ともHTTP200、配信HTMLと検証済みローカルHTMLのSHA-256一致を確認した。
 
 最初のbrowser smokeは存在しない`#diagram-svg`を待ってtimeoutとなった。生成済みHTMLのSVGにはそのIDがなく、表示障害ではなかった。実際の`svg[viewBox]`を確認するセレクターへ補正すると、3図すべてのSVG表示とテーマ切替が通過した。図のJSON・HTML・PNGは変更していない。
+
+
+## 2026-10-13: バックエンド分離のTP差分プレビューとdecKイベント出力
+
+バックエンド分離のソース・ローカル検証後、既存CAとRoute A/Bのidentityを維持した隔離素材で、TP runtimeだけの読み取り専用差分を取得した。最初のラッパー実行は `third-party runtime diff did not return valid JSON` で停止した。CP書込み、Docker起動・停止、適用承認票の作成は行っていない。
+
+decK 1.53.1のstdoutは、人向け出力26行の後に単一の完全なJSONを出力していた。初回は通常イベントと分類したが、承認後の追加調査で固定の正規表現移行案内と特定した。捕捉済みJSONを診断目的で既存の厳格なparserへ通すと、作成4件・更新6件・削除0件、warnings/errorsなしで、今回の固定entity集合に一致した。更新はA/B Serviceのバックエンド接続先と内部hop証明書、CORS origin、OIDCのlogin/logout戻り先だけだった。raw出力は秘密を含み得るためGit外のprivate証跡に限定した。
+
+CLIのhelpで正規オプション `--silence-events` を確認し、TP runtimeの要求されたdiffと同期前diffに追加した。JSONのprefixを無条件に読み飛ばす処理や、parser・変更件数guardの緩和は行っていない。Manager独立のCLI/subprocess境界回帰3件、既存selector9件、flag欠落の意味的変異2件の検出、AST・freeze・diff検査が成功した。
+
+修正後ラッパーによる実差分の再取得は、自動承認レビューが実行前に拒否した。既存credentialで特定のKonnect TP Control Planeへ接続する明示的な利用者許可を確認できず、read-onlyでも機微設定取得の可能性があるという判定だった。再試行・迂回はしていない。既取得reportの診断4/6/0とローカルCLI検証の成功を維持し、修正後の実ラッパー受入は未実施として区別する。
+
+受入用のKeycloakはlocalhost:8444で接続拒否となり、Admin tokenもclient設定も取得していない。A/Bのpost-logout戻り先2件は計画差分のままで、live照合済みとは扱わない。既存Dockerの5コンテナは停止中。新経路の実行受入は未実施であり、資料・ローカルfixture・CPプレビューをE2E成功へ読み替えない。
+
+
+## 2026-10-13: 実CLIの固定移行案内とsilence指定の誤仮定
+
+具体的なruntime候補への利用者の一括承認後、`--silence-events`付きのfresh差分はexit0/stdout空/stderr空となり、純JSON parserが拒否した。CP同期・Docker起動の前に停止した。前回の模擬CLIはsilence指定でもJSONを保持する想定であり、実CLIの挙動を再現できていなかった。
+
+公式decK1.53.1はJSON報告もcprint経由で出すため、silenceで報告自体が消える。最初の26行は通常イベントやpatchではなく、reconciler1.29.2が`~^/`を旧形式と判定することで出す固定移行案内だった。初めはfalse-positiveとしたが、後続の製品schema検証でこの判断を撤回した。[発火条件](https://github.com/Kong/go-database-reconciler/blob/v1.29.2/pkg/file/builder.go#L1388-L1406)、[正規表現の判定と固定文](https://github.com/Kong/go-database-reconciler/blob/v1.29.2/pkg/utils/utils.go#L238-L262)を原文確認し、private実captureの941byte/26行と固定文の完全一致を独立検証した。state3.0、UI UUIDと3pathは自作validatorでexact比較していたが、それをKong側のschema適合の証明と扱った判断は不十分だった。
+
+silence指定を撤回し、先頭offset0の既知の固定案内だけを1回消費して元の厳格JSON parserへ渡すadapterを、TPの要求時diffと同期前diffだけへ追加した。任意位置のJSON探索、unknown prefixの除去、警告/件数/scope/hash guardの緩和はしていない。新fixtureは実仕様のemptyと固定案内+JSONを再現する。Manager独立のCLI境界4件・selector9件・追加4件が成功し、38負例callを拒否、意味的変異4/4を検出した。Coordinatorはrunner原文と最終freeze hash一致を確認した。
+
+commit c3b8595の実wrapper fresh diffは4create/6update/0delete、stderr/warnings/errorsなし。レビュー済みの完全report hashおよびtarget/state/roleが一致し、今回専用schema2票へ結び付けた。CP/Docker/IdPの後続結果は別途実行証跡で確認し、このCLI修正の成功をE2E成功とは扱わない。
+
+
+## 2026-10-13: TP部分適用と静的UI Routeの製品schema不適合
+
+承認済み4create/6updateをstrict bindingへ結び付けてTPsyncしたが、CLI nonzero/outcome unknownとなった。実失敗rawは保持されていないため再実行で取り直さず、同じ指定CPのread-only差分で状態を確認した。hop Certificate/UI Serviceの2createとA/B Service2updateが反映済みで、UI Route/UI transformer2createとA/B CORS/OIDC4updateが残っていた。delete0、未知identity0。再sync/rollback、Docker/image取得、IdP変更は行わず停止した。
+
+公開[Kong3.9.1 router_path schema](https://github.com/Kong/kong/blob/3.9.1/kong/db/schema/typedefs.lua#L558-L570)はregex pathの`~/`始まりを要求し、`~^/`を拒否する。自作exact期待とgeneric regexの意味から製品妥当性まで推論したManager/Coordinatorのレビュー不足を認め、利用者へ訂正した。指定CPへのschemas/routes GETは404で、取得成功とは扱わなかった。公式にresourceを作らない`deck gateway validate --online-entities-list Routes`の正規経路を原文確認し、旧RouteのHTTP400/paths must begin withを実CPで再現した。元sync rawがないため、これが同期失敗の唯一の原因とは断定しない。
+
+代替は既存expressions routerの`http.path ==`をORで組み合わせたnative完全一致。priority100/protocolshttps/strip_pathfalseを維持し、paths/regex_priorityを除く。同じCP/同じ非作成validationで新Routeはexit0・stdout/stderr空となり、受理を確認した。DPでの実マッチングやBackend E2Eの証明ではない。無効stateの案内をfalse-positiveとして除去するadapterは撤回対象とし、同期直前の正規Routes検証を必須化する。
+
+残りexact2create/4updateだけの明示recovery plan、新state/role/target/full-diff bindingの承認票、元票拒否と製品validation失敗時sync0callを検証してから、新しい具体プレビューを人へ提示する。元4/6票の流用、任意subset許可、未確認の追加適用は行わない。
+
+利用者が具体残6操作を承認後、new票とfresh bindingを照合しRoutes validation→fresh diff→late reread→syncを1回だけ実行、exit0で成功した。postdiff actual0/0/0、raw診断private保全を確認した。
+
+## 2026-10-13: 隔離Keycloakの限定PUTで非対象field比較が失敗
+
+承認済み隔離候補でPython/UI imageをdigest固定し、first4起動とKeycloak/TP worker readinessが成功した。A clientのpostlogout更新は、GETした全attributesの1キーだけを変更し、top-level `id`と`attributes`だけでPUTした。readbackの全clientfield不変比較がAssertionErrorとなったため追加PUTを止めた。B更新、Backend/UI起動、8443公開と新経路の受入は未実施。候補だけ停止し、原DB/PKI/入力のbefore-after不変を確認した。
+
+初回before/afterはmemoryで比較後に破棄しており、実失敗pairの直接diffを復元できない。現況と生成templateの差を、その失敗pairの差へ読み替えない。pinned Keycloak26.7.4のupdateとFAPI policyを調査し、省略webOriginsの補完、UPDATE前policyによる省略authenticatorのdefault適用経路を確認した。[更新変換](https://github.com/keycloak/keycloak/blob/26.7.4/server-spi-private/src/main/java/org/keycloak/models/utils/RepresentationToModel.java#L510)、[認証方式の補完](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/services/clientpolicy/executor/SecureClientAuthenticatorExecutor.java#L97)、[組込みFAPI2 profile](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/resources/keycloak-default-client-profiles.json#L140)を根拠とする。単なる配列順序とは断定せず、原DBを開かないcopyのoffline readで実beforeを確認する。以後は送信・読戻しをprivate0600へ保存し、assert前に安全な変更field分類を出す。証明のない値を推測投入せず、意図したpostlogout2属性だけの差へ復旧する方法を具体化する。
+
+続報: 同じKeycloakイメージ内のH2で原停止DBコピーだけを読み取り専用で調査し、元Aがclient-x509/空originsだったことを確認した。コピーと原本のhash不変、credentialは設定由来1回、限定SELECTのみを検証した。失敗candidate DBは保全し、元DBの不変コピーから同じprivate pathへ再構成した。fresh full GETを保存後、credential/read-only値を除く明示mutable modelで2postlogoutだけPUT。Worker5/Manager独立5が成功し、両clientのbefore/afterは対象属性を除く全raw fieldが完全一致。初回失敗pairは回復したとは扱わない。
+
+## 2026-10-13: 隔離TP/APIのstock OIDC PEM障害と同構成再作成
+
+Backend/UI/readiness成功後、TPログイン開始が500となりstock OIDCのPEM_read_bio_PrivateKey markerを確認した。A/B/hopのcontainer envは候補PEMと同じでcrypto parse・publickey対応も成功。同構成TP再作成を試みた初回はproxy listen指定漏れを検査で検出して停止し、元env/listener/bind/port/image/source/PKIへ是正して再作成した。TP再作成は計2回、誤設定の初回ではloginしていない。正しい構成へ復帰後302と認証callbackを確認した。
+
+次のAPI要求は401。API側stock OIDCのintrospection PEM読込markerを確認し、API introspection/upstream keysのenv/PEM/crypto/cert一致を検証した。同じ構成のAPIだけを1回再作成、起動待ち後にRoute Aの新Backend実API200と13field照合が成功した。API側は以前からAS用とService用のidentityが分離しており、TPの新hopだけが必須原因という仮説は弱まる。保存データ/Vault解決との関連は候補であり、根本原因を断定しない。CPwrite、鍵書換、build、元stack操作はしていない。
+
+## 2026-10-13: 受入ヘルパーのfragment・初回同意の仮定
+
+旧ヘルパーは全URL fragmentを拒否していたが、既存login_tokens:[id_token]はUI terminalへIDtoken fragmentを返す。実callbackの固定origin/path/queryとfragmentkeyだけを非秘密投影で確認した。固定terminalに単一非空bounded id_tokenだけを許容しHTTP送信前に破棄する限定対応を実施、Worker10/Manager独立6が成功。値をdecode/表示/転送せず、access/refresh/unknown/duplicate/offorigin等は拒否する。全tokenブラウザー非返却を証明したとは扱わない。
+
+Route A/user slot0のAPI200後、Route BはKeycloak required-actionへ遷移して旧path guardが停止した。B-only4request診断でsingle OAUTH_GRANTの通常同意と確認し、expected route clientとconsentだけの限定対応を進める。今後の実runは値を出さない観測adapterを常時併用し、失敗後の無観測fullrun反復を避ける。ブラウザー実表示は既存CA信頼エラーでnot_run、証明書検証の回避やOS truststore変更はしていない。
+
+
+## 2026-10-13: 新経路の主要受入とsupervisor上限による最終負例未実施
+
+初回同意の限定対応後、2利用者×A/Bの4セッションでAPI200・13項目の証跡・期限300秒＋35秒後の継続・logout後302が成功した。Authorization負例16件、API提供者側直接7検査も成功。AS wireのrefresh grant・認証方式・rotationを証明した結果ではない。
+
+Backend停止起因の入口閉鎖を確認する直前に、既存supervisorの3600秒上限が到来して8443がConnectionRefusedとなった。終了処理の10秒waitもtimeoutした。Backendstop負例はnot_runとし、deadline閉鎖との混同を避ける。追加起動せず候補6サービスを全停止し、公開5ports閉鎖・supervisor/forwarder残留0・原5サービス停止維持・原DB/PKI/入力inventory不変を確認した。コンテナ/networkと失敗snapshotを保全。最終結果はGit外の`final-cleanup.json`へ保存した。
+
+
+## 2026-10-13: 既承認のBackend停止閉鎖を短い別runで確認
+
+元の承認previewに含まれる残試験として、同じ6候補・image・PKI・設定を使い、検査120秒＋cleanup180秒の別runを実施した。private runnerの二度目timeout捕捉と開始時captureを修正。レビューで任意OSErrorを閉鎖扱いする誤判定とpreflight失敗時の不要stopも訂正し、Worker7/Manager独立4の限定検証とCoordinator原文照合後に実行した。本体sourceは変更していない。
+
+初回read-only preflightではTP/APIのCompose管理hash差を検出し、Docker mutation0で停止。11項目の実効設定は一致し、hash差の原因は未確定として保全した。既存4container IDへのdocker startで再作成・設定適用を除き、supervisorがupするBackend/UIのhash一致は維持した。無断recreate/retryは行っていない。
+
+CA検証付きGET200とBackendreadyを正対照に、Backendstop→ready marker存在から除去→owned forwarder終了→8443接続拒否→UI/Backend/TP停止を確認しPASS。finallyで候補6サービス全停止・ports閉鎖・原素材不変を再確認。grant/provider業務API/CP・IdP admin write/pullbuildは0。前runの時間上限閉鎖とは独立の因果付き証跡である。private証跡はclosure-only-run-x3m4dajv、root照合はcoordinator-closure-live-review.json。

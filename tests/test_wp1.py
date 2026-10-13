@@ -55,6 +55,7 @@ TEST_PRIVATE_KEY = "-----BEGIN " + "PRIVATE KEY-----\nPRIVATE_SENTINEL\n-----END
 
 
 def write_cli_fixture(root: Path, source: Path) -> None:
+    (root / "docker-compose.yml").write_bytes((source / "docker-compose.yml").read_bytes())
     (root / "infra").mkdir()
     (root / "kong/foundation").mkdir(parents=True)
     (root / ".generated").mkdir()
@@ -85,6 +86,8 @@ def write_cli_fixture(root: Path, source: Path) -> None:
         "ROUTE_A_TLS_KEY": TEST_PRIVATE_KEY,
         "DECK_ROUTE_B_TLS_CERT_YAML": TEST_CERTIFICATE,
         "ROUTE_B_TLS_KEY": TEST_PRIVATE_KEY,
+        "DECK_BACKEND_HOP_CERT_YAML": TEST_CERTIFICATE,
+        "BACKEND_HOP_KEY": TEST_PRIVATE_KEY,
     }))
     (root / ".generated/deck.env").write_text("DECK_API_INTROSPECTION_CERT_YAML=PUBLIC_CERT_SENTINEL\n")
 
@@ -96,7 +99,7 @@ class WP1FoundationTests(unittest.TestCase):
         expected = {
             "kong-api": {"API_INTROSPECTION_KEY", "API_UPSTREAM_KEY"},
             "kong-third-party": {"ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY",
-                                 "ROUTE_B_JWK",
+                                 "ROUTE_B_JWK", "BACKEND_HOP_KEY",
                                  "FAPI_AS_TRANSPORT_ISSUER", "FAPI_AS_TRANSPORT_INTERNAL_ORIGIN",
                                  "FAPI_AS_TRANSPORT_STATUS_DIR", "FAPI_AS_TRANSPORT_GENERATION"},
         }

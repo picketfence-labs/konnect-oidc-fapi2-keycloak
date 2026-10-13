@@ -8,6 +8,7 @@ if [[ "$MODE" == "validate" ]]; then
   export DECK_FAPI_CA_CERT_YAML="validation-ca-certificate"
   export DECK_ROUTE_A_TLS_CERT_YAML="validation-route-a-certificate"
   export DECK_ROUTE_B_TLS_CERT_YAML="validation-route-b-certificate"
+  export DECK_BACKEND_HOP_CERT_YAML="validation-backend-hop-certificate"
   export DECK_API_INTROSPECTION_CERT_YAML="validation-introspection-certificate"
   export DECK_API_UPSTREAM_CERT_YAML="validation-upstream-certificate"
   export DECK_ROUTE_A_SESSION_SECRET="validation-route-a-session"

@@ -151,7 +151,7 @@ class StockFlowTests(unittest.TestCase):
             raise AssertionError("unexpected scripted request")
         return script
 
-    def test_real_flow_preserves_callback_url_cookie_and_order_without_fetching_3443(self):
+    def test_real_flow_preserves_callback_url_cookie_and_order_without_fetching_ui_terminal(self):
         events = []
         jar_holder = {}
         runtime_values = []
@@ -218,7 +218,8 @@ class StockFlowTests(unittest.TestCase):
         )
         self.assertIn(f"{stock_flow.SESSION_COOKIE}=preauth", opener.requests[2]["cookie"])
         self.assertIn(f"{stock_flow.SESSION_COOKIE}=formed-session", opener.requests[3]["cookie"])
-        self.assertNotIn("localhost:3443", " ".join(item["url"] for item in opener.requests))
+        self.assertNotIn(stock_flow.LOGIN_TERMINAL, [item["url"] for item in opener.requests])
+        self.assertNotIn(stock_flow.LOGOUT_TERMINAL, [item["url"] for item in opener.requests])
         form = urllib.parse.parse_qs(opener.requests[1]["body"].decode("ascii"), keep_blank_values=True)
         self.assertEqual(form, {
             "session_code": ["sensitive-csrf"],

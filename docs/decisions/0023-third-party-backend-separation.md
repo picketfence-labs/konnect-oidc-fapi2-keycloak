@@ -1,6 +1,6 @@
 # ADR 0023: 3rd PartyのUI配信と業務API呼出しを分離する
 
-- 状態: 承認済み設計・実装／受入前
+- 状態: 承認済み。ソース・ローカル検証完了／実行受入前
 - 日付: 2026-10-13
 - 関連: [対応計画](../design/third-party-backend-change-plan.md)、[全体構成](../../ARCHITECTURE.md)
 

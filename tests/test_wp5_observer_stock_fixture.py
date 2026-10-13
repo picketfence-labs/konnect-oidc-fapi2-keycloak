@@ -73,7 +73,7 @@ class StockFixtureTests(unittest.TestCase):
         }])
         client = realm["clients"][0]
         self.assertEqual(client["attributes"]["jwt.credential.kid"], receipt["jwk_kid"])
-        self.assertEqual(client["attributes"]["post.logout.redirect.uris"], "https://localhost:3443/?logout=route-b")
+        self.assertEqual(client["attributes"]["post.logout.redirect.uris"], "https://localhost:8443/?logout=route-b")
         self.assertEqual(realm["users"][0]["username"], fixture.DEMO_USERNAME)
         self.assertEqual(realm["users"][0]["firstName"], "WP5")
         self.assertEqual(realm["users"][0]["lastName"], "Demo")

@@ -105,10 +105,10 @@ for client in (route_a, route_b):
         for mapper in client["protocolMappers"]
     )
 assert route_a["attributes"]["post.logout.redirect.uris"] == (
-    "https://localhost:3443/?logout=route-a"
+    "https://localhost:8443/?logout=route-a"
 )
 assert route_b["attributes"]["post.logout.redirect.uris"] == (
-    "https://localhost:3443/?logout=route-b"
+    "https://localhost:8443/?logout=route-b"
 )
 assert realm["accessCodeLifespan"] <= 60
 assert realm["revokeRefreshToken"] is True
@@ -380,9 +380,9 @@ assert "./keycloak/data:/opt/keycloak/data/h2" in compose
 assert "./keycloak/data:/opt/keycloak/data\n" not in compose
 assert "KONG_LICENSE_DATA" not in compose
 assert "./ui/default.conf:/etc/nginx/conf.d/default.conf:ro" in compose
-assert "./.generated/pki/ui.crt:/etc/nginx/tls/tls.crt:ro" in compose
-assert '"127.0.0.1:3000:80"' in compose
-assert '"127.0.0.1:3443:443"' in compose
+assert "./.generated/pki/ui.crt:/etc/nginx/tls/tls.crt:ro" not in compose
+assert '"127.0.0.1:3000:80"' not in compose
+assert '"127.0.0.1:3443:443"' not in compose
 assert "profiles: [demo]" in compose
 wp2_compose = (ROOT / "tests/harness/docker-compose.wp2.yml").read_text()
 assert "quay.io/keycloak/keycloak:26.7.4@sha256:" in wp2_compose
@@ -425,7 +425,8 @@ assert "path: ./.generated/runtime-api.env" in service_blocks["kong-api"]
 assert "path: ./.generated/runtime-third-party.env" in service_blocks["kong-third-party"]
 
 ui = (ROOT / "ui" / "index.html").read_text()
-assert ui.count("https://localhost:8443/api/fapi/") == 6
+assert ui.count("/api/fapi/") == 6
+assert "https://localhost:8443/api/fapi/" not in ui
 assert "http://localhost:8000/api/fapi" not in ui
 assert 'id="department-header"' in ui
 assert 'id="logical-route-header"' in ui

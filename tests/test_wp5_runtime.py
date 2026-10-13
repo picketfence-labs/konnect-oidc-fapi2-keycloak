@@ -73,18 +73,20 @@ class ThirdPartyRuntimeTests(unittest.TestCase):
     def test_declarative_state_preserves_foundation_entities_and_fixed_routes(self):
         foundation = deck_yaml(ROOT / "kong/foundation/third-party.yaml")
         state = deck_yaml(ROOT / "kong/third-party-gateway.yaml")
-        self.assertEqual(state["certificates"], foundation["certificates"])
+        self.assertEqual(state["certificates"][:2], foundation["certificates"])
+        self.assertEqual(len(state["certificates"]), 3)
         self.assertEqual(state["ca_certificates"], foundation["ca_certificates"])
         self.assertEqual(state["plugins"], foundation["plugins"])
-        services = {service["name"]: service for service in state["services"]}
+        services = {service["name"]: service for service in state["services"] if service["name"] != "third-party-static-ui"}
         self.assertEqual(
             set(services), {"third-party-route-a-api", "third-party-route-b-api"}
         )
-        self.assertTrue(all(service["port"] == 8443 for service in services.values()))
+        self.assertTrue(all(service["port"] == 9444 for service in services.values()))
         api_state = deck_yaml(ROOT / "kong/api-gateway.yaml")
         api_paths = {path for service in api_state["services"]
                      for route in service["routes"] for path in route["paths"]}
-        self.assertTrue(all(service["path"] in api_paths for service in services.values()))
+        self.assertEqual({service["path"] for service in services.values()}, {"/evidence/route-a", "/evidence/route-b"})
+        self.assertEqual(api_paths, {"/fapi-api/evidence"})
         routes = {route["id"] for service in services.values() for route in service["routes"]}
         self.assertEqual(routes, {ROUTE_A, ROUTE_B})
         route_a_plugins = {
@@ -123,10 +125,8 @@ class ThirdPartyRuntimeTests(unittest.TestCase):
         self.assertIn("exec /entrypoint.sh kong docker-start", third_party["command"][0])
         self.assertIn("127.0.0.1:18443:8443", third_party["ports"])
         self.assertNotIn("127.0.0.1:8443:8443", third_party["ports"])
-        self.assertEqual(
-            compose["services"]["ui"]["ports"],
-            ["127.0.0.1:3000:80", "127.0.0.1:3443:443"],
-        )
+        self.assertNotIn("ports", compose["services"]["ui"])
+        self.assertNotIn("ports", compose["services"]["third-party-backend"])
         tp_volumes = "\n".join(third_party["volumes"])
         api_volumes = "\n".join(api["volumes"])
         self.assertIn("kong-proxy.crt:/etc/kong/fapi/kong-proxy.crt:ro", tp_volumes)
@@ -210,6 +210,21 @@ class ThirdPartyRuntimeTests(unittest.TestCase):
         self.assertNotEqual(rejected.returncode, 0)
 
     def test_supervisor_gates_entry_and_closes_it_on_readiness_drift(self):
+        self.supervisor_scenario()
+
+    def test_backend_failure_never_opens_public_forward(self):
+        self.supervisor_scenario(backend_ready=False)
+
+    def test_backend_generation_drift_closes_public_forward(self):
+        self.supervisor_scenario(backend_drift="generation")
+
+    def test_backend_config_drift_closes_public_forward(self):
+        self.supervisor_scenario(backend_drift="config")
+
+    def test_backend_container_restart_closes_public_forward(self):
+        self.supervisor_scenario(backend_drift="container")
+
+    def supervisor_scenario(self, backend_ready=True, backend_drift=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             scripts = root / "scripts"
@@ -257,12 +272,18 @@ if args and args[0] == 'inspect':
     print('true')
 elif args and args[0] == 'compose':
     if 'ps' in args:
-        print('a' * 64)
+        state = json.loads(state_path.read_text())
+        print(state.get('backend_container','b'*64) if 'third-party-backend' in args else 'a'*64)
     elif 'up' in args:
         log('ui-started')
     elif 'stop' in args:
         log('stop:' + ','.join(args[args.index('stop') + 1:]))
 elif args and args[0] == 'exec':
+    if '--check-ready' in args:
+        state = json.loads(state_path.read_text())
+        if not state.get('backend_ready',True): sys.exit(1)
+        print(json.dumps({'schema_version':1,'ready':True,'generation':state.get('backend_generation','c'*32),'config_sha256':state.get('backend_config','d'*64),'pid':123}))
+        sys.exit(0)
     command = args[args.index('/bin/sh') + 2]
     state = json.loads(state_path.read_text())
     if 'master_file' in command:
@@ -289,7 +310,7 @@ elif args and args[0] == 'exec':
                 "WP5_TEST_DOCKER_LOG": str(docker_log),
             }
             process = subprocess.Popen(
-                [str(readiness), "--supervise", "--timeout", "12", "--interval", "1"],
+                [str(readiness), "--supervise", "--timeout", "3", "--interval", "1"],
                 cwd=root,
                 env=env,
                 stdout=subprocess.PIPE,
@@ -306,11 +327,29 @@ elif args and args[0] == 'exec':
                 self.assertNotIn("forward-started", events)
                 self.assertNotIn("ui-started", events)
 
-                state_path.write_text(json.dumps(state_payload(ready=True)))
+                state = state_payload(ready=True)
+                state["backend_ready"] = backend_ready
+                state_path.write_text(json.dumps(state))
+                if not backend_ready:
+                    deadline = time.monotonic() + 8
+                    while process.poll() is None and time.monotonic() < deadline:
+                        events = log_path.read_text().splitlines() if log_path.exists() else []
+                        if "forward-started" in events:
+                            break
+                        time.sleep(0.05)
+                    events = log_path.read_text().splitlines() if log_path.exists() else []
+                    self.assertNotIn("forward-started", events)
+                    stdout, stderr = process.communicate(timeout=3)
+                    self.assertNotEqual(process.returncode, 0)
+                    self.assertIn("backend readiness failed", stderr)
+                    events = log_path.read_text().splitlines()
+                    self.assertNotIn("forward-started", events)
+                    self.assertIn("stop:ui,third-party-backend,kong-third-party", events)
+                    return
                 deadline = time.monotonic() + 8
                 while time.monotonic() < deadline:
                     events = log_path.read_text().splitlines() if log_path.exists() else []
-                    if "ui-started" in events:
+                    if "forward-started" in events:
                         break
                     if process.poll() is not None:
                         stdout, stderr = process.communicate()
@@ -324,15 +363,22 @@ elif args and args[0] == 'exec':
                 events = log_path.read_text().splitlines()
                 self.assertIn("marker-published", events, events)
                 self.assertLess(events.index("marker-published"), events.index("forward-started"))
-                self.assertLess(events.index("forward-started"), events.index("ui-started"))
-                state_path.write_text(json.dumps(state_payload(ready=False)))
+                self.assertLess(events.index("ui-started"), events.index("forward-started"))
+                state = state_payload(ready=bool(backend_drift))
+                if backend_drift == "generation":
+                    state["backend_generation"] = "e" * 32
+                elif backend_drift == "config":
+                    state["backend_config"] = "e" * 64
+                elif backend_drift == "container":
+                    state["backend_container"] = "e" * 64
+                state_path.write_text(json.dumps(state))
                 stdout, stderr = process.communicate(timeout=8)
                 self.assertNotEqual(process.returncode, 0, stdout)
                 self.assertIn("readiness changed", stderr)
                 events = log_path.read_text().splitlines()
                 last_marker_removal = max(i for i, event in enumerate(events) if event == "marker-removed")
                 self.assertLess(last_marker_removal, events.index("forward-stopped"))
-                self.assertLess(events.index("forward-stopped"), events.index("stop:ui,kong-third-party"))
+                self.assertLess(events.index("forward-stopped"), events.index("stop:ui,third-party-backend,kong-third-party"))
             finally:
                 if process.poll() is None:
                     process.terminate()

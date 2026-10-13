@@ -35,8 +35,8 @@ FLOW_PROFILES = {
         "callback_path": "/api/fapi/mtls",
         "logout_url": "https://localhost:8443/api/fapi/mtls/logout",
         "session_cookie": "fapi_route_a_session",
-        "login_terminal": "https://localhost:3443/?authenticated=route-a",
-        "logout_terminal": "https://localhost:3443/?logout=route-a",
+        "login_terminal": "https://localhost:8443/?authenticated=route-a",
+        "logout_terminal": "https://localhost:8443/?logout=route-a",
         "refresh_status": 200,
         "refresh_body": b"WP5_TRANSPORT_REFRESH_OK",
     },
@@ -45,16 +45,16 @@ FLOW_PROFILES = {
         "callback_path": "/api/fapi/pkj-mtls",
         "logout_url": "https://localhost:8443/api/fapi/pkj-mtls/logout",
         "session_cookie": "wp5_stock_route_b_session",
-        "login_terminal": "https://localhost:3443/?authenticated=route-b",
-        "logout_terminal": "https://localhost:3443/?logout=route-b",
+        "login_terminal": "https://localhost:8443/?authenticated=route-b",
+        "logout_terminal": "https://localhost:8443/?logout=route-b",
     },
     "transport_route_b": {
         "callback_url": "https://localhost:8443/api/fapi/pkj-mtls",
         "callback_path": "/api/fapi/pkj-mtls",
         "logout_url": "https://localhost:8443/api/fapi/pkj-mtls/logout",
         "session_cookie": "fapi_route_b_session",
-        "login_terminal": "https://localhost:3443/?authenticated=route-b",
-        "logout_terminal": "https://localhost:3443/?logout=route-b",
+        "login_terminal": "https://localhost:8443/?authenticated=route-b",
+        "logout_terminal": "https://localhost:8443/?logout=route-b",
         "refresh_status": 200,
         "refresh_body": b"WP5_TRANSPORT_REFRESH_OK",
     },
@@ -238,7 +238,7 @@ def _terminal_kind(value: str, profile: str = "route_b") -> str | None:
     if selected is None:
         return None
     parsed, port = _url_parts(value)
-    if port != 3443 or parsed.path != "/":
+    if port != 8443 or parsed.path != "/":
         return None
     try:
         query = urllib.parse.parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True)

@@ -47,7 +47,7 @@
         "require.pushed.authorization.requests": "true",
         "tls.client.certificate.bound.access.tokens": "true",
         "use.refresh.tokens": "true",
-        "post.logout.redirect.uris": "https://localhost:3443/?logout=route-a",
+        "post.logout.redirect.uris": "https://localhost:8443/?logout=route-a",
         "id.token.signed.response.alg": "PS256",
         "x509.allow.regex.pattern.comparison": "false"
       },
@@ -132,7 +132,7 @@
         "require.pushed.authorization.requests": "true",
         "tls.client.certificate.bound.access.tokens": "true",
         "use.refresh.tokens": "true",
-        "post.logout.redirect.uris": "https://localhost:3443/?logout=route-b",
+        "post.logout.redirect.uris": "https://localhost:8443/?logout=route-b",
         "id.token.signed.response.alg": "PS256"
       },
       "protocolMappers": [

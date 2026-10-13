@@ -1,6 +1,6 @@
 # 3rd Partyバックエンド分離の影響と対応計画
 
-- 状態: 利用者が計画を承認。図・文書は先行完了し、コードを別ブランチで実装・検証中。新経路の実行受入は未実施
+- 状態: 図・文書はPR #30でmainへ先行反映済み。コードは別PR #31。TP復旧同期・postdiff0、隔離IdPの2属性更新、4セッションのAPI/期限越え継続/logout、Authorization負例16件、API提供者側直接検査7件が成功。Backend停止起因の入口閉鎖も別の短い既承認subsetで成功、候補全停止・原素材不変を確認
 - 日付: 2026-10-13
 - 基準: main `933a51a`（文書整備PR #29をmerge済み）
 - 役割: Coordinatorが全体条件と図・文書を統括。コード側はManagerがWorkerへ委譲し、成果を検証・統合する
@@ -18,7 +18,7 @@ UI取得:    ブラウザー → 3rd Party Kong → 静的UIサービス
 
 承認済み計画に従い、UI取得もKongを共通入口とする。静的ファイル配信とバックエンドは別プロセスのままにする。ブラウザーからAPI提供者側KongやResource Serverを直接呼ぶ経路、バックエンドの公開ポートは設けない。
 
-## 現行との相違
+## 調査時点（933a51a）の構成との差分
 
 現行の3rd Party KongはOAuthクライアントであり、認可コード・PAR・PKCE・セッション・refresh等を扱い、API側Kongを直接upstreamとしている。独立した3rd Partyバックエンドがない。UIサービスはnginxによる静的配信である。
 
@@ -131,15 +131,25 @@ API:  ブラウザー → localhost:8443 → TCP forward → TP Kong
 
 2026-10-13に利用者が計画の続行を承認した。図・文書は`docs/third-party-backend-architecture`で先行し、完成時に通知してmainへのPRを優先する。コードは別worktreeの`feat/third-party-backend`でManager/Workerが変更する。Docker実行・CP適用・新image build/publishは具体的なpreviewを提示し、人による確認後に扱う。PR #29はmerge済みであり、既存受入と旧receiptは履歴として維持する。
 
-## 調査根拠
+## 実装・プレビューの到達点（2026-10-13）
+
+最新: 承認残6操作は専用票で1syncしpostdiff0。隔離IdPは元停止DBコピーから再構成してpostlogout2属性だけを更新し、他の全GETfield不変を確認しました。新経路の4セッション/API/期限越え継続/logoutとAuthorization16負例、API提供者側直接検査7件が成功しました。Backend停止試験前にsupervisorの既存上限が到来した初回履歴を保持し、既承認subsetの短い別runでBackend停止起因の閉鎖も確認しました。[受入結果と未実施範囲](third-party-backend-runtime.md#新経路の受入結果2026-10-13)を正本とし、以下は復旧前までの履歴として読みます。
+
+バックエンド、専用hop、Gateway/UI/PKI/role、readiness、今回専用schema2 guardを実装。Manager独立でmake validate、380 unittest、UI/Lua、native Compose設定が成功しました。利用者の具体プレビュー一括承認後、fresh4create/6update/0deleteと承認票の一致を確認してTP同期を開始しましたが、CLI nonzeroで停止しました。read-only現状ではhop Certificate/UI Serviceの作成とA/B Service更新の4操作が反映済み。残りはUI Route/UI transformerの2create、A/B CORS/OIDCの4updateです。削除と予期しない対象変更はありません。
+
+CLIの`--silence-events`修正はJSONも抑止するため撤回。その後の移行案内除去adapterも、旧`~^/`形式を有効とした誤判断を訂正して撤回します。正規の非作成Routes validationで旧RouteのHTTP400と新native expression案の受理を確認しました。初回同期のraw失敗理由は保持しておらず、旧Routeだけが原因とは断定しません。3パス完全一致のnative expression、固定6操作の`migration-recovery`、同期前のRoutes validationを実装し、Managerが独立確認します。元4/6承認票を流用せず、修正済みソースのfresh残差分を人がレビューするまで再同期しません。
+
+旧DB・素材を変えない隔離候補の6サービス設定とDB snapshot一致を確認済み。CPは共有されるため、適用は既存TP CPへ接続するDPに反映されます。Docker/image取得・IdP更新は未実施で、A/B post-logout属性のlive値は未照合です。[準備・適用・受入手順](third-party-backend-runtime.md)を参照してください。復旧対象の再確認後は、既に承認された隔離受入範囲に従います。新経路の受入は全項目not_runのままです。
+
+## 調査根拠（933a51a時点）
 
 コード側ManagerがWorkerのsource traceを原文と照合してreviewし、AS/Serviceの証明書選択を追加調査した。Coordinatorは目標経路、責任分担、図との対応、並行作業の依存と未実施範囲を確認し、本計画へ統合した。ここでの調査はソースによる確認であり、現在稼働中の環境の観測ではない。Managerの詳細報告はGit外の`.generated/evidence/tp-backend-plan-20261013/manager-impact.md`へ保存した。
 
-- [UI](../../ui/index.html): 48/54行の認可開始、88～90行のA/B宛先、137～142行のCookie付きfetchはTP Kong向け
-- [nginx設定](../../ui/default.conf): 21～25行は静的配信。API proxyはない
-- [3rd Party Gateway設定](../../kong/third-party-gateway.yaml): 50～59行と138～146行はAPI側への直接upstream。OIDCの証明書IDは96/210行
-- [Compose](../../docker-compose.yml): 5サービス構成でバックエンドなし。145～155行にTP Kongの鍵mount
-- [構成validator](../../scripts/wp1_target.py): 299～301行のentity集合、314～345行のService数・直結先・証明書一致条件
-- [readiness supervisor](../../scripts/require-wp5-readiness.sh): 既存worker gateとUI/TP lifecycle。新バックエンドの管理は未実装
+- [UI](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/blob/933a51a/ui/index.html): 48/54行の認可開始、88～90行のA/B宛先、137～142行のCookie付きfetchはTP Kong向け
+- [nginx設定](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/blob/933a51a/ui/default.conf): 21～25行は静的配信。API proxyはない
+- [3rd Party Gateway設定](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/blob/933a51a/kong/third-party-gateway.yaml): 50～59行と138～146行はAPI側への直接upstream。OIDCの証明書IDは96/210行
+- [Compose](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/blob/933a51a/docker-compose.yml): 5サービス構成でバックエンドなし。145～155行にTP Kongの鍵mount
+- [構成validator](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/blob/933a51a/scripts/wp1_target.py): 299～301行のentity集合、314～345行のService数・直結先・証明書一致条件
+- [readiness supervisor](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/blob/933a51a/scripts/require-wp5-readiness.sh): 既存worker gateとUI/TP lifecycle。新バックエンドの管理は未実装
 - [調査時点の全体構成図ソース](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/blob/933a51a/docs/design/workflows/third-party-architecture.architecture.json): バックエンド追加前。サービスを静的UIと表し、KongがAPIを呼ぶ構成
 - [調査時点のRoute A図ソース](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/blob/933a51a/docs/design/workflows/route-a-mtls.workflow.json) / [Route B図ソース](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/blob/933a51a/docs/design/workflows/route-b-pkj-mtls.workflow.json)

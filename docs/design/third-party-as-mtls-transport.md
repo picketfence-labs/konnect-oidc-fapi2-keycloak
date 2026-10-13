@@ -1,6 +1,6 @@
 # DP0: 3rd Party → ASのmTLS補完契約
 
-> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離のソース実装・ローカル検証は完了し、新経路の実行受入は未実施です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
 
 > 2026-10-04現在の実装・検証結果は[WP5受入表](third-party-wp5-acceptance.md)を参照。5a受入、5b実装、5c隔離AS直結・2 worker guardは通過した。通常環境での受入は未完了。以下の契約や過去の試行記録から、現在の成功・未実行範囲を推定しない。
 

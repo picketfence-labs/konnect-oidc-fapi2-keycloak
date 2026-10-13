@@ -1,5 +1,29 @@
 # OIDC デモのセッション引き継ぎ
 
+## 新Backend経路の限定実HTTP受入完了（2026-10-13、最新）
+
+TPは承認残6操作を1syncしてpostdiff0。IdPは失敗snapshotを保全して元停止DBコピーから再構成し、A/B postlogoutだけを更新、他の全GETfieldが正規化なしで不変。初回失敗pair消失のUNKNOWNは保持する。TP/APIのPEM障害は同構成のDP再作成で回復したが、根本原因は未確定。TP初回再createのlisten漏れも是正した履歴を残す。
+
+2利用者×A/Bの4sessionでAPI200と13field、300秒＋35秒後の同じsessionによるAPI200、logout後の保護API302を確認。Authorization16負例、API提供者側直接7検査、専用hop以外のBackend401拒否が成功。AS wire上のrefresh grant/認証方式/rotationは未観測。ブラウザー実表示はCA信頼エラーでnot_run。IDtoken fragmentの既存返却とAT/refresh非露出を区別し、説明訂正は先行PR #32（docs2files、全CI3成功）で提供した。
+
+初回のBackendstop試験は既存supervisor3600秒上限が先に到来してnot_runだった。その履歴を保持し、既承認subsetの短い別runでCA検証GET200/Backendready→Backendstop→marker除去/forwarder終了/8443拒否/UI・Backend・TP停止を実測PASS。候補6サービス全停止、公開5ports閉鎖、supervisor/forwarder残留0、原5サービス停止維持、原DB/PKI/入力inventory不変を確認した。候補コンテナ/networkと失敗snapshotは保全。コードは別PR #31へ限定受入結果を添える。closure-onlyでは既存固定IDを1回起動し、grant/provider API/CP・IdPwrite/pullbuild/recreate/retry0。source本体は不変。資料PR #32も人間がmainへmerge済みでコードへ取り込んだ。[受入結果](design/third-party-backend-runtime.md#新経路の受入結果2026-10-13)を参照。以下は時点付き履歴。
+
+## TP復旧収束・隔離IdP検査で停止（2026-10-13、履歴）
+
+利用者が残6操作を承認。新`migration-recovery`票、Routes validation、fresh diff、late rereadを通してTP同期を1回だけ実行し成功した。適用後の実差分は0。Python/UI imageをdigest固定し隔離first4を起動、Keycloak/TP worker readinessが成功した。
+
+隔離IdPのA postlogout更新後、非対象field不変の比較が失敗した。送信は`id`と`attributes`だけで、省略top-level値をKeycloak/FAPI policyが補完する経路を調査している。初回before/afterはmemory比較後破棄され、直接diffの復元不能を明記する。原DBを開かずコピーのoffline readで原値を確認し、限定復旧と再開方法を具体化中。B更新、Backend/UI起動、新経路のAPI/refresh/logoutは未実施。候補だけ停止し、原DB/PKI/入力のbefore-after不変を確認。元stackは停止のまま保持する。以下の部分適用・承認待ちの記述は時点付き履歴である。
+
+## バックエンド分離のTP部分適用・復旧準備（2026-10-13、履歴）
+
+図・文書PR #30はmainへmerge済み。別Draft PR #31（feat/third-party-backend）で実装と受入準備を進め、mainの資料を取り込んだ。Manager独立のmake validate、380 unittest、UI/Lua/native設定は成功したが、実製品のRoute schemaを確認する検証が不足していた。下の資料先行・WP1～WP6の状態は時点付き履歴である。
+
+利用者が既存credentialでの指定TP CP確認、完全一致4create/6update/0deleteの同期、隔離6service受入の具体プレビューを一括承認した。fresh差分・承認票の照合後に同期したがCLI nonzeroとなり停止した。read-only確認ではhop Certificate/UI Serviceの作成とA/B Service更新の4操作が反映済み。残りはUI Route/UI transformerの2createとA/B CORS/OIDCの4update、削除0・予期しない対象変更0である。
+
+`--silence-events`はJSONまで抑止するため撤回した。その後の移行案内除去adapterも、旧`~^/`を有効と判断した前提が誤りだったため撤回する。正規の非作成Routes validationで旧RouteのHTTP400、新native expression案の受理を確認した。初回syncのraw失敗理由は保持されておらず、単一原因とは断定しない。詳細は[障害対応記録](troubleshooting-log.md)へ残す。
+
+3パス完全一致のnative expression、固定6操作だけの`migration-recovery`、同期前のRoutes online validationを追加する。元4/6票は流用しない。Managerが修正ソース・候補・fresh残差分を照合し、新しい具体プレビューを人が確認するまでCP writeを再開しない。Docker/image取得・IdP更新・新経路受入は未実施。隔離snapshotと原DB/PKI/stackを保持する。[準備・適用・受入手順](design/third-party-backend-runtime.md)から現行契約を確認する。PR #31はruntime受入までDraftを維持する。
+
 ## バックエンド分離: 資料先行・コード並行（2026-10-13）
 
 PR #29はmain `933a51a`へmerge済み。その後、利用者からUI提供と外部API呼出しの分離、3rd Partyバックエンド経由への修正指示を受けた。確認した目標経路は「ブラウザー → 3rd Party Kong → 3rd Partyバックエンド → API提供者側Kong → Resource Server」。バックエンドから再び3rd Party Kongを経由する必要はない。

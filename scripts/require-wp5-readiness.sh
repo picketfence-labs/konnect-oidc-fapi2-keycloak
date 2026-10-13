@@ -13,13 +13,12 @@ scripts/require-wp5-readiness.sh --wait [--timeout SECONDS] [--interval SECONDS]
 FAPI_DEMO_PROXY_LISTEN='0.0.0.0:8443 ssl' scripts/require-wp5-readiness.sh \
     --supervise [--timeout SECONDS] [--interval SECONDS]
 
---wait reads the current third-party Data Plane worker snapshots and does not
-start, stop, restart, apply, sync, or open a demo entrypoint. --supervise writes
-the local all-worker marker after readiness passes, opens a loopback-only TCP
-forward from 127.0.0.1:8443 to the DP's private 127.0.0.1:18443 mapping, then
-starts the UI. On any later mismatch it removes the marker, closes the forward,
-and stops both the UI and third-party Data Plane. It never starts or restarts a
-Data Plane.
+--wait is a read-only TP-worker prerequisite: it never starts/stops a service
+or opens an entrypoint. --supervise starts private backend/UI after TP readiness,
+requires live backend configuration readiness, then opens the opaque loopback
+TCP forward from 127.0.0.1:8443 to 127.0.0.1:18443. Worker/backend/container/
+generation/config drift removes the marker, closes forwarding, and stops UI,
+backend, and third-party Data Plane. It never starts or restarts a Data Plane.
 EOF
 }
 
@@ -36,9 +35,9 @@ The first command starts only the third-party Data Plane. Its Kong listener is
 explicitly enabled for the demo but published only on loopback port 18443. The
 ordinary browser entry on loopback port 8443 remains closed until every current
 worker matches the fixed route manifest and the supervisor creates the local
-all-worker marker. The supervisor then opens the opaque TCP forward and UI;
+all-worker marker. Backend process/config readiness is required before the forward;
 worker, generation, registry, bridge, or config drift removes the marker, closes
-the forward, and stops both services.
+the forward, and stops UI/backend/third-party services.
 EOF
   exit 0
 fi
@@ -382,10 +381,56 @@ start_forwarder() {
   return 1
 }
 
+BACKEND_CONTAINER_ID=""
+BACKEND_FINGERPRINT=""
+check_backend_once() {
+  local found status fingerprint
+  found="$(compose ps --quiet --all third-party-backend 2>/dev/null)" || return 1
+  [[ "$found" =~ ^[0-9a-fA-F]{64}$ ]] || return 1
+  [[ -z "$BACKEND_CONTAINER_ID" || "$found" == "$BACKEND_CONTAINER_ID" ]] || return 1
+  container_running "$found" || return 1
+  status="$(docker exec "$found" python -B /app/app.py --check-ready 2>/dev/null)" || return 1
+  fingerprint="$(printf '%s' "$status" | python3 -c '
+import hashlib, json, re, sys
+def unique(pairs):
+    result={}
+    for key,value in pairs:
+        if key in result: raise ValueError("duplicate")
+        result[key]=value
+    return result
+raw=sys.stdin.read(4097)
+if len(raw)>4096: raise SystemExit(1)
+value=json.loads(raw,object_pairs_hook=unique)
+if not isinstance(value,dict) or set(value)!={"schema_version","ready","generation","config_sha256","pid"}:
+    raise SystemExit(1)
+if type(value["schema_version"]) is not int or value["schema_version"]!=1 or value["ready"] is not True:
+    raise SystemExit(1)
+if type(value["pid"]) is not int or value["pid"]<=0:
+    raise SystemExit(1)
+if not isinstance(value["generation"],str) or not re.fullmatch(r"[0-9a-f]{32}",value["generation"]):
+    raise SystemExit(1)
+if not isinstance(value["config_sha256"],str) or not re.fullmatch(r"[0-9a-f]{64}",value["config_sha256"]):
+    raise SystemExit(1)
+print(hashlib.sha256(json.dumps(value,sort_keys=True,separators=(",",":")).encode()).hexdigest())
+' 2>/dev/null)" || return 1
+  [[ -n "$fingerprint" && ( -z "$BACKEND_FINGERPRINT" || "$fingerprint" == "$BACKEND_FINGERPRINT" ) ]] || return 1
+  BACKEND_CONTAINER_ID="$found"
+  BACKEND_FINGERPRINT="$fingerprint"
+}
+
+wait_for_backend() {
+  local deadline=$(( $(date +%s) + timeout_seconds ))
+  while ! check_backend_once; do
+    check_ready_once || return 1
+    (( $(date +%s) < deadline )) || return 1
+    sleep "$interval_seconds"
+  done
+}
+
 close_demo_entry() {
   remove_ready_marker
   stop_forwarder
-  compose stop ui kong-third-party >/dev/null 2>&1 || true
+  compose stop ui third-party-backend kong-third-party >/dev/null 2>&1 || true
 }
 
 if [[ "$mode" == "--wait" ]]; then
@@ -408,6 +453,18 @@ if ! wait_for_ready; then
   exit 1
 fi
 
+# Only private services start here; the public forward is still closed.
+compose up --detach --no-deps --no-build third-party-backend ui >/dev/null || {
+  close_demo_entry
+  echo "private backend/UI could not be started; entry remains closed" >&2
+  exit 1
+}
+if ! wait_for_backend; then
+  close_demo_entry
+  echo "backend readiness failed; entry remains closed" >&2
+  exit 1
+fi
+
 # Re-read after the wait, publish the snapshot, and require another full proof
 # before opening either local entry. A worker restart also removes this marker
 # inside Kong, so AS traffic remains fail-closed during the polling interval.
@@ -422,22 +479,17 @@ if ! publish_ready_marker || ! check_ready_once || [[ "$CURRENT_FINGERPRINT" != 
   echo "WP5 all-worker marker could not be confirmed; entry remains closed" >&2
   exit 1
 fi
-if ! start_forwarder; then
+if ! check_backend_once || ! start_forwarder; then
   close_demo_entry
   exit 1
 fi
-if ! check_ready_once || [[ "$CURRENT_FINGERPRINT" != "$accepted_fingerprint" ]]; then
+if ! check_backend_once || ! check_ready_once || [[ "$CURRENT_FINGERPRINT" != "$accepted_fingerprint" ]]; then
   close_demo_entry
   echo "WP5 readiness changed before entry could open" >&2
   exit 1
 fi
 
-compose up --detach --no-deps --no-build ui >/dev/null || {
-  close_demo_entry
-  echo "UI could not be started after readiness passed" >&2
-  exit 1
-}
-if ! check_ready_once || [[ "$CURRENT_FINGERPRINT" != "$accepted_fingerprint" ]]; then
+if ! check_backend_once || ! check_ready_once || [[ "$CURRENT_FINGERPRINT" != "$accepted_fingerprint" ]]; then
   close_demo_entry
   echo "WP5 readiness changed while the UI was opening" >&2
   exit 1
@@ -451,7 +503,7 @@ while true; do
     exit 1
   fi
   fingerprint_before="$CURRENT_FINGERPRINT"
-  if ! check_ready_once || [[ "$CURRENT_FINGERPRINT" != "$fingerprint_before" ]]; then
+  if ! check_backend_once || ! check_ready_once || [[ "$CURRENT_FINGERPRINT" != "$fingerprint_before" ]]; then
     close_demo_entry
     echo "WP5 readiness changed; UI and third-party entry are closed" >&2
     exit 1

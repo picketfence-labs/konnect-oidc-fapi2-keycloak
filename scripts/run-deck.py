@@ -60,7 +60,6 @@ WP5_EXPECTED_CREATE_IDENTITIES = {
     ("plugin", "request-transformer for service third-party-route-b-api"),
 }
 
-
 def sanitize_output(text: str, secrets: list[str]) -> str:
     text = re.sub(
         r"-----BEGIN [^-\r\n]+-----.*?-----END [^-\r\n]+-----",
@@ -273,6 +272,96 @@ def read_wp5_runtime_approval(root: Path, target: dict, state: Path, role_values
     return receipt
 
 
+BACKEND_APPROVAL_RELATIVE = Path(".generated/evidence/third-party-backend-runtime-approval-v2.json")
+BACKEND_SCOPE = "third-party-backend-runtime-v2"
+BACKEND_NEW_IDENTITIES = {
+    ("certificate", "742c3d79-850f-5761-9544-63864bab5cad"),
+    ("service", "third-party-static-ui"),
+    ("route", "third-party-static-ui"),
+    ("plugin", "request-transformer for service third-party-static-ui"),
+}
+BACKEND_UPDATED_IDENTITIES = {
+    ("service", "third-party-route-a-api"), ("service", "third-party-route-b-api"),
+    ("plugin", "openid-connect for service third-party-route-a-api"),
+    ("plugin", "openid-connect for service third-party-route-b-api"),
+    ("plugin", "cors for service third-party-route-a-api"),
+    ("plugin", "cors for service third-party-route-b-api"),
+}
+BACKEND_RECOVERY_CREATE_IDENTITIES = {
+    ("route", "third-party-static-ui"),
+    ("plugin", "request-transformer for service third-party-static-ui"),
+}
+BACKEND_RECOVERY_UPDATE_IDENTITIES = {
+    ("plugin", "openid-connect for service third-party-route-a-api"),
+    ("plugin", "openid-connect for service third-party-route-b-api"),
+    ("plugin", "cors for service third-party-route-a-api"),
+    ("plugin", "cors for service third-party-route-b-api"),
+}
+BACKEND_PLANS = {
+    "migration": {"creating": BACKEND_NEW_IDENTITIES, "updating": BACKEND_UPDATED_IDENTITIES, "deleting": set()},
+    "bootstrap": {"creating": WP5_EXPECTED_CREATE_IDENTITIES | BACKEND_NEW_IDENTITIES, "updating": set(), "deleting": set()},
+    "noop": {"creating": set(), "updating": set(), "deleting": set()},
+    "migration-recovery": {"creating": BACKEND_RECOVERY_CREATE_IDENTITIES,
+                           "updating": BACKEND_RECOVERY_UPDATE_IDENTITIES, "deleting": set()},
+}
+
+
+def validate_backend_scope(operations, plan_type):
+    if not isinstance(plan_type, str) or plan_type not in BACKEND_PLANS or not isinstance(operations, dict) \
+        or set(operations) != {"summary", "operations"}:
+        raise ValueError("backend runtime operation scope is invalid")
+    actual, expected = operations["operations"], BACKEND_PLANS[plan_type]
+    if not isinstance(actual, dict) or set(actual) != set(expected):
+        raise ValueError("backend runtime operation identities are malformed")
+    for operation in expected:
+        entries = actual[operation]
+        if not isinstance(entries, list) or any(not isinstance(entry, dict) or set(entry) != {"kind", "name"}
+            or not isinstance(entry["kind"], str) or not isinstance(entry["name"], str) for entry in entries):
+            raise ValueError("backend runtime operation identities are malformed")
+        identities = [(entry["kind"], entry["name"]) for entry in entries]
+        if len(identities) != len(expected[operation]) or set(identities) != expected[operation] \
+            or identities != sorted(identities):
+            raise ValueError("backend runtime identities differ from the exact reviewed scope")
+    summary = {operation: len(entries) for operation, entries in expected.items()}
+    summary["total"] = sum(summary.values())
+    if not isinstance(operations["summary"], dict) or operations["summary"] != summary \
+        or any(type(value) is not int for value in operations["summary"].values()):
+        raise ValueError("backend runtime summary differs from the exact reviewed scope")
+
+
+def read_backend_runtime_approval(root, target, state, role_values):
+    path = root / BACKEND_APPROVAL_RELATIVE
+    for parent in (root / ".generated", path.parent):
+        if parent.is_symlink() or not parent.is_dir():
+            raise ValueError("backend runtime approval receipt directory is missing or unsafe")
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate receipt field")
+            result[key] = value
+        return result
+    try:
+        receipt = json.loads(_read_wp5_approval_bytes(path).decode("utf-8"), object_pairs_hook=unique)
+    except (UnicodeError, ValueError):
+        raise ValueError("backend runtime approval receipt is missing, unsafe, or malformed") from None
+    if not isinstance(receipt, dict) or set(receipt) != WP5_APPROVAL_FIELDS | {"plan_type"}:
+        raise ValueError("backend runtime approval receipt fields are malformed")
+    if type(receipt["schema_version"]) is not int or receipt["schema_version"] != 2 \
+        or receipt["scope"] != BACKEND_SCOPE or receipt["approved"] is not True:
+        raise ValueError("backend runtime approval receipt scope is invalid; old WP5 approval is not accepted")
+    for field, expected in {
+        "target_sha256": canonical_sha256(target), "state_sha256": file_sha256(state),
+        "role_inputs_sha256": canonical_sha256(role_values),
+    }.items():
+        if not isinstance(receipt[field], str) or receipt[field] != expected:
+            raise ValueError("backend runtime approval does not match current target, state, or role inputs")
+    if not isinstance(receipt["diff_sha256"], str) or re.fullmatch(r"[0-9a-f]{64}", receipt["diff_sha256"]) is None:
+        raise ValueError("backend runtime approval diff digest is malformed")
+    validate_backend_scope({"summary": receipt["summary"], "operations": receipt["operations"]}, receipt["plan_type"])
+    return receipt
+
+
 DECK_SUBPROCESS_TIMEOUT_SECONDS = 300
 MAX_ROLE_FILE_BYTES = 1_048_576
 
@@ -368,9 +457,9 @@ def main() -> int:
         raise ValueError(f"fixed {args.stage} state is unavailable")
 
     if args.stage == "runtime" and args.gateway == "third-party" and args.mode == "sync":
-        if os.environ.get("WP5_THIRD_PARTY_RUNTIME_APPROVED") != "YES":
+        if os.environ.get("TP_BACKEND_RUNTIME_V2_APPROVED") != "YES":
             raise ValueError(
-                "third-party runtime sync requires WP5_THIRD_PARTY_RUNTIME_APPROVED=YES after Root review"
+                "third-party runtime sync requires TP_BACKEND_RUNTIME_V2_APPROVED=YES after Root review"
             )
 
     if (
@@ -398,7 +487,7 @@ def main() -> int:
         target = info["target"]
         migration_receipt = read_migration_approval(root, target["control_plane_id"], role_values)
     elif args.stage == "runtime" and args.mode == "sync" and args.gateway == "third-party":
-        wp5_receipt = read_wp5_runtime_approval(root, info["target"], state, role_values)
+        wp5_receipt = read_backend_runtime_approval(root, info["target"], state, role_values)
 
     config = read_env(root / ".env")
     token = config.get("KONNECT_TOKEN", "")
@@ -440,6 +529,20 @@ def main() -> int:
         common_command.extend(["--parallelism", "1"])
     wp5_runtime_sync = args.stage == "runtime" and args.mode == "sync" and args.gateway == "third-party"
     if wp5_runtime_sync:
+        # Supported schema-only operation: validates Routes without creating
+        # resources. Keep its diagnostics private and fail before fresh diff.
+        validation_command = [*common_command]
+        validation_command[2] = "validate"
+        validation_command.extend(["--online-entities-list", "Routes", "--no-color"])
+        try:
+            validation_result = run_deck_subprocess(
+                validation_command, root=root, environment=environment, stage=args.stage,
+                mode="validate", purpose="third-party route validation", gateway=args.gateway,
+            )
+        except ValueError:
+            raise ValueError("third-party route validation failed; sync was not attempted") from None
+        if validation_result.returncode != 0 or validation_result.stderr.strip():
+            raise ValueError("third-party route validation failed; sync was not attempted")
         diff_command = [*common_command]
         diff_command[2] = "diff"
         diff_command.extend(["--json-output", "--no-color", "--no-mask-deck-env-vars-value"])
@@ -457,7 +560,7 @@ def main() -> int:
         current_operations, current_diff_sha256 = parse_sanitized_runtime_diff(
             diff_result.stdout, sensitive_values
         )
-        validate_wp5_additive_scope(current_operations)
+        validate_backend_scope(current_operations, wp5_receipt["plan_type"])
         if (
             wp5_receipt is None
             or current_diff_sha256 != wp5_receipt["diff_sha256"]
@@ -470,8 +573,10 @@ def main() -> int:
             args.gateway,
             read_private_role_file(role_file, require_private_mode=True),
         )
+        fresh_receipt = read_backend_runtime_approval(root, fresh_info["target"], state, fresh_role_values)
         if (
-            state.is_symlink()
+            fresh_receipt != wp5_receipt
+            or state.is_symlink()
             or file_sha256(state) != wp5_receipt["state_sha256"]
             or canonical_sha256(fresh_role_values) != wp5_receipt["role_inputs_sha256"]
             or canonical_sha256(fresh_info["target"]) != wp5_receipt["target_sha256"]
@@ -552,17 +657,17 @@ def main() -> int:
         else:
             operations, digest = parse_sanitized_runtime_diff(result.stdout, sensitive_values)
             print(json.dumps(operations, sort_keys=True, separators=(",", ":")))
-            print(f"WP5_THIRD_PARTY_RUNTIME_STATE_SHA256={file_sha256(state)}")
-            print(f"WP5_THIRD_PARTY_RUNTIME_ROLE_INPUTS_SHA256={role_inputs_sha256}")
-            print(f"WP5_THIRD_PARTY_RUNTIME_TARGET_SHA256={canonical_sha256(target)}")
-            print(f"WP5_THIRD_PARTY_RUNTIME_DIFF_SHA256={digest}")
+            print(f"TP_BACKEND_RUNTIME_V2_STATE_SHA256={file_sha256(state)}")
+            print(f"TP_BACKEND_RUNTIME_V2_ROLE_INPUTS_SHA256={role_inputs_sha256}")
+            print(f"TP_BACKEND_RUNTIME_V2_TARGET_SHA256={canonical_sha256(target)}")
+            print(f"TP_BACKEND_RUNTIME_V2_DIFF_SHA256={digest}")
     elif args.stage == "runtime" and args.mode == "sync" and result.returncode != 0:
         label = "API runtime migration" if args.gateway == "api" else "third-party runtime"
         raise ValueError(
             f"{label} sync exited nonzero; outcome is unknown; inspect current state before any retry"
         )
     elif wp5_runtime_sync:
-        print("third-party runtime sync completed for the approved additive 11-entity scope; decK output withheld")
+        print("third-party runtime sync completed for the approved backend runtime v2 scope; decK output withheld")
     else:
         sys.stdout.write(safe_stdout)
         sys.stderr.write(safe_stderr)

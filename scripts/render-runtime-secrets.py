@@ -98,6 +98,8 @@ roles = {
         "ROUTE_A_TLS_KEY": (pki_dir / "route-a.key").read_text(),
         "DECK_ROUTE_B_TLS_CERT_YAML": escaped_pem(pki_dir / "route-b.crt"),
         "ROUTE_B_TLS_KEY": (pki_dir / "route-b.key").read_text(),
+        "DECK_BACKEND_HOP_CERT_YAML": escaped_pem(pki_dir / "third-party-backend-hop.crt"),
+        "BACKEND_HOP_KEY": (pki_dir / "third-party-backend-hop.key").read_text(),
     },
 }
 for filename, values in roles.items():
@@ -112,6 +114,7 @@ write_role_env(output_dir / "runtime-third-party.env", {
     "ROUTE_A_TLS_KEY": (pki_dir / "route-a.key").read_text(),
     "ROUTE_B_TLS_KEY": (pki_dir / "route-b.key").read_text(),
     "ROUTE_B_JWK": route_b_jwk_json,
+    "BACKEND_HOP_KEY": (pki_dir / "third-party-backend-hop.key").read_text(),
     "FAPI_AS_TRANSPORT_ISSUER": "https://localhost:8444/realms/fapi-demo",
     "FAPI_AS_TRANSPORT_INTERNAL_ORIGIN": "https://keycloak:8443",
 })
