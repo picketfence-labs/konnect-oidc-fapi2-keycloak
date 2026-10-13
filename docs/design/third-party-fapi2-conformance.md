@@ -6,7 +6,7 @@
 
 - デモ範囲の正本: [ADR 0011](../decisions/0011-customer-demo-scope.md)、[実装要件](third-party-fapi2-requirements.md)
 - お客様向け説明: [デモ対応範囲と追加実装](third-party-demo-explainer.md)
-- 対象仕様: [FAPI 2.0 Security Profile — Final](https://openid.net/specs/fapi-security-profile-2_0-final.html)
+- 対象仕様: [FAPI 2.0 Security Profile（確定版）](https://openid.net/specs/fapi-security-profile-2_0-final.html)
 - この表はClient/RSの主要項目の整理であり、ASを含む完全な適合チェックリストや認定結果ではない。OIDF認定も受けない。
 - Message Signing（JAR/JARM等）は別仕様。今回の対象外。
 
@@ -50,7 +50,7 @@ Kongの挙動は、`kong-ee` sourceのmaster（2026-09-12）で確認した。**
 | C-10 | 5.3.3.1 | AS metadataはmetadata documentから得た値だけを使う。issuerは信頼できる経路で得て、metadataの`issuer`と一致させる | issuerはrepositoryの宣言値を正とする。endpointは、browser用とback-channel用のhostが分かれるため明示設定する。discoveryとの比較ではrevocation URLにKeycloak 26.7.4の既知差分があるため、META-02完全一致は主張しない（[ADR 0021](../decisions/0021-wp5-revocation-metadata-gap.md)） | Config / known difference | META-01、META-02 | P1 |
 | C-11 | 5.3.3.1 | 認可の開始はend-userの同意に基づくものに限り、開始をCSRFから保護する | UIの明示操作、stockのstate/PKCEを維持する。ただし開始CSRF防御を満たすと主張しない。専用開始endpoint等は将来対応 | Gap | CSRF-01 | F |
 | C-12 | 5.3.3.2 | authorization code grantを使う | `auth_methods: [authorization_code, session]` | Stock | A-PAR-01、B-PAR-01 | P1 |
-| C-13 | 5.3.3.2 | RFC9126に従ってPARを使う | `require_pushed_authorization_requests: true`。固定版Route BのPKJWT分岐はform client_idを省略する既知gapがある。stock本文は維持し、デモでは実AS成功を別途確認する | Config / Gap（下記） | PAR-01 | P1（動作）/ F（仕様gap解消） |
+| C-13 | 5.3.3.2 | RFC9126に従ってPARを使う | `require_pushed_authorization_requests: true`。固定版Route BのPKJWT分岐はform client_idを省略する既知gapがある。標準実装の本文は維持し、デモでは実AS成功を別途確認する | Config / Gap（下記） | PAR-01 | P1（動作）/ F（仕様gap解消） |
 | C-14 | 5.3.3.2 | PKCE S256を使い、requestごとに新しいchallengeをclientとuser agentへ束縛する | `require_proof_key_for_code_exchange: true`。verifierはauthorization cookieに保存される | Config | PKCE-01 | P1 |
 | C-15 | 5.3.3.2 | 認可レスポンスの`iss`をRFC 9207に従って検証する | stockは、`iss`があってissuerと一致しない場合は拒否する。**`iss`が欠落した場合は拒否しない**（`kong/openid-connect/authorization.lua`）。Keycloakがiss対応を宣言する場合の欠落拒否は、本来必要な追加対策。今回guardは作らず、将来`pre-function`優先で補完する | Gap | ISS-01、ISS-02 | F |
 | C-16 | 5.3.3.2 | authorization endpointへは`client_id`と`request_uri`だけを送る | PAR使用時のredirect URLを証跡で確認する | Stock | PAR-02 | P1 |
@@ -61,7 +61,7 @@ Kongの挙動は、`kong-ee` sourceのmaster（2026-09-12）で確認した。**
 
 Route AのStock区分はclient認証方式を指す。Route Aの送信境界guardとmetadata mTLSにもcustom transportが介在する。AS側peer計測は[test-only証跡契約](third-party-as-peer-evidence.md)で固定し、標準認証機能とは説明しない。
 
-実装・検証の現在地は[WP5受入表](third-party-wp5-acceptance.md)を参照。AS直結v2でもstock本文を維持したPAR201を確認した。通常統合は未完了で、仕様適合を認定しない。
+実装・検証の現在地は[WP5受入表](third-party-wp5-acceptance.md)を参照。AS直結v2でも標準実装の本文を維持したPAR201を確認した。通常統合も合意したデモ範囲で受入済みである。仕様適合は認定しない。
 
 ### 既知のPARギャップ（2026-10-04）
 

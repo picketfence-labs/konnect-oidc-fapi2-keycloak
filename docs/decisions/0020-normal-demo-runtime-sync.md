@@ -1,7 +1,7 @@
 # ADR 0020: 通常デモへのruntime反映
 
 - 状態: 実装レビュー中。通常環境の適用・受入は未実施
-- 関連: [ADR 0013](0013-work-package-schema-and-acceptance-boundaries.md)、[通常統合プレビュー](../design/third-party-wp5-normal-preview.md)
+- 関連: [ADR 0013](0013-work-package-schema-and-acceptance-boundaries.md)、[通常統合までの検証履歴](../design/verification-history.md)
 
 ## 背景
 

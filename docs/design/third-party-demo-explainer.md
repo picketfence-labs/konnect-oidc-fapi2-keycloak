@@ -4,7 +4,7 @@
 
 このデモは、FAPI 2.0対応の検討材料として、3rd Partyを含む構成でKongの主要機能を実演するものです。完全適合・認定済み・そのまま本番投入可能という説明はしません。
 
-受け取った顧客要件をなるべくKong標準機能で実装し、その環境をデモすることをゴールとします。2026-10-04に確認した固定版Route BのPKJWT PARのform client_id省略は、RFC9126/FAPI 2.0適合上のgapとして開示します。stock本文へのID補完は行わず、実フローの動作確認を進めます。[既知gapの記録](third-party-fapi2-conformance.md#既知のparギャップ2026-10-04)
+受け取った顧客要件をなるべくKong標準機能で実装し、その環境をデモすることをゴールとします。2026-10-04に確認した固定版Route BのPKJWT PARのform client_id省略は、RFC9126/FAPI 2.0適合上のgapとして開示します。標準実装の本文へのID補完は行わず、実フローの動作確認を進めます。[既知gapの記録](third-party-fapi2-conformance.md#既知のparギャップ2026-10-04)
 
 **Route A/Bの通常フローとreset/switchは確認済みです。** UIの表示allowlist、azp固定mapping、thumbprint先頭12文字、fragment除去は静的検証しました。初期UIとfragment除去のHTTP previewも確認しましたが、clean checkoutからの起動と両Routeの代表HTTPフローも確認済みです。HTTPS result画面の実browser表示はCA信頼エラーで未確認のまま、READMEにbrowser evidence手順を用意しました。確認層と証跡は[WP6受入表](third-party-wp6-acceptance.md)に記録します。WP5の隔離試験・通常統合・受入範囲は[WP5受入表](third-party-wp5-acceptance.md)を参照してください。
 

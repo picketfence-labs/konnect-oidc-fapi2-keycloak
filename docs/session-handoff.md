@@ -1,5 +1,13 @@
 # OIDC デモのセッション引き継ぎ
 
+## 文書整備の完了（2026-10-13）
+
+全体構成図の利用者確認後、Route A/Bを5つのスイムレーンへ改訂した。利用者とAPI Gatewayの間に3rd Partyを置き、同じレーン内へサービスUIとKong Gatewayを配置した。JSON・HTML・PNGと検証receiptは[設計一覧](design/README.md)から参照できる。各図のartifact検査9/9、4画面サイズのブラウザー検証、明暗画像とPNGの目視確認が通過した。
+
+日本語化と[ARCHITECTURE.md](../ARCHITECTURE.md)の追加、実行前プレビュー5件の検証履歴への統合、reset/logout図の削除を完了した。`docker-compose.demo-native.yml`は受入済みApple Silicon構成の再現に必要なため維持した。変更は文書と図に限る。利用者の指示で現ブランチへcommit・pushし、全体レビューに進む。後続レビューの指示で図3件をPagesへ公開し、全体構成図・Route A/Bの公開HTMLとローカルHTMLのhash一致を確認した。ARCHITECTURE.mdに各Routeの画像付き詳細説明を追加した。live構成変更は行っていない。以下の受入記録と既知差分は引き続き有効である。
+
+最終確認で`make validate`、`tests/test_static.py`、ローカルMarkdownリンクとアンカー264件、`git diff --check`が通過した。3図のreceiptとJSON・HTML・PNGのhashが一致し、Compose 2ファイルはHEADから変更していない。
+
 ## 現在の作業状態（2026-10-05）
 
 2026-10-05追記: 利用者が重い網羅検証の省略を承認した。代表外部redirect負例は通常Route Aでpass。metadata照合はrevocationだけ通知/public originと設定/internal originが不一致（Keycloak 26.7.4のfrontend builder仕様）。[ADR0021](decisions/0021-wp5-revocation-metadata-gap.md)の現構成維持・既知差分記録を、利用者のPR #25 mergeと受入実行指示に基づいて受け入れた。META-02完全一致はpassにしない。main `72a6426`を同期し、証跡のhash/結果/private modeと現行readiness/UIを確認、WP3 #9・WP5 #11は最終報告後Close済み。
@@ -26,13 +34,13 @@ WP6のmain `82d7ab2`受入が完了し、WP6 #12とEpic #6をCloseした。WP1�
 
 Git外の通常証跡: `.generated/evidence/wp5-normal-flow-route_a.json`（SHA-256 `0050094f0f7c31b08cbbd433bbf58f771a1f0c046b23173e5085ac0648a0286d`）、`wp5-normal-flow-transport_route_b.json`（`4340fad6e39b197c8d5106b28a199af64a6be2a6394298197ca4483ac2c82bd8`）、`wp5-normal-supervisor-reload.json`、`wp5-normal-integration-progress.json`。raw token/cookie/password/鍵は報告に含めない。
 
-ゴールはKong標準優先の顧客要件デモで、本番FAPI完全準拠環境ではない。stock本文を維持し、PAR client_id欠落はRFC 9126の仕様gapとして記録する。iss欠落guard、追加の開始CSRF防御、DPoP、厳密な個別失効SLAは今回の完了条件に追加しない。RootはSol 6.1 / High、開発委譲はLuna / xHigh。
+ゴールはKong標準優先の顧客要件デモで、本番FAPI完全準拠環境ではない。標準実装の本文を維持し、PAR client_id欠落はRFC 9126の仕様gapとして記録する。iss欠落guard、追加の開始CSRF防御、DPoP、厳密な個別失効SLAは今回の完了条件に追加しない。RootはSol 6.1 / High、開発委譲はLuna / xHigh。
 
 隔離証跡は再実行せず維持する。直結v6の実AS15件join、2回refresh/rotation、iss不一致拒否のreceipt SHA-256は`9b628ed21e550432405697ee7ac4281fb3b98936c0a087120774ec9ec3424ebd`。通常フローの成功をAS observer再計測や全worker/全background形態の網羅と読み替えない。
 
 以下は5a実行中の履歴であり、上記現在地を置き換えない。
 
-追加進捗（2026-10-04）: 再入計測用image v4のbuildとRoot archive reviewはPASS。network対照でinternal networkからhost loopbackへの到達失敗を確認し、成功済みdirect v3と同じ専用bridgeへ補正した。stock v4はrelayでPARを受信したが、署名検査前のform guardで拒否（HTTP500 / par_form）。ASへ未転送でclaimは未検証、専用環境の回収はRoot独立確認済み。stock v5はresponse_mode=queryへの補正後、client_id guardで拒否（HTTP500 / par_client_id、署名未検証・AS未転送）。固定SDKはPKJWT認証時にform client_idを除去するがRFC9126では必須であり、公開設定での保持経路は見つからなかった。利用者はstock本文の無変更転送を維持し、仕様gapは開示だけにする方針を決定。[ADR0019](decisions/0019-wp5-stock-claim-fixture-boundaries.md)に具体案を記録した。v5の専用リソース・port・private fixture回収もRoot独立確認済み。再入r4は3モードPASS・Root独立確認済みで、同一PARの再入count2/3/4、canonical行数[1,1,0]、HTTP401一致、cleanup PASS。記録は[stock preview](design/third-party-wp5-observer-preview.md)と[再入preview](design/third-party-wp5-reentry-preview.md)を参照。
+追加進捗（2026-10-04）: 再入計測用image v4のbuildとRoot archive reviewはPASS。network対照でinternal networkからhost loopbackへの到達失敗を確認し、成功済みdirect v3と同じ専用bridgeへ補正した。stock v4はrelayでPARを受信したが、署名検査前のform guardで拒否（HTTP500 / par_form）。ASへ未転送でclaimは未検証、専用環境の回収はRoot独立確認済み。stock v5はresponse_mode=queryへの補正後、client_id guardで拒否（HTTP500 / par_client_id、署名未検証・AS未転送）。固定SDKはPKJWT認証時にform client_idを除去するがRFC9126では必須であり、公開設定での保持経路は見つからなかった。利用者は標準実装の本文の無変更転送を維持し、仕様gapは開示だけにする方針を決定。[ADR0019](decisions/0019-wp5-stock-claim-fixture-boundaries.md)に具体案を記録した。v5の専用リソース・port・private fixture回収もRoot独立確認済み。再入r4は3モードPASS・Root独立確認済みで、同一PARの再入count2/3/4、canonical行数[1,1,0]、HTTP401一致、cleanup PASS。記録は[stock検証履歴](design/verification-history.md)と[再入検証履歴](design/verification-history.md)を参照。
 
 過去のreceipt `1791014398144929000`には190 candidates中10 secret matches / 2 credential patternsが記録されていた。後続receipt `1791019160834567000`では分類境界を検証し直し、194/194 candidatesのscanが0 secret / 0 patternで完了した。以前のreceiptはimmutableのまま保持し、raw lines/valuesは保存していない。INFO levelはWP3 isolated fixture限定で、通常Composeはnoticeのまま。TLS 1.3 policyと1001件目HTTP parser provenanceは最終receiptでpassした。
 

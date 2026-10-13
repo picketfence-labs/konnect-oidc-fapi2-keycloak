@@ -1,7 +1,7 @@
 # ADR 0021: WP5のrevocation metadata差分を記録して現構成を維持する
 
-- Status: Accepted（2026-10-05、PR #25の利用者mergeと受入実行指示）
-- Date: 2026-10-05
+- 状態: 採用済み（2026-10-05、PR #25の利用者mergeと受入実行指示）
+- 日付: 2026-10-05
 - 関連: ADR0011、ADR0012、WP5 META-02
 
 ## 確認した事実

@@ -2,215 +2,312 @@
   "schema_version": 2,
   "diagram_type": "workflow",
   "meta": {
-    "title": "Route A：mTLSクライアント認証（設計）",
+    "title": "Route A：mTLSクライアント認証",
     "animation": "none",
     "quality_profile": "showcase",
     "output": "route-a-mtls.workflow.html",
-    "viewBox": [
-      1200,
-      660
-    ]
+    "legend": {
+      "entries": {
+        "frontend": {
+          "label": "サービスUI"
+        },
+        "external": {
+          "label": "利用者"
+        },
+        "security": {
+          "label": "認証・検査"
+        },
+        "backend": {
+          "label": "API処理"
+        }
+      }
+    }
   },
   "lanes": [
     {
-      "id": "tpgw",
-      "label": "3rd Party Gateway（UIからRoute Aを選択）"
+      "id": "user",
+      "label": "利用者（ブラウザー）"
     },
     {
-      "id": "keycloak",
-      "label": "Keycloak"
+      "id": "third-party",
+      "label": "3rd Party"
     },
     {
-      "id": "apigw",
-      "label": "API Gateway"
+      "id": "api",
+      "label": "Kong API Gateway"
     },
     {
-      "id": "upstream",
-      "label": "Upstream API"
+      "id": "idp",
+      "label": "IdP（Keycloak / AS）"
+    },
+    {
+      "id": "resource",
+      "label": "Resource Server（保護API）"
     }
   ],
   "phases": [
     {
-      "id": "start",
-      "label": "PAR",
+      "id": "entry",
+      "label": "UIとRoute選択",
       "fromCol": 0,
       "toCol": 0
     },
     {
-      "id": "authorize",
-      "label": "ユーザー認証とCallback",
+      "id": "par-auth",
+      "label": "PARと利用者認証",
       "fromCol": 1,
       "toCol": 2,
       "variant": "emphasis"
     },
     {
-      "id": "token",
-      "label": "コード交換と証明書束縛",
+      "id": "exchange",
+      "label": "コード交換",
       "fromCol": 3,
       "toCol": 3,
       "variant": "security"
     },
     {
-      "id": "resource",
-      "label": "API Gatewayでの検証",
+      "id": "protected",
+      "label": "API検査と結果表示",
       "fromCol": 4,
       "toCol": 5,
       "variant": "security"
     }
   ],
+  "groups": [
+    {
+      "id": "service_group_a",
+      "label": "3rd Partyサービス",
+      "lane": "third-party",
+      "fromCol": 0,
+      "toCol": 0
+    },
+    {
+      "id": "kong_group_a",
+      "label": "Kong Gateway（OAuthクライアント）",
+      "lane": "third-party",
+      "fromCol": 1,
+      "toCol": 4,
+      "variant": "security"
+    }
+  ],
   "mainPath": [
+    "ui_a",
+    "choose_a",
     "par_a",
-    "login_a",
+    "par_accept_a",
     "callback_a",
     "token_a",
-    "call_a",
-    "rs_a",
-    "verify_a"
+    "api_call_a",
+    "api_validate_a",
+    "resource_a",
+    "result_a"
   ],
   "semanticChecks": {
     "allowedRoots": [
-      "par_a"
+      "ui_a"
     ],
     "allowedTerminals": [
-      "verify_a"
+      "result_a"
     ],
     "requiredPaths": [
       {
-        "from": "par_a",
+        "from": "choose_a",
+        "to": "par_accept_a"
+      },
+      {
+        "from": "callback_a",
         "to": "token_a"
       },
       {
-        "from": "token_a",
-        "to": "rs_a"
-      },
-      {
-        "from": "rs_a",
-        "to": "verify_a"
+        "from": "api_call_a",
+        "to": "resource_a"
       }
     ]
   },
   "nodes": [
     {
-      "id": "par_a",
-      "lane": "tpgw",
+      "id": "ui_a",
+      "lane": "third-party",
       "col": 0,
-      "type": "security",
-      "label": "PARを送信",
-      "sublabel": "PKCE S256 + tls_client_auth",
-      "width": 190
+      "type": "frontend",
+      "label": "デモUIを配信",
+      "sublabel": "nginx / 静的サービス",
+      "width": 200
     },
     {
-      "id": "login_a",
-      "lane": "keycloak",
-      "col": 1,
+      "id": "choose_a",
+      "lane": "user",
+      "col": 0,
       "type": "external",
-      "label": "利用者を認証",
-      "sublabel": "local demo user",
-      "width": 155
+      "label": "Route Aを選択",
+      "sublabel": "ブラウザーでRoute Aへ",
+      "width": 200
+    },
+    {
+      "id": "par_a",
+      "lane": "third-party",
+      "col": 1,
+      "type": "security",
+      "label": "PARを送信",
+      "sublabel": "PKCE S256 / tls_client_auth",
+      "width": 200
+    },
+    {
+      "id": "par_accept_a",
+      "lane": "idp",
+      "col": 2,
+      "type": "security",
+      "label": "PAR受理・利用者認証",
+      "sublabel": "Keycloakのログイン画面",
+      "width": 200
     },
     {
       "id": "callback_a",
-      "lane": "tpgw",
-      "col": 2,
-      "type": "backend",
-      "label": "Callbackを検証",
-      "sublabel": "state・PKCE・提示issの一致",
-      "width": 170
+      "lane": "third-party",
+      "col": 3,
+      "type": "security",
+      "label": "callback・コード交換",
+      "sublabel": "state・提示issを確認",
+      "width": 200
     },
     {
       "id": "token_a",
-      "lane": "keycloak",
+      "lane": "idp",
       "col": 3,
       "type": "security",
-      "label": "Route A certで認証",
-      "sublabel": "access / refresh tokenを証明書へ束縛",
-      "width": 205
+      "label": "認証・コード交換",
+      "sublabel": "TLS認証 / A証明書へ束縛",
+      "width": 200
     },
     {
-      "id": "call_a",
-      "lane": "tpgw",
+      "id": "api_call_a",
+      "lane": "third-party",
       "col": 4,
-      "type": "cloud",
-      "label": "API Gatewayを呼出し",
-      "sublabel": "Bearer header + 同じRoute A cert",
-      "width": 205
+      "type": "backend",
+      "label": "保護APIを呼び出す",
+      "sublabel": "Bearer + Route A証明書",
+      "width": 200
     },
     {
-      "id": "rs_a",
-      "lane": "apigw",
-      "col": 5,
+      "id": "api_validate_a",
+      "lane": "api",
+      "col": 4,
       "type": "security",
-      "label": "introspection + PoP検証",
-      "sublabel": "cnf.x5t#S256 = TLS peer cert",
-      "width": 205
+      "label": "token・PoPを検査",
+      "sublabel": "introspection / cnf照合",
+      "width": 200
     },
     {
-      "id": "verify_a",
-      "lane": "upstream",
+      "id": "resource_a",
+      "lane": "resource",
       "col": 5,
       "type": "backend",
-      "label": "JWT再検証・evidence",
-      "sublabel": "X-Client-Cert ↔ cnf・azp→route",
-      "width": 205
+      "label": "JWTと束縛を再検証",
+      "sublabel": "元client証明書とcnfを照合",
+      "width": 200
+    },
+    {
+      "id": "result_a",
+      "lane": "user",
+      "col": 5,
+      "type": "external",
+      "label": "UIで結果を確認",
+      "sublabel": "claim/header・署名・束縛",
+      "width": 200
     }
   ],
   "edges": [
     {
+      "id": "ui-to-choose_a",
+      "from": "ui_a",
+      "to": "choose_a",
+      "label": "HTTPS / UI取得",
+      "variant": "default",
+      "role": "main"
+    },
+    {
+      "id": "choose-to-par_a",
+      "from": "choose_a",
+      "to": "par_a",
+      "label": "Route Aへアクセス",
+      "variant": "default",
+      "role": "main"
+    },
+    {
+      "id": "par-to-par_accept_a",
       "from": "par_a",
-      "to": "login_a",
-      "label": "request_uri",
-      "role": "main"
-    },
-    {
-      "from": "login_a",
-      "to": "callback_a",
-      "label": "code + iss",
-      "role": "main"
-    },
-    {
-      "from": "callback_a",
-      "to": "token_a",
-      "label": "code + verifier + Route A cert",
+      "to": "par_accept_a",
+      "label": "PAR + 認可画面へ",
       "variant": "security",
       "role": "main"
     },
     {
+      "id": "par_accept-to-callback_a",
+      "from": "par_accept_a",
+      "to": "callback_a",
+      "label": "code・state・iss",
+      "variant": "default",
+      "role": "main"
+    },
+    {
+      "id": "callback-to-token_a",
+      "from": "callback_a",
+      "to": "token_a",
+      "label": "code + verifier",
+      "variant": "security",
+      "role": "main"
+    },
+    {
+      "id": "token-to-api_call_a",
       "from": "token_a",
-      "to": "call_a",
+      "to": "api_call_a",
       "label": "証明書束縛token",
       "variant": "emphasis",
       "role": "main"
     },
     {
-      "from": "call_a",
-      "to": "rs_a",
+      "id": "api_call-to-api_validate_a",
+      "from": "api_call_a",
+      "to": "api_validate_a",
       "label": "mTLS + Bearer",
       "variant": "security",
       "role": "main"
     },
     {
-      "from": "rs_a",
-      "to": "verify_a",
-      "label": "mTLS upstream cert",
+      "id": "api_validate-to-resource_a",
+      "from": "api_validate_a",
+      "to": "resource_a",
+      "label": "mTLS / token・証跡",
       "variant": "security",
+      "role": "main"
+    },
+    {
+      "id": "resource-to-result_a",
+      "from": "resource_a",
+      "to": "result_a",
+      "label": "HTTPS / 検証結果",
+      "variant": "default",
       "role": "main"
     }
   ],
   "cards": [
     {
-      "dot": "amber",
-      "title": "設計（未実装）",
+      "dot": "emerald",
+      "title": "認証方式と送信者制約",
       "items": [
-        "目標設計。live検証はA-E2E-01・A-CNF-01で行う"
+        "クライアント認証は標準OIDCのtls_client_auth",
+        "API呼出しにはtoken取得時と同じRoute A証明書を使用",
+        "PAR・コード交換はmTLS。認可画面への遷移はブラウザーのHTTPS"
       ]
     },
     {
-      "dot": "cyan",
-      "title": "Route Aの要点",
+      "dot": "amber",
+      "title": "補完と検証範囲",
       "items": [
-        "client認証・certはstock tls_client_auth",
-        "送信guard・metadata mTLSはcustom transport",
-        "iss欠落guard・開始CSRF追加防御は将来対応"
+        "AS送信guard・metadata mTLSは専用transportで補完",
+        "API GatewayはKeycloakへmTLS introspection。保護APIはJWTを再検証",
+        "承認済みデモ範囲で受入済み。iss欠落・開始CSRFは未対応"
       ]
     }
   ]

@@ -1,18 +1,18 @@
 # ADR 0009: 3rd Partyをclient Gatewayとして分離する
 
-- Status: Accepted（設計PR #5、2026-10-02 merge。runtime未受入）
-- Date: 2026-10-01
+- 状態: 採用済み（設計PR #5、2026-10-02 merge。設計時点ではruntime未受入。現在の判定はWP5/WP6受入表を参照）
+- 日付: 2026-10-01
 - Amends: [ADR 0007](0007-keycloak-only-fapi2-demo.md)の決定7・8（KongがRelying PartyとPoP検証の前段を兼ねる構成）
 
-## Context
+## 背景
 
 追加要件として、ClientとKong Gatewayの間に3rd Partyを置く。3rd PartyはKeycloakとの認可コードフローでtokenを取得し、Kong Gateway経由でUpstream APIへアクセスする。3rd Partyを含むmTLS/PKJWTの顧客向け動作デモのため、Kong GatewayをAPI向けとは別に立てる（3rd PartyでKongを使うことは必須ではない）。
 
-v1（現行main）のKong Gatewayは、FAPI client（PAR、client認証、code exchange、session）と、Upstreamの前段の両方を担っている。3rd Partyを追加すると、この2つの役割は別々の組織に属する。
+v1（初期構成）のKong Gatewayは、FAPI client（PAR、client認証、code exchange、session）と、Upstreamの前段の両方を担っている。3rd Partyを追加すると、この2つの役割は別々の組織に属する。
 
 目的・優先順位は[ADR 0011](0011-customer-demo-scope.md)で更新した。完全適合を完成条件にはしない。
 
-## Decision
+## 決定
 
 1. FAPI clientの役割を、新設の**3rd Party Gateway**（Kong Gateway 3.16.0.0）へ移す。v1のRoute A（`tls_client_auth`）とRoute B（`private_key_jwt` + custom plugin）は、両方とも3rd Party Gatewayで維持する。
 2. 既存のKong Gatewayは**API Gateway**（Resource Server）とし、clientとしての機能を持たせない。
@@ -30,7 +30,7 @@ client認証は、3rd Party GatewayとKeycloakの間で閉じる。API Gateway�
 - Route Aは、1枚のcertificateでclient認証とtoken bindingを兼ねる。構成が簡単である。
 - Route Bは、client identity（署名鍵）とTLS終端（certificate）を分離できる。実運用のエコシステムで採用例がある（豪州CDRなど）。
 
-## Consequences
+## 影響
 
 - API Gatewayの検証ポリシーは1つになる。Routeによる差分は、3rd Party GatewayとKeycloak clientの側に閉じる。
 - Konnect control plane、data plane certificate、decK stateがそれぞれ2つになる。`make`の各targetは対象Gatewayを明示する必要がある。
@@ -38,7 +38,7 @@ client認証は、3rd Party GatewayとKeycloakの間で閉じる。API Gateway�
 - v1の受入シナリオのうち、PoP verifierでの検証（`A-POP-01`、`B-POP-01`、`POP-01`、`POP-02`）は、API Gatewayでの検証へ移る。
 - custom pluginの単純移設ではAS全back-channel mTLSを満たせない。DP0/ADR 0012で専用AS transportとbridge送信時delegateを選択した。独立レビュー・merge後にWP5で実装する。
 
-## Alternatives considered
+## 検討した代替案
 
 | 案 | 不採用の理由 |
 |---|---|

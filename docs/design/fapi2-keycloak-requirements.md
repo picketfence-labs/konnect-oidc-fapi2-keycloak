@@ -1,7 +1,7 @@
 # Keycloak FAPI 2.0二経路デモ要件
 
 > [!NOTE]
-> 本文書はv1（UIからKongへの直接経路）の実装契約である。3rd Partyを追加した構成では、[3rd Party経由FAPI 2.0デモ要件](third-party-fapi2-requirements.md)が本文書を修正し、優先する。「Workflow diagrams」節の画像は、3rd Party構成の設計図へ置き換わっている。v1時点の図は、各画像のリンク先（GitHub Pages）で参照できる。
+> 本文書はv1（UIからKongへの直接経路）の実装契約である。3rd Partyを追加した構成では、[3rd Party経由FAPI 2.0デモ要件](third-party-fapi2-requirements.md)が本文書を修正し、優先する。全体構成は[ARCHITECTURE.md](../../ARCHITECTURE.md)を参照する。Route A/B図は全体構成の利用者確認後、3rd Party構成へ更新済みである。
 
 ## この文書の目的
 
@@ -17,10 +17,10 @@
 
 同じKong Gateway data planeから2つの独立したbrowser authorization code flowを実行し、token endpoint client authenticationだけを比較できるようにする。
 
-| Route | Client authentication | Sender constraint |
+| Route | クライアント認証 | 送信者制約 |
 |---|---|---|
-| Route A | `tls_client_auth` | mTLS certificate-bound access token |
-| Route B | `private_key_jwt` | mTLS certificate-bound access token |
+| Route A | `tls_client_auth` | mTLS証明書に束縛されたアクセストークン |
+| Route B | `private_key_jwt` | mTLS証明書に束縛されたアクセストークン |
 
 両RouteはKeycloakでユーザーを認証し、PAR、PKCE S256、certificate-bound token、refresh、revocation、logoutを検証する。
 
@@ -43,11 +43,11 @@
 8. 利用者がlogoutすると、Kongはrefresh tokenをrevokeし、local sessionとKeycloak SSO sessionを終了する。
 9. 利用者は反対側のRouteを新しいsessionで検証できる。
 
-## Target architecture
+## 目標構成
 
-### Runtime components
+### 実行時の構成要素
 
-| Component | Responsibility |
+| 構成要素 | 責任 |
 |---|---|
 | Kong Gateway 3.16.0.0 | OIDC RP、PAR、code exchange、session、header設定、upstream mTLS |
 | `fapi-client-auth-bridge` custom plugin | Route BのPKJWT生成とmTLS transport併用、入力sanitization |
@@ -56,7 +56,7 @@
 | Demo UI | Route選択、login結果、logout、negative testの開始 |
 | Konnect control plane | Gateway configuration配布 |
 
-### Container images
+### コンテナーimage
 
 - Kong custom imageは`kong/kong-gateway:3.16.0.0`をbaseとすることMUST。
 - Kong custom imageは`ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak`へ発行することMUST。
@@ -64,11 +64,11 @@
 - PoP verifierは最小構成のimageを使い、root権限なしで実行することSHOULD。
 - Image tagは不変のGit commit tagを含むMUST。`latest`は存在してもMAYだが、受入環境では使用してはならない（MUST NOT）。
 
-## Route and Serviceモデル
+## RouteとServiceのモデル
 
 target Gateway configurationは、path選択された2つのRouteと2つのServiceを作成MUST。
 
-| Route | Path | Service | Session cookie |
+| Route | パス | Service | セッションcookie |
 |---|---|---|---|
 | Route A | `/api/fapi/mtls` | `fapi-mtls-service` | Route A専用のcookie名とsuffix |
 | Route B | `/api/fapi/pkj-mtls` | `fapi-pkj-mtls-service` | Route B専用のcookie名とsuffix |
@@ -82,9 +82,9 @@ target Gateway configurationは、path選択された2つのRouteと2つのServi
 - Header偽装は選択済みlogical Upstreamを変更してはならない（MUST NOT）。
 - `Authorization`、`Cookie`、内部PKJWT transport header、private key materialはecho responseやapplication logへ到達してはならない（MUST NOT）。
 
-## Keycloak requirements
+## Keycloakの要件
 
-### Realm
+### realm設定
 
 実装は専用realmを用意MUST（推奨名`fapi-demo`）。Realm設定は宣言的でレビュー可能であることMUST。Dashboardだけの手動設定は受入条件を満たさない。
 
@@ -99,36 +99,36 @@ Realmは次を提供MUST。
 - JWKS endpoint
 - 信頼済みdevelopment CAによるHTTPS
 
-### Demo userとclaim
+### デモユーザーとclaim
 
 生成済みpasswordを持つuserを2名以上用意する。
 
 | User role | `department` | `route` |
 |---|---|---|
-| Sales demo user | `sales` | `sales-route` |
-| Engineering demo user | `engineering` | `engineering-route` |
+| 営業部門のデモユーザー | `sales` | `sales-route` |
+| 開発部門のデモユーザー | `engineering` | `engineering-route` |
 
 PasswordはGit外で生成し、明示的なoperator commandだけで取得可能にすることMUST。Protocol Mapperは、namespaced claimをID tokenとaccess tokenへ追加MUST。
 
-### FAPI policy
+### FAPIポリシー
 
 両clientはKeycloakの`fapi-2-security-profile` client policy、または同等の制御を明示した独自policyを使用MUST。
 
 Policyは次を強制MUST。
 
-- authorization code flow
+- 認可コードフロー
 - 全authorization requestへのPAR
 - PKCE（`S256`）
 - confidential clientのclient authentication
 - 60秒以下のauthorization code lifetime
 - 署名済みID token
 - FAPI互換の署名algorithm
-- sender-constrained access token
+- 送信者制約付きアクセストークン
 - refresh tokenのサポート
 
 本デモはFAPI 2.0 Security Profileを対象とする。FAPI 2.0 Message Signingと認定審査への提出は対象外。
 
-### Route A client
+### Route Aクライアント
 
 推奨client ID: `kong-fapi-mtls`。
 
@@ -140,7 +140,7 @@ Clientは次をMUST。
 - 登録済みcertificateがないtoken requestを拒否する
 - Route Bのcertificateを使ったtoken requestを拒否する
 
-### Route B client
+### Route Bクライアント
 
 推奨client ID: `kong-fapi-pkj-mtls`。
 
@@ -154,21 +154,21 @@ Clientは次をMUST。
 - Route BのTLS certificateを使ったmTLS certificate-boundのaccess tokenとrefresh tokenを発行する
 - 有効なPKJWTを含むがTLS client certificateを省略したtoken requestを拒否する
 
-### Key material
+### 鍵と証明書
 
 実装は次の用途ごとに別々の鍵材料を使用MUST。
 
-- Keycloak server TLS
+- KeycloakのサーバーTLS
 - Route Aのclient authenticationとtoken binding
 - Route Bのtoken binding
 - Route BのPKJWT signing
-- PoP verifier server TLS
+- PoP verifierのサーバーTLS
 
 Private keyはGit、Terraform state output、decK state、browser response、logへ入ってはならない（MUST NOT）。生成物がignore対象であれば、development certificateはリポジトリローカルのCA workflowから発行してもよい（MAY）。
 
-## Kong Gateway requirements
+## Kong Gatewayの要件
 
-### Route A OpenID Connect configuration
+### Route AのOpenID Connect設定
 
 Route Aは、custom token request codeを持たないstock OpenID Connect pluginを使用SHOULD。
 
@@ -183,7 +183,7 @@ Configurationは次をMUST。
 - session authenticationを有効化する
 - Route A専用のredirect URI、logout suffix、session secretを使う
 
-### Route B custom plugin contract
+### Route Bのカスタムプラグイン契約
 
 custom pluginは、小さなpreprocessorのままであることMUST。新しいbrowser session、authorization endpoint、BFFを実装してはならない（MUST NOT）。
 
@@ -211,11 +211,11 @@ pluginは次の場合にfail closedすることMUST。
 
 pluginは、pinされたGateway image内の`kong.openid-connect.utils`を再利用してもよい（MAY）。これは内部moduleであるため、Gateway upgrade時にsignatureや挙動のdriftを検出するテストを用意することMUST。
 
-### Outbound Service mTLS
+### Serviceからの送信mTLS
 
 各Serviceは、そのRouteのbound tokenを取得した際と同じcertificateを提示することMUST。共有によってRoute別のclient certificateが使えなくなる場合、実装はService entityを共有してはならない（MUST NOT）。
 
-## PoP verifier API contract
+## PoP verifier APIの契約
 
 PoP verifierはセキュリティ境界の一部である。次をMUST。
 
@@ -232,14 +232,14 @@ Responseは次を含んでもよい（MAY）。
 
 - Route識別子
 - client authenticationのlabel
-- token certificate thumbprint
-- TLS peer certificate thumbprint
+- トークンに記録された証明書thumbprint
+- TLS peer証明書thumbprint
 - `department`とlogical `route`
 - binding結果のboolean
 
 Responseは、raw token、cookie、private key、完全なcertificate、client assertionを含んではならない（MUST NOT）。
 
-## Logout and revocation contract
+## logoutと失効の契約
 
 各Routeは、それぞれ別のlogout URLを公開することMUST。
 
@@ -255,7 +255,7 @@ Revocationが失敗した場合でも、Kongはlocal logoutとKeycloak logoutを
 
 specificなconfirmation画面の表示は受入条件ではない。有効な`id_token_hint`があれば、Keycloakはconfirmationを省略してただちにsessionを終了・redirectしてもよい。
 
-## UI requirements
+## UIの要件
 
 UIは次を提供MUST。
 
@@ -264,16 +264,16 @@ UIは次を提供MUST。
 - 現在のRoute用のlogoutボタン
 - 有効なclient authentication方式
 - `department`とlogical route
-- token certificate thumbprint
-- TLS peer certificate thumbprint
+- トークンに記録された証明書thumbprint
+- TLS peer証明書thumbprint
 - binding検証結果
 - 想定されるnegative testに対する明確なerror表示
 
 UIは、access token、refresh token、client assertion、private keyをbrowser storageへ保存してはならない（MUST NOT）。
 
-## Delivery and automation requirements
+## 配布と自動化の要件
 
-### Infrastructure as code
+### 構成のコード管理
 
 - Keycloak realm、client、role、user、Protocol Mapper、client policyは宣言的であることMUST。
 - Gateway entityはdecK stateに残すことMUST。
@@ -282,7 +282,7 @@ UIは、access token、refresh token、client assertion、private keyをbrowser 
 - `make validate`は安全であり続け、live systemを変更してはならない（MUST NOT）。
 - Apply、sync、image push、destroyは明示的なcommandであり続けることMUST。
 
-### GHCR
+### GHCRへの配布
 
 Repositoryは、次を行うGitHub Actions workflowを追加することMUST。
 
@@ -296,7 +296,7 @@ Repositoryは、次を行うGitHub Actions workflowを追加することMUST。
 
 Workflowは、secretやprivate key materialを出力してはならない（MUST NOT）。
 
-## Observability and evidence
+## 観測と証跡
 
 実装は、credentialを露出せずに2つのRouteを区別できるevidenceを生成することMUST。
 
@@ -312,25 +312,25 @@ Workflowは、secretやprivate key materialを出力してはならない（MUST
 
 Logは、RouteとPhaseを識別できることMUST。Logは、token値、cookie、assertion、JWK、certificate private key、authorization codeをredactすることMUST。
 
-## Acceptance scenarios
+## 受入シナリオ
 
-### Positive scenarios
+### 正常系シナリオ
 
-| ID | Scenario | Pass condition |
+| ID | シナリオ | 合格条件 |
 |---|---|---|
-| A-PAR-01 | Route A browser login | PAR、PKCE S256、mTLS client authenticationが完了する |
-| A-POP-01 | Route A protected API call | `cnf`がRoute A TLS peer certificateのthumbprintと一致する |
-| B-PAR-01 | Route B browser login | PARとPKCE S256が完了する |
+| A-PAR-01 | Route Aのブラウザーログイン | PAR、PKCE S256、mTLS client authenticationが完了する |
+| A-POP-01 | Route Aの保護API呼出し | `cnf`がRoute A TLS peer certificateのthumbprintと一致する |
+| B-PAR-01 | Route Bのブラウザーログイン | PARとPKCE S256が完了する |
 | B-PKJ-01 | Route B code exchange | KeycloakがissuerをaudienceとするPS256 PKJWTと一回限りの`jti`を受理する |
-| B-POP-01 | Route B protected API call | `cnf`がRoute B TLS peer certificateのthumbprintと一致する |
+| B-POP-01 | Route Bの保護API呼出し | `cnf`がRoute B TLS peer certificateのthumbprintと一致する |
 | CLAIM-01 | Sales・engineeringのlogin | 署名済みclaimが期待するlogical Upstreamへ導く |
 | LOGOUT-A-01 | Route A logout | refresh replayが失敗し、cookieが失効し、Keycloak sessionが終了する |
 | LOGOUT-B-01 | Route B logout | refresh replayが失敗し、cookieが失効し、Keycloak sessionが終了する |
 | SWITCH-01 | logout後のRoute切替 | 反対側のRouteが新しいauthorization flowを開始する |
 
-### Negative scenarios
+### 異常系シナリオ
 
-| ID | Scenario | Expected result |
+| ID | シナリオ | 期待する結果 |
 |---|---|---|
 | A-CERT-01 | certificateなしのRoute A token request | Keycloakがclient authenticationを拒否する |
 | A-CERT-02 | Route B certificateを使ったRoute A token request | Keycloakがclient authenticationを拒否する |
@@ -343,7 +343,7 @@ Logは、RouteとPhaseを識別できることMUST。Logは、token値、cookie�
 | HEADER-01 | Browserがdepartmentとrouteのheaderを偽装する | 署名済みclaimが両方の値を上書きする |
 | LEAK-01 | Application responseとlogの点検 | token、cookie、assertion、private keyが存在しない |
 
-## Definition of done
+## 完了条件
 
 開発は次のとき完了とする。
 
@@ -355,18 +355,18 @@ Logは、RouteとPhaseを識別できることMUST。Logは、token値、cookie�
 - logoutとRoute切替が両Routeで成功する
 - documentationがOpenID Foundation certificationを主張していない
 
-## Out of scope
+## 対象外
 
 - production HAとdisaster recovery
 - production PKIまたはHSM連携
-- Entra ID federation、MFA、Conditional Access
+- Entra ID連携、MFA、条件付きアクセス
 - Auth0 HRI
-- FAPI 2.0 Message Signing
+- FAPI 2.0 Message Signing（対象外の追加仕様）
 - OpenID Foundation certificationへの提出
-- production audit retention
+- 本番監査ログの保持
 - 実顧客のIDやデータ
 
-## Delivery sequence
+## 実装の順序
 
 1. 生成済みdevelopment PKIとともにKeycloakとPoP verifierのscaffoldingを追加する。
 2. Route Aを実装し、mTLS-bound tokenの発行を実証する。
@@ -377,28 +377,25 @@ Logは、RouteとPhaseを識別できることMUST。Logは、token値、cookie�
 7. GHCR build、SBOM、scan、不変tagでのpublishを追加する。
 8. 実装evidenceがworkflowと一致した時点でだけdiagramを更新する。
 
-## Workflow diagrams
+## フロー図
 
-各diagramは、レビュー用のJSON source、静的なPNG、インタラクティブなHTML artifactの3形態で管理する。JSON/PNG/HTMLはこのrepository内の`workflows/`に残し、インタラクティブなHTML artifactは共有用にGitHub Pagesへも公開している。
+Route A/Bは承認済み全体構成に合わせて改訂済みである。各図は、レビュー用のJSONソース、静的なPNG、インタラクティブなHTMLの3形態で、このリポジトリ内の`workflows/`に保存する。GitHub Pagesも2026-10-13に改訂版へ更新済みである。
 
-[![Route A: mTLS client authenticationのworkflow](workflows/route-a-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
+[![Route A: mTLSクライアント認証のフロー](workflows/route-a-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
 
-*Route A: mTLSクライアント認証。画像をクリックするとインタラクティブ版を開く。* Source: [JSON](workflows/route-a-mtls.workflow.json) / [ローカルHTML](workflows/route-a-mtls.workflow.html)
+*Route A: mTLSクライアント認証。画像をクリックするとインタラクティブ版を開く。* ソース: [JSON](workflows/route-a-mtls.workflow.json) / [ローカルHTML](workflows/route-a-mtls.workflow.html)
 
-[![Route B: private_key_jwt + mTLSのworkflow](workflows/route-b-pkj-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)
+[![Route B: private_key_jwt + mTLSのフロー](workflows/route-b-pkj-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)
 
-*Route B: private_key_jwt + mTLS証明書束縛。画像をクリックするとインタラクティブ版を開く。* Source: [JSON](workflows/route-b-pkj-mtls.workflow.json) / [ローカルHTML](workflows/route-b-pkj-mtls.workflow.html)
+*Route B: private_key_jwt + mTLS証明書束縛。画像をクリックするとインタラクティブ版を開く。* ソース: [JSON](workflows/route-b-pkj-mtls.workflow.json) / [ローカルHTML](workflows/route-b-pkj-mtls.workflow.html)
 
-[![LogoutとRefresh Token失効のworkflow](workflows/logout.workflow.png)](https://picketfence-labs.github.io/diagrams/5522b25c922a/)
-
-*Route別LogoutとRefresh Token失効。画像をクリックするとインタラクティブ版を開く。* Source: [JSON](workflows/logout.workflow.json) / [ローカルHTML](workflows/logout.workflow.html)
 
 diagramはworkflowを説明するものであり、実装状況そのものではない。受入判定は本文書のtestに従う。
 
-## Primary sources
+## 一次資料
 
 - [FAPI 2.0 Security Profile](https://openid.net/specs/fapi-security-profile-2_0.html)
-- [OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens](https://www.rfc-editor.org/rfc/rfc8705)
-- [Keycloak FAPI support](https://www.keycloak.org/securing-apps/oidc-layers#_fapi-support)
-- [Keycloak Server Administration Guide](https://www.keycloak.org/docs/latest/server_admin/)
-- [Kong OpenID Connect plugin](https://developer.konghq.com/plugins/openid-connect/)
+- [RFC 8705: OAuthのmTLS認証と証明書束縛トークン](https://www.rfc-editor.org/rfc/rfc8705)
+- [KeycloakのFAPI対応](https://www.keycloak.org/securing-apps/oidc-layers#_fapi-support)
+- [Keycloak管理ガイド](https://www.keycloak.org/docs/latest/server_admin/)
+- [Kong OpenID Connectプラグイン](https://developer.konghq.com/plugins/openid-connect/)

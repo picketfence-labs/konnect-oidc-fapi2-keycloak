@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-13",
+  "diagram_type": "architecture",
+  "quality_profile": "showcase",
+  "deterministic_validation": {
+    "command": "archify deliver architecture",
+    "exit_code": 0,
+    "artifact_checks_passed": 9,
+    "artifact_checks_total": 9,
+    "composition_errors": 0,
+    "warnings": 0,
+    "geometry_repairs": 2
+  },
+  "artifacts": [
+    {
+      "path": "third-party-architecture.architecture.json",
+      "bytes": 4599,
+      "sha256": "74cc25badde4debba801224b05a15214c7eff29a4c3fb97cedb9241f79a42e77"
+    },
+    {
+      "path": "third-party-architecture.architecture.html",
+      "bytes": 805501,
+      "sha256": "5df854ebc9a61f820af09bd4361127bceeea869d40f2feb2a0665b453e559d1c"
+    },
+    {
+      "path": "third-party-architecture.architecture.png",
+      "bytes": 540873,
+      "sha256": "9e2713d4bbe73480a11caff465d355f48c273abd68c01ff8b15ac37d0c75f753"
+    }
+  ],
+  "browser_evidence": {
+    "status": "pass",
+    "method": "archify visual-check",
+    "viewports": [
+      [
+        1440,
+        900
+      ],
+      [
+        1600,
+        1000
+      ],
+      [
+        1920,
+        1080
+      ],
+      [
+        2048,
+        1320
+      ]
+    ],
+    "no_overflow": true,
+    "captures": [
+      "1440x900 light",
+      "1440x900 dark",
+      "2048x1320 light",
+      "2048x1320 dark"
+    ],
+    "private_receipt": ".generated/evidence/architecture-review-20261013/third-party-architecture.architecture.visual-check.json"
+  },
+  "perceptual_review": {
+    "status": "pass",
+    "reviewer": "image-capable assistant",
+    "examined": [
+      "1440x900 light",
+      "1440x900 dark",
+      "2048x1320 light",
+      "2048x1320 dark",
+      "PNG export"
+    ],
+    "findings": "ノード・ラベルの重なりなし。主経路と組織境界を判読でき、最大サイズでも下部に過大な空白なし。"
+  },
+  "export": {
+    "method": "delivered Viewer PNG export",
+    "theme": "light",
+    "width": 5120,
+    "height": 3040
+  },
+  "locale": {
+    "authored": "ja",
+    "fixed_viewer_fallback": "en"
+  },
+  "user_architecture_approval": "approved",
+  "route_a_b_rewrite": "complete",
+  "user_architecture_approval_date": "2026-10-13",
+  "publication": {
+    "date": "2026-10-13",
+    "url": "https://picketfence-labs.github.io/diagrams/b671e37f23de/",
+    "repository": "picketfence-labs/diagrams",
+    "commit": "4aac2e965d5ee642bf3fff4047cf1999815f6cf0",
+    "http_status": 200,
+    "served_sha256": "5df854ebc9a61f820af09bd4361127bceeea869d40f2feb2a0665b453e559d1c",
+    "matches_delivered_html": true
+  }
+}

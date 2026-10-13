@@ -2,13 +2,13 @@
 
 ## この文書の目的
 
-この文書は、既存の二経路デモ（[Keycloak FAPI 2.0二経路デモ要件](fapi2-keycloak-requirements.md)、以下「v1要件」）に3rd Partyを追加した構成について、実装契約を定義する。顧客向けデモの必須範囲と、本来のFAPI 2.0適合との差分を分ける。補完方式は[DP0契約](third-party-as-mtls-transport.md)と[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)に固定した。設計PR #5はmerge済み。実装・runtime受入とは分ける。Workerへ方式選択を渡さない。
+この文書は、既存の二経路デモ（[Keycloak FAPI 2.0二経路デモ要件](fapi2-keycloak-requirements.md)、以下「v1要件」）に3rd Partyを追加した構成について、実装契約を定義する。顧客向けデモの必須範囲と、本来のFAPI 2.0適合との差分を分ける。補完方式は[DP0契約](third-party-as-mtls-transport.md)と[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)に固定した。設計PR #5はmerge済み。実装・実行時受入は[WP5受入表](third-party-wp5-acceptance.md)と[WP6受入表](third-party-wp6-acceptance.md)に記録している。
 
 - デモの目的・優先順位: [ADR 0011](../decisions/0011-customer-demo-scope.md)
 - お客様向け説明: [デモ対応範囲と追加実装](third-party-demo-explainer.md)
 - 設計判断の正本: [ADR 0009](../decisions/0009-third-party-client-gateway-topology.md)、[ADR 0010](../decisions/0010-api-gateway-resource-server-validation.md)
 - 本来のFAPI要件と今回の優先度の対応表: [FAPI 2.0要件とデモ対応範囲](third-party-fapi2-conformance.md)
-- 作業分割と検証方法: [Delivery plan](third-party-delivery-plan.md)
+- 作業分割と検証方法: [開発計画](third-party-delivery-plan.md)
 
 要件キーワード（MUST、SHOULD、MAY）は、**今回のデモ内の実装契約**を示し、FAPI 2.0完全適合を意味しない。この文書に記載のない事項は、v1要件を継続して適用する。v1要件と矛盾する場合は、この文書を優先する。
 
@@ -27,14 +27,14 @@ P0を弱めて追加価値を達成することはしない。追加価値の実
 
 ## 変更の要約
 
-| 観点 | v1（現行main） | 本要件 |
+| 観点 | v1（初期構成） | 本要件 |
 |---|---|---|
 | FAPI client（RP） | Kong Gateway | **3rd Party**。実装例として**3rd Party Gateway**（新設のKong） |
 | Resource Server | PoP verifier API | **API Gateway**（既存のKong）。PoP verifierは**Upstream API**として残す |
 | 利用者の経路 | UI → Kong → PoP verifier | UI → 3rd Party Gateway → API Gateway → Upstream API |
 | Konnect control plane | 1つ | **2つ**（API用と3rd Party用。組織境界を表す） |
 | client認証の方式 | Route A / Route B | 両Routeを維持し、3rd Party Gatewayへ移す。Route BのAS向けmTLSを拡張する |
-| sender constraint | mTLS | 変更なし。mTLSで統一する |
+| 送信者制約 | mTLS | 変更なし。mTLSで統一する |
 
 既存の直接経路（UIからKongへのRoute A/B）は残さず、3rd Party経由の経路で置き換える。
 
@@ -57,11 +57,11 @@ P0を弱めて追加価値を達成することはしない。追加価値の実
 8. UIは次を表示する: client認証方式、token `cnf`、API Gatewayが受け取ったTLS peer certificateのthumbprint、`azp`、`department`、logical route。
 9. logout/resetでRoute cookieとKeycloak SSO sessionを終了し、UIへ戻る。次のケースは新しい認可フローで実行する。stock revocationも使用するが、個別access tokenの失効保証をデモ完了条件にしない。
 
-## Target architecture
+## 目標構成
 
-### Runtime components
+### 実行時の構成要素
 
-| Component | 組織 | Responsibility |
+| 構成要素 | 組織 | 責任 |
 |---|---|---|
 | Demo UI | 3rd Party | Route選択、結果表示、logout、negative testの起動 |
 | 3rd Party Gateway（Kong 3.16.0.0） | 3rd Party | FAPI client: PAR、PKCE、client認証、code exchange、session、refresh、revocation、logout。API GatewayへのmTLS接続 |
@@ -77,8 +77,8 @@ P0を弱めて追加価値を達成することはしない。追加価値の実
 | 区間 | TLS | 提示するclient certificate | 信頼の根拠 |
 |---|---|---|---|
 | Browser → UI、Browser → 3rd Party Gateway | HTTPS | なし | 開発CA |
-| 3rd Party Gateway → Keycloak（Route A: PAR、token、refresh、revoke） | mTLS | Route A cert | `tls_client_auth`。Keycloak clientへの登録 |
-| 3rd Party Gateway → Keycloak（Route B: PAR、token、refresh、revoke） | mTLS | Route B TLS cert | PKJWTでclient認証。token/refreshは提示certへ束縛。PAR/revokeにも専用transport pluginでmTLSを補完（ADR 0012） |
+| 3rd Party Gateway → Keycloak（Route A: PAR、token、refresh、revoke） | mTLS | Route A証明書 | `tls_client_auth`。Keycloak clientへの登録 |
+| 3rd Party Gateway → Keycloak（Route B: PAR、token、refresh、revoke） | mTLS | Route BのTLS証明書 | PKJWTでclient認証。token/refreshは提示certへ束縛。PAR/revokeにも専用transport pluginでmTLSを補完（ADR 0012） |
 | 3rd Party Gateway → Keycloak（discovery、JWKS。bridge自身のdiscovery取得も含む） | mTLS | 専用3rd Party metadata cert | 公開情報の取得にもmTLSを使う。TLS peer検証とissuer一致を維持。DP0のtransport decoratorで全呼出しを補完 |
 | 3rd Party Gateway → API Gateway | mTLS | **tokenの取得時と同じ**Route別cert | `cnf.x5t#S256`との一致 |
 | API Gateway → Keycloak（introspection） | mTLS | API Gateway introspection cert | Keycloak clientへの登録 |
@@ -90,18 +90,18 @@ mTLS transport、OAuth client認証、tokenのcertificate bindingは別の役割
 
 Keycloakはbrowserと同じTLS listenerを使うため、`KC_HTTPS_CLIENT_AUTH: request`を維持し、提示されたcertを開発CAで検証する。サーバー間の実際のrequestにcertが提示・検証された証跡を必須にする。**AS listener全体でcertなしを拒否する`required`構成ではない**。顧客へ「ASの全入口がmTLS強制」とは説明しない。API Gatewayはcert欠落・binding不一致を拒否する。この区別は[説明資料](third-party-demo-explainer.md)にも明記する（[Keycloak 26.7.4 TLS設定](https://github.com/keycloak/keycloak/blob/26.7.4/docs/guides/server/mutual-tls.adoc)）。
 
-v1要件の「Key material」は継続し、次の鍵材料を追加する。用途ごとに別々の鍵材料を使うこと（MUST）。
+v1要件の「鍵と証明書」は継続し、次の鍵材料を追加する。用途ごとに別々の鍵材料を使うこと（MUST）。
 
 - 専用3rd Party metadata client certificate（DP0で採用。OAuth clientとしては登録しない）
 - API Gateway server TLS
-- API Gateway introspection client authentication
+- API Gatewayのintrospection用クライアント認証
 - API Gateway → Upstream APIのclient certificate
 
 3rd Party Gateway server TLS（browser向け）は、v1のKong proxy certificateを引き継いでよい（MAY）。
 
-### Network and ports
+### ネットワークとポート
 
-| Service（compose） | Host port | 用途 |
+| Service（Compose） | ホスト側ポート | 用途 |
 |---|---|---|
 | `ui` | 3443 | 3rd PartyのUI |
 | `kong-third-party` | 8443 | 3rd Party Gateway。browserからのredirect先 |
@@ -111,13 +111,13 @@ v1要件の「Key material」は継続し、次の鍵材料を追加する。用
 
 3rd Party Gatewayのbrowser向けportを8443に据え置くことで、redirect URIのhostとportをv1から変えずに済む。
 
-### Container images
+### コンテナーimage
 
-v1要件の「Container images」を継続する。両Gatewayは同じcustom image（`ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak`）を使ってよい（MAY）。API Gatewayでは`KONG_PLUGINS`に`fapi-client-auth-bridge`と`fapi-as-mtls-transport`を含めず、entityも置かない（MUST NOT）。3rd Partyでは両pluginのロード、transportのglobal entity、bootstrap envを必須にする（MUST）。[DP0のpreflightゲート](third-party-as-mtls-transport.md)を通常入口/UI公開前の必須段階とし、静的plugin/global entity照合と設定反映後の全worker ready確認が揃わなければ入口を開かない。transport未ロード時のRoute Aはこのゲートで防ぎ、bridge access拒否は期待しない。bridgeもRoute B accessでready transport context/epoch無しを拒否する。その他のpluginもGatewayごとに必要最小限にする（SHOULD）。test-only Keycloak observer imageは[peer証跡契約](third-party-as-peer-evidence.md)に従い、標準Keycloakの通常デモimageとは分ける。
+v1要件の「コンテナーimage」を継続する。両Gatewayは同じcustom image（`ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak`）を使ってよい（MAY）。API Gatewayでは`KONG_PLUGINS`に`fapi-client-auth-bridge`と`fapi-as-mtls-transport`を含めず、entityも置かない（MUST NOT）。3rd Partyでは両pluginのロード、transportのglobal entity、bootstrap envを必須にする（MUST）。[DP0のpreflightゲート](third-party-as-mtls-transport.md)を通常入口/UI公開前の必須段階とし、静的plugin/global entity照合と設定反映後の全worker ready確認が揃わなければ入口を開かない。transport未ロード時のRoute Aはこのゲートで防ぎ、bridge access拒否は期待しない。bridgeもRoute B accessでready transport context/epoch無しを拒否する。その他のpluginもGatewayごとに必要最小限にする（SHOULD）。test-only Keycloak observer imageは[peer証跡契約](third-party-as-peer-evidence.md)に従い、標準Keycloakの通常デモimageとは分ける。
 
-## Keycloak requirements
+## Keycloakの要件
 
-v1要件の「Realm」「Demo userとclaim」「FAPI policy」を継続する。clientは次のとおり置き換える。
+v1要件の「realm設定」「デモユーザーとclaim」「FAPIポリシー」を継続する。clientは次のとおり置き換える。
 
 | Client ID | 役割 | client認証 | 備考 |
 |---|---|---|---|
@@ -131,9 +131,9 @@ v1要件の「Realm」「Demo userとclaim」「FAPI policy」を継続する。
 - 両Routeの有効なtokenを`api-gateway-introspection`でintrospectionした応答は、`active: true`、`cnf.x5t#S256`、上記の`aud`、`scope`、namespaced claimを含むこと（MUST）。必要な項目が欠ける場合はintrospection構成の着手を止め、ADR 0010のFallbackに従ってDesign ownerへ戻す。P0のtoken有効性・PoP検証を省略して進めない。
 - refresh token rotationの検証用に、3rd Party clientでrefresh tokenの再発行（Keycloakの「Revoke Refresh Token」相当）を切り替えられること（SHOULD）。既定は無効とする（FAPI 2.0 §5.3.2.1）。
 
-## 3rd Party Gateway requirements
+## 3rd Party Gatewayの要件
 
-v1要件の「Route A OpenID Connect configuration」は実行場所を移して継続する。Route B custom plugin契約とLogout契約は、以下とADR 0011で変更する。
+v1要件の「Route AのOpenID Connect設定」は実行場所を移して継続する。Route B custom plugin契約とLogout契約は、以下とADR 0011で変更する。
 
 - Route Aのpathは`/api/fapi/mtls`、Route Bのpathは`/api/fapi/pkj-mtls`とすること（MUST）。
 - 各RouteのServiceは、`https://kong-api:8443/fapi-api/evidence`を対象にすること（MUST）。`client_certificate`には、そのRouteのtoken取得に使ったものと同じCertificate entityを指定すること（MUST）。
@@ -145,14 +145,14 @@ v1要件の「Route A OpenID Connect configuration」は実行場所を移して
 - 3rd Party Gatewayの静的endpoint設定（authorization、token、PAR、revocation、end-session、JWKS、mTLS alias）は、discoveryの値と一致すること（MUST）。一致はテストで確認する。
 - API Gatewayはclient供給の`client_assertion`、`client_assertion_type`、`X-Client-Cert*`、`X-Demo-*`、`X-Fapi-*`をUpstreamへの転送前に除去し、検証済みclaim/certificate由来の値を設定すること（MUST）。caller headerはTLS Metadata Headersが生成する信頼済みcertificate detailと区別する（Resource Server表、ADR 0015）。
 
-### Logout/reset（デモ運用）
+### ログアウトと利用者切替（デモ運用）
 
 - 通常経路はstock OIDCのlogout、Route cookie破棄、Keycloak RP-Initiated Logoutを使う。stockのrefresh/access revokeも有効にするが、専用の失効順序制御や追加pluginは作らない。
 - 両Routeで、reset後に旧Route sessionが再利用されず、新しいauthorization code flowで別Route・別userの結果を表示できること（MUST）。自動logoutでSSO等が残る場合は、cookie消去とKeycloakの対象demo user session終了を行う**文書化した手動reset**を許容する。全realmのsessionを無差別に削除しない。
 - revocation requestを送る場合は、P0のmTLS + 各Routeのclient認証を満たすこと（MUST）。HTTP `200`は処理応答であり、個別access token失効の証明ではない。revokeが拒否/失敗してもcertなし再送・自己判断のrevoke無効化をしない。stock logoutが中断する場合は上記の対象demo user限定の手動resetで次ケースへ進み、revoke結果とreset結果を別記録にする。
 - `RS-REVOKE-01`、`REVOKE-RS-01`の厳密な失効検証は追加説明用の任意シナリオとする。リセット成功から、旧tokenの再使用拒否や本番向け失効SLAを推論しない。
 
-## API Gateway requirements
+## API Gatewayの要件
 
 API Gatewayは1つのServiceと1つのRoute（path `/fapi-api/evidence`）で、両Routeのtokenを同じポリシーで検証すること（MUST）。
 
@@ -165,7 +165,7 @@ KongのOIDC `issuer`設定はdiscovery endpointまたはissuer identifierを受�
 | token検証 | `auth_methods: [introspection]`、`introspection_endpoint_auth_method: tls_client_auth`、`introspection_check_active: true`（MUST） |
 | introspection cache | デモで挙動を説明しやすくするため無効化を既定とする。cacheを使う場合はTTLを記録する。logout/resetの反映SLAは定義しない |
 | 認可範囲 | `config.issuer`はTLS検証するinternal Keycloak discovery locator、`issuers_allowed`はtoken内の公開issuer `https://localhost:8444/realms/fapi-demo`、`audience_required`は`fapi-demo-api`、`scopes_required`は`openid`（MUST）。内部metadataのissuerとtokenのpublic issuerをruntimeで区別して確認する |
-| sender constraint | `proof_of_possession_mtls: strict`（MUST） |
+| 送信者制約 | `proof_of_possession_mtls: strict`（MUST） |
 | claim由来header | `X-Demo-Department`と`X-Demo-Route`を検証済みclaimから設定し、client供給の値を上書きする（MUST） |
 | certificateの転送 | `tls-metadata-headers`で`inject_client_cert_details: true`とし、URLエンコードしたPEMをUpstreamへ転送する（MUST）。この設定が生成するSerial、Issuer-DN、Subject-DN、Fingerprint、Chain headerはGatewayが生成する信頼済みmetadataであり、認証判断には使わない |
 | 資格情報とtrust headerの境界 | client供給の`Cookie`、`X-Demo-*`、case/underscore/unknown suffixを含む`X-Fapi-*`と`X-Client-Cert*`をUpstreamへ送らない（MUST）。入力境界でこれらを除去した後にOIDC/TMHがclaim由来headerとPEM/stock detailを再生成する。`Authorization`だけをclient-origin credentialとしてJWT再検証用に保持する。検査用header取得が失敗/truncatedまたは上限1000件に達したrequestはfail closedにする（ADR 0015） |
@@ -175,9 +175,9 @@ KongのOIDC `issuer`設定はdiscovery endpointまたはissuer identifierを受�
 
 `tls-handshake-modifier`、`tls-metadata-headers`、`proof_of_possession_mtls`の挙動は`kong-ee` masterのsourceで確認した。3.16.0.0のschemaで同じ挙動であることを、実装時に確認すること（MUST）。
 
-## Upstream API contract
+## Upstream APIの契約
 
-v1の「PoP verifier API contract」を次のように変更する。
+v1の「PoP verifier APIの契約」を次のように変更する。
 
 1. TLS client certificateが**API Gateway upstream cert**であることを要求する（MUST）。それ以外の接続は拒否する。
 2. JWT署名をKeycloak JWKSで検証し、`iss`、`aud=fapi-demo-api`、`exp`、`nbf`、必須scopeを検証する（MUST）。algorithmはPS256だけを許可する。
@@ -188,13 +188,13 @@ v1の「PoP verifier API contract」を次のように変更する。
 
 responseは、v1に次を加えてよい（MAY）: `azp`、API Gatewayが検証したTLS peer certificateのthumbprint、Upstream自身による再検証結果のboolean。
 
-## UI requirements
+## UIの要件
 
-v1の「UI requirements」を継続する。表示する「TLS peer certificate thumbprint」は、**API Gatewayが受け取った3rd Party Gatewayのcertificate**のthumbprintとする。UIは、構成図上でどの区間の証跡かを示すラベルを表示すること（SHOULD）。
+v1の「UIの要件」を継続する。表示する「TLS peer certificate thumbprint」は、**API Gatewayが受け取った3rd Party Gatewayのcertificate**のthumbprintとする。UIは、構成図上でどの区間の証跡かを示すラベルを表示すること（SHOULD）。
 
-## Delivery and automation requirements
+## 配布と自動化の要件
 
-v1の「Infrastructure as code」「GHCR」を継続し、次を追加する。
+v1の「構成のコード管理」「GHCR」を継続し、次を追加する。
 
 - Terraformは、API Gateway用と3rd Party Gateway用の2つのKonnect control planeと、それぞれのdata plane certificateを管理すること（MUST）。既存のcontrol planeは、API Gateway用として再利用する（SHOULD）。
 - decK stateは、Gatewayごとに別ファイルとすること（MUST、例: `kong/api-gateway.yaml`、`kong/third-party-gateway.yaml`）。`make deck-diff`と`make deck-sync`は、対象Gatewayを明示して実行できること（MUST）。
@@ -202,7 +202,7 @@ v1の「Infrastructure as code」「GHCR」を継続し、次を追加する。
 - PR #13の設計補足では[ADR 0013](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)と[WP1詳細設計](third-party-foundation-design.md)に従い、WP1のfoundation stateとWP3/WP5のruntime stateを分ける。diff/syncは`GATEWAY`と`STAGE`を必須にし、未完成runtimeの空stateで既存v1を削除しない。runtimeが完成した段階では両方の最終stateもvalidate対象にする。
 - GitHub Actionsで`make validate`と`make test`をPRのstatus checkとして実行すること（SHOULD）。
 
-## Observability and evidence
+## 観測と証跡
 
 v1の必須evidenceを継続し、次を追加する。
 
@@ -212,13 +212,13 @@ v1の必須evidenceを継続し、次を追加する。
 - PAR/token/refresh/revokeとmetadata取得ごとに、AS側で受け取ったcertのthumbprint・検証結果を示す（生の資格情報は記録しない）。
 - 3rd Party GatewayからAPI Gatewayへのrequestが、Authorization headerだけでtokenを運んでいる。
 
-## Acceptance scenarios
+## 受入シナリオ
 
 v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継続する。ただしlogoutは上記のデモreset条件で上書きし、全v1シナリオ合格を要求しない。その他の対象IDは次のとおり（`A-PAR-01`、`B-PAR-01`、`B-PKJ-01`、`CLAIM-01`、`LOGOUT-A-01`、`LOGOUT-B-01`、`SWITCH-01`、`A-CERT-01`、`A-CERT-02`、`B-AUD-01`、`B-JTI-01`、`B-SPOOF-01`、`B-CERT-01`、`HEADER-01`、`LEAK-01`）。v1の`A-POP-01`、`B-POP-01`、`POP-01`、`POP-02`は、次の表のシナリオで置き換える。
 
-### Positive scenarios
+### 正常系シナリオ
 
-| ID | Scenario | Pass condition |
+| ID | シナリオ | 合格条件 |
 |---|---|---|
 | A-E2E-01 | Route Aで、loginからUpstream API呼び出しまで | UIに、`azp=third-party-fapi-mtls`とbinding一致が表示される |
 | B-E2E-01 | Route Bで、loginからUpstream API呼び出しまで | UIに、`azp=third-party-fapi-pkj-mtls`とbinding一致が表示される |
@@ -243,9 +243,9 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 | TLS-01 | TLS検証 | 3rd Party GatewayとAPI Gatewayの全outbound接続で、server certificateを検証している |
 | TLS-RS-01 | API GatewayのTLS | TLS 1.1以下を拒否する。TLS 1.2-onlyとweak TLS 1.2 cipher offerは、effective modern/TLS 1.3-only policy、ClientHello offer、protocol-layer拒否、HTTP/Upstream非到達、直後のTLS 1.3 valid controlがすべて確認できた場合にTLS version policyとして受け入れる。cipher固有の拒否理由とは説明しない（ADR 0016） |
 
-### Negative scenarios
+### 異常系シナリオ
 
-| ID | Scenario | Expected result |
+| ID | シナリオ | 期待する結果 |
 |---|---|---|
 | POP-01 | client certificateなしで、bound tokenをAPI Gatewayへ送る | API Gatewayが`401`を返す |
 | POP-02 | 別Routeのcertificateで、bound tokenをAPI Gatewayへ送る | API Gatewayが`401`を返す |
@@ -268,7 +268,7 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 | ALG-01 | ID tokenとaccess tokenのalgorithm | すべてPS256であること |
 | CSRF-01 | cross-siteから認可の開始を誘発する | 将来の開始CSRF防御の検証シナリオ。今回のDoD対象外。安全性は未保証であり、対外説明では未対応とする |
 
-## Definition of done
+## 完了条件
 
 本節はv1のDefinition of doneを**置き換える**。
 
@@ -280,7 +280,7 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 - 対外説明で、標準機能・custom補完・未対応・未検証を区別する。完全適合、認定、本番運用可能性、未検証の失効保証を主張しない。
 - CSRF-01、ISS-02、RS-REVOKE-01、REVOKE-RS-01、DPoPは、今回の必須合格条件ではない。これはデモ範囲の決定であり、それらの安全性や仕様適合を認定するものではない。
 
-## Out of scope / 追加候補
+## 対象外と追加候補
 
 - 本番想定のFAPI 2.0完全適合、認定試験、鍵更新・HA・大規模負荷・監視等のproduction hardening
 - 開始CSRFの追加防御、`iss`欠落guard、個別access/refresh token失効保証と反映SLA
@@ -288,16 +288,15 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 - Dynamic Client Registration、Kong以外の3rd Party client実装、consumer単位のrate limit/認可ポリシー
 - ASのbrowser入口とserver入口を分離したmTLS強制listener（現構成はcertがあれば検証する`request`モード）
 
-## Workflow diagrams
+## フロー図
 
-`workflows/`配下の次の図を、本要件に合わせて更新する。図は設計上のworkflowを示すものであり、実装状況を示すものではない。
+全体構成図の利用者確認後、Route A/Bへ3rd Partyのswimlaneを追加した。同lane内でサービスUIとKong Gatewayを区別する。図は設計上のworkflowを示すものであり、実装状況を示すものではない。
 
-| Diagram | Source | 内容 |
+| 図 | ソース | 内容 |
 |---|---|---|
-| Architecture | [JSON](workflows/third-party-architecture.architecture.json) / [HTML](workflows/third-party-architecture.architecture.html) | 組織境界、2つのGatewayとcontrol plane、接続ごとのcertificate |
+| 全体構成 | [JSON](workflows/third-party-architecture.architecture.json) / [HTML](workflows/third-party-architecture.architecture.html) | 利用者、3rd Party、2つのGateway、IdP、保護APIと通信の境界 |
 | Route A | [JSON](workflows/route-a-mtls.workflow.json) / [HTML](workflows/route-a-mtls.workflow.html) | 3rd Party GatewayのRoute Aと、API Gatewayでの検証 |
 | Route B | [JSON](workflows/route-b-pkj-mtls.workflow.json) / [HTML](workflows/route-b-pkj-mtls.workflow.html) | 3rd Party GatewayのRoute Bと、API Gatewayでの検証 |
-| Logout | [JSON](workflows/logout.workflow.json) / [HTML](workflows/logout.workflow.html) | stock logoutの通常経路と、次ケースへ進むためのデモreset |
 
 ![3rd Party経由構成のarchitecture](workflows/third-party-architecture.architecture.png)
 
@@ -305,15 +304,14 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 
 ![Route B](workflows/route-b-pkj-mtls.workflow.png)
 
-![Logout](workflows/logout.workflow.png)
 
 設計PR #5はmerge済み。GitHub Pagesの再公開は未実施のため、Pagesのリンクはv1の図を指す。
 
-## Primary sources
+## 一次資料
 
-- [FAPI 2.0 Security Profile — Final](https://openid.net/specs/fapi-security-profile-2_0-final.html)
-- [RFC 8705: OAuth 2.0 Mutual-TLS Client Authentication and Certificate-Bound Access Tokens](https://www.rfc-editor.org/rfc/rfc8705)
-- [RFC 9207: OAuth 2.0 Authorization Server Issuer Identification](https://www.rfc-editor.org/rfc/rfc9207)
-- [RFC 7662: OAuth 2.0 Token Introspection](https://www.rfc-editor.org/rfc/rfc7662)
-- [RFC 6750: Bearer Token Usage](https://www.rfc-editor.org/rfc/rfc6750)
-- [Keycloak FAPI support](https://www.keycloak.org/securing-apps/oidc-layers#_fapi-support)
+- [FAPI 2.0 Security Profile（確定版）](https://openid.net/specs/fapi-security-profile-2_0-final.html)
+- [RFC 8705: OAuthのmTLS認証と証明書束縛トークン](https://www.rfc-editor.org/rfc/rfc8705)
+- [RFC 9207: 認可サーバーのissuer識別](https://www.rfc-editor.org/rfc/rfc9207)
+- [RFC 7662: token introspection](https://www.rfc-editor.org/rfc/rfc7662)
+- [RFC 6750: Bearer tokenの使用](https://www.rfc-editor.org/rfc/rfc6750)
+- [KeycloakのFAPI対応](https://www.keycloak.org/securing-apps/oidc-layers#_fapi-support)

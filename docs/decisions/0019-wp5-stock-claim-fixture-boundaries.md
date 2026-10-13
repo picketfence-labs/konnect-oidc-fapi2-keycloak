@@ -50,7 +50,7 @@ FAPI 2.0 Security Profile §5.3.3.2のPAR要件はRFC9126を参照するため�
 
 v7でstockのform client_id欠落を実測した。元本文を無変更で転送し、実PS256・issuer文字列aud・固定iss/sub・TTL60秒・残存TTL60秒を確認した。実Keycloakは401/invalid_requestを返したが、PARの相関IDとRoute B peerの1:1対応、chain2・PKIX・有効性・clientAuth EKUは通過した。これは署名と実mTLS到達の証拠で、PAR成功やsession完成ではない。Root監査は`.generated/evidence/wp5-root-stock-v7-terminal-review-1791096012489613000.json`、terminal SHA-256 `d8215f38fe5b167faf2fa1e7cbc3b6f2ff6bf51532700bb138452135032ce8f1`。専用リソース・PKI・3ポートは回収済み。
 
-公開Keycloakコードでは、`CertificateInfoHelper`が`jwt.credential.kid`を読み、`ClientPublicKeyLoader`は欠落時にpublic keyからIDを生成する。fixtureはstock JWKに別のIDを設定していたが、realmには公開鍵だけを登録していた。この設定不一致を補正し、同じkidを登録する。401 receiptは内部例外を保持していないため、原因の確定は再検証で行う。stock本文・認証方式・TLS検証は変更しない。
+公開Keycloakコードでは、`CertificateInfoHelper`が`jwt.credential.kid`を読み、`ClientPublicKeyLoader`は欠落時にpublic keyからIDを生成する。fixtureはstock JWKに別のIDを設定していたが、realmには公開鍵だけを登録していた。この設定不一致を補正し、同じkidを登録する。401 receiptは内部例外を保持していないため、原因の確定は再検証で行う。標準実装の本文・認証方式・TLS検証は変更しない。
 
 次のfresh v8では、実PAR201と署名検査を通過した場合だけ、同じ試行のmemory内Location/cookieを使って通常ログイン・code交換・session・stock logoutへ進む。専用realm user以外の登録・既存user変更は行わない。logoutの実access/refresh revokeを確認するが、個別失効保証や反映SLAを追加条件にしない。v8の111件のfocused testsをRootが独立実行してPASS。
 

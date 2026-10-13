@@ -19,7 +19,7 @@ cached arm64 imageをread-onlyでexportし、選択moduleをローカルのGit�
 | 項目 | 確認結果 |
 |---|---|
 | image | `kong/kong-gateway:3.16.0.0`、arm64 |
-| local image ID | `sha256:d2cd92f969c5960265288b9a54accd213d62801ba6ef001dba75a1c340b96d2d` |
+| ローカルimage ID | `sha256:d2cd92f969c5960265288b9a54accd213d62801ba6ef001dba75a1c340b96d2d` |
 | RepoDigest | `kong/kong-gateway@sha256:e2678b4cb534fc9d6a17288d83457d6cbea235a6331dc4982e021300ccb668c4` |
 | stock PKJWT PAR/revoke | TLS cert/keyなし。PKJWTのaudience引数はissuer |
 | stock PKJWT token/refresh | TLS cert/keyなし。audience引数はtoken endpoint。今回のaudienceにはbridgeを継続使用 |
@@ -42,12 +42,12 @@ unchanged vendor bytecode + disposable decorator/interface mockの**42チェッ�
 | stock discovery | GET `I/.well-known/openid-configuration`を**`R/.well-known/openid-configuration`へ固定mapping** | metadata cert | なし |
 | bridge独自discovery | GET `R/.well-known/openid-configuration` | metadata cert | なし。bridgeがissuer一致を検査 |
 | stock JWKS | GET `O/certs` | metadata cert | なし |
-| Route A PAR | POST `O/ext/par/request` | Route A cert | stock `tls_client_auth` |
-| Route A token/refresh | POST `O/token` | Route A cert | stock `tls_client_auth` |
-| Route A revoke | POST `O/revoke` | Route A cert | stock `tls_client_auth` |
-| Route B PAR | POST `O/ext/par/request` | Route B TLS cert | stock PKJWT + transport decorator |
-| Route B token/refresh | POST `O/token` | Route B TLS cert | stock TLS branch + bridge signer delegate + transport decorator |
-| Route B revoke | POST `O/revoke` | Route B TLS cert | stock PKJWT + transport decorator |
+| Route A PAR | POST `O/ext/par/request` | Route A証明書 | 標準の`tls_client_auth` |
+| Route A token/refresh | POST `O/token` | Route A証明書 | 標準の`tls_client_auth` |
+| Route A revoke | POST `O/revoke` | Route A証明書 | 標準の`tls_client_auth` |
+| Route B PAR | POST `O/ext/par/request` | Route BのTLS証明書 | 標準PKJWT + mTLS補完 |
+| Route B token/refresh | POST `O/token` | Route BのTLS証明書 | 標準TLS分岐 + bridge署名処理 + mTLS補完 |
+| Route B revoke | POST `O/revoke` | Route BのTLS証明書 | 標準PKJWT + mTLS補完 |
 
 Keycloakのback-channel dynamic設定を維持し、内部URLで取得したdiscoveryのissuerは`I`、token/PAR/revoke/JWKSは表の値であることをMETA-01/02で確認する。token/revocationのmTLS aliasは同じ内部URLを明示設定する。PAR aliasがmetadataにあれば同じURLへの一致を検査し、なければ通常PAR endpointにmTLSを付ける。aliasの動的追従や未知のURLへの書換えをしない。現在のmetadata値と一致しなければ、Workerが検査を外さずDesign ownerへ戻す。
 

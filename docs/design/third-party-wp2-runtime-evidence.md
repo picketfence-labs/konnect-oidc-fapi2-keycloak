@@ -1,6 +1,6 @@
 # WP2: 隔離Keycloakの実試験証跡
 
-利用者は[環境preview](third-party-wp2-validation-preview.md)の起動・realm操作・実token試験・cleanupを承認した。Luna / xHighが実装と修正を担当し、Design ownerが隔離fixtureで独立実行した。PR #18のbranch `feat/wp2-keycloak-clients`、baseline main `4ce796d`が対象である。
+利用者は専用環境の起動・realm操作・実token試験・cleanupを承認した。Luna / xHighが実装と修正を担当し、Design ownerが隔離fixtureで独立実行した。PR #18のbranch `feat/wp2-keycloak-clients`、baseline main `4ce796d`が対象である。
 
 ## 検証範囲
 

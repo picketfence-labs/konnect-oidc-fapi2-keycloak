@@ -2,249 +2,225 @@
   "schema_version": 1,
   "diagram_type": "architecture",
   "meta": {
-    "title": "3rd Party経由FAPI 2.0構成（設計）",
+    "title": "3rd Party経由のFAPI 2.0デモ構成",
     "animation": "none",
     "quality_profile": "showcase",
     "output": "third-party-architecture.architecture.html",
     "viewBox": [
-      1300,
-      680
-    ]
+      1280,
+      760
+    ],
+    "legend": {
+      "entries": {
+        "frontend": {
+          "label": "サービスUI"
+        },
+        "security": {
+          "label": "認証・API保護"
+        },
+        "external": {
+          "label": "利用者・外部IdP"
+        },
+        "backend": {
+          "label": "保護リソース"
+        }
+      }
+    }
   },
   "components": [
     {
-      "id": "ui",
-      "type": "frontend",
-      "label": "Browser / UI",
-      "sublabel": "3rd Party UI :3443",
-      "pos": [
-        30,
-        300
-      ],
-      "size": [
-        140,
-        64
-      ]
-    },
-    {
-      "id": "tpgw",
-      "type": "security",
-      "label": "3rd Party Gateway",
-      "sublabel": "Client · bridge + AS transport",
-      "pos": [
-        255,
-        296
-      ],
-      "size": [
-        200,
-        72
-      ]
-    },
-    {
-      "id": "keycloak",
+      "id": "demo-browser",
       "type": "external",
-      "label": "Keycloak 26.7.4",
-      "sublabel": "PAR · token · introspection",
+      "label": "利用者",
+      "sublabel": "ブラウザー",
       "pos": [
-        495,
-        80
+        40,
+        400
+      ],
+      "size": [
+        180,
+        72
+      ]
+    },
+    {
+      "id": "partner-ui",
+      "type": "frontend",
+      "label": "3rd Partyサービス",
+      "sublabel": "デモUI / nginx :3443",
+      "pos": [
+        320,
+        580
+      ],
+      "size": [
+        220,
+        72
+      ]
+    },
+    {
+      "id": "partner-client",
+      "type": "security",
+      "label": "Kong Gateway",
+      "sublabel": "OAuthクライアント / A・B",
+      "pos": [
+        320,
+        400
+      ],
+      "size": [
+        220,
+        72
+      ]
+    },
+    {
+      "id": "demo-identity",
+      "type": "external",
+      "label": "Keycloak / IdP",
+      "sublabel": "認証・認可 / AS :8444",
+      "pos": [
+        680,
+        130
+      ],
+      "size": [
+        220,
+        72
+      ]
+    },
+    {
+      "id": "provider-gateway",
+      "type": "security",
+      "label": "Kong API Gateway",
+      "sublabel": "introspection・PoP検証",
+      "pos": [
+        680,
+        400
+      ],
+      "size": [
+        220,
+        72
+      ]
+    },
+    {
+      "id": "protected-resource",
+      "type": "backend",
+      "label": "Resource Server",
+      "sublabel": "PoP verifier / 保護API",
+      "pos": [
+        1040,
+        400
       ],
       "size": [
         200,
         72
-      ]
-    },
-    {
-      "id": "apigw",
-      "type": "security",
-      "label": "API Gateway",
-      "sublabel": "RS · introspection · PoP strict",
-      "pos": [
-        740,
-        296
-      ],
-      "size": [
-        190,
-        72
-      ]
-    },
-    {
-      "id": "upstream",
-      "type": "backend",
-      "label": "Upstream API",
-      "sublabel": "PoP verifier · JWT再検証",
-      "pos": [
-        1115,
-        296
-      ],
-      "size": [
-        150,
-        72
-      ]
-    },
-    {
-      "id": "cp_tp",
-      "type": "cloud",
-      "label": "Konnect CP",
-      "sublabel": "third-party",
-      "pos": [
-        265,
-        560
-      ],
-      "size": [
-        180,
-        60
-      ]
-    },
-    {
-      "id": "cp_api",
-      "type": "cloud",
-      "label": "Konnect CP",
-      "sublabel": "api",
-      "pos": [
-        745,
-        560
-      ],
-      "size": [
-        180,
-        60
       ]
     }
   ],
   "boundaries": [
     {
       "kind": "region",
-      "label": "3rd Party",
+      "label": "3rd Party（サービスとクライアントGateway）",
       "wraps": [
-        "ui",
-        "tpgw"
+        "partner-ui",
+        "partner-client"
       ],
-      "pad": 22
-    },
-    {
-      "kind": "region",
-      "label": "Authorization Server",
-      "wraps": [
-        "keycloak"
-      ],
-      "pad": 22
+      "pad": 26
     },
     {
       "kind": "region",
       "label": "API提供者",
       "wraps": [
-        "apigw",
-        "upstream"
+        "provider-gateway",
+        "protected-resource"
       ],
-      "pad": 22
-    },
-    {
-      "kind": "region",
-      "label": "Konnect（control plane × 2）",
-      "wraps": [
-        "cp_tp",
-        "cp_api"
-      ],
-      "pad": 22
+      "pad": 26
     }
   ],
   "connections": [
     {
-      "from": "ui",
-      "to": "tpgw",
-      "label": "HTTPS",
-      "variant": "emphasis"
+      "id": "browser-session",
+      "from": "demo-browser",
+      "to": "partner-client",
+      "label": "HTTPS / セッション",
+      "variant": "dashed"
     },
     {
-      "from": "tpgw",
-      "to": "keycloak",
-      "label": "AS back-channel: mTLS必須",
-      "variant": "security",
+      "id": "ui-delivery",
+      "from": "demo-browser",
+      "to": "partner-ui",
+      "label": "HTTPS / UI取得",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "left"
+    },
+    {
+      "id": "browser-auth",
+      "from": "demo-browser",
+      "to": "demo-identity",
+      "label": "HTTPS / 利用者認証",
+      "variant": "dashed",
       "fromSide": "top",
       "toSide": "left",
       "via": [
         [
-          355,
-          116
-        ]
-      ],
-      "labelAt": [
-        240,
-        200
-      ]
-    },
-    {
-      "from": "tpgw",
-      "to": "apigw",
-      "label": "mTLS 同じRoute別cert + Bearer",
-      "variant": "security"
-    },
-    {
-      "from": "apigw",
-      "to": "keycloak",
-      "label": "mTLS introspection cert",
-      "variant": "security",
-      "fromSide": "top",
-      "toSide": "right",
-      "via": [
+          130,
+          70
+        ],
         [
-          835,
-          116
+          620,
+          70
+        ],
+        [
+          620,
+          166
         ]
-      ],
-      "labelAt": [
-        930,
-        200
       ]
     },
     {
-      "from": "apigw",
-      "to": "upstream",
-      "label": "mTLS upstream cert + X-Client-Cert",
-      "variant": "security"
-    },
-    {
-      "from": "cp_tp",
-      "to": "tpgw",
-      "label": "config",
+      "id": "client-as",
+      "from": "partner-client",
+      "to": "demo-identity",
+      "label": "mTLS / PAR・token等",
       "variant": "dashed",
-      "labelAt": [
-        355,
-        450
-      ]
+      "fromSide": "top",
+      "toSide": "bottom"
     },
     {
-      "from": "cp_api",
-      "to": "apigw",
-      "label": "config",
+      "id": "bound-api",
+      "from": "partner-client",
+      "to": "provider-gateway",
+      "label": "mTLS + Bearer",
+      "variant": "dashed"
+    },
+    {
+      "id": "rs-introspection",
+      "from": "provider-gateway",
+      "to": "demo-identity",
+      "label": "mTLS / introspection",
       "variant": "dashed",
-      "labelAt": [
-        835,
-        450
-      ]
+      "fromSide": "top",
+      "toSide": "right"
+    },
+    {
+      "id": "trusted-upstream",
+      "from": "provider-gateway",
+      "to": "protected-resource",
+      "label": "mTLS + 検証用証跡",
+      "variant": "dashed"
     }
   ],
   "cards": [
     {
-      "dot": "cyan",
-      "title": "単一のRS検証ポリシー",
+      "dot": "emerald",
+      "title": "Route A / Route B",
       "items": [
-        "API Gatewayが両Routeのtokenをintrospection + mTLS PoP strictで検証"
+        "A: tls_client_auth / B: private_key_jwt（PS256）",
+        "両Routeとも証明書に束縛されたトークンを使用"
       ]
     },
     {
-      "dot": "violet",
-      "title": "証明書の一貫性",
+      "dot": "emerald",
+      "title": "役割と管理の境界",
       "items": [
-        "token取得時の提示cert = cnf.x5t#S256 = API Gatewayのpeer cert"
-      ]
-    },
-    {
-      "dot": "amber",
-      "title": "デモ目標（未実装）",
-      "items": [
-        "PAR・revokeもPKJWT + mTLS（ADR 0012 / 未実装）",
-        "metadataは専用cert。完全適合の認定ではない"
+        "UIは画面配信のみ。OAuth処理・API呼出しは3rd PartyのKongが担当",
+        "2つのGatewayを別のKonnect control planeで管理"
       ]
     }
   ]

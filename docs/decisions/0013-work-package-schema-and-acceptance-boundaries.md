@@ -1,8 +1,8 @@
 # ADR 0013: schema準備とruntime受入をWP間で分ける
 
-- Status: Accepted（2026-10-02に利用者が設計補足へ合意。PR #13はmainへmerge済み。API CA所有範囲は受入済み[ADR 0014](0014-reuse-existing-api-ca.md)で修正）
-- Date: 2026-10-02
-- Amends: [Delivery plan](../design/third-party-delivery-plan.md)のWP1/WP5の成果物分担
+- 状態: 採用済み（2026-10-02に利用者が設計補足へ合意。PR #13はmainへmerge済み。API CA所有範囲は受入済み[ADR 0014](0014-reuse-existing-api-ca.md)で修正）
+- 日付: 2026-10-02
+- Amends: [開発計画](../design/third-party-delivery-plan.md)のWP1/WP5の成果物分担
 - Preserves: [ADR 0012](0012-third-party-as-mtls-transport.md)の方式、P0、spike、preflightとlive承認ゲート
 
 ## 問題

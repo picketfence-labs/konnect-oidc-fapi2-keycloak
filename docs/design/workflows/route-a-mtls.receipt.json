@@ -1,0 +1,94 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-13",
+  "diagram_type": "workflow",
+  "quality_profile": "showcase",
+  "deterministic_validation": {
+    "command": "archify deliver workflow",
+    "exit_code": 0,
+    "artifact_checks_passed": 9,
+    "artifact_checks_total": 9,
+    "composition_errors": 0,
+    "warnings": 0
+  },
+  "artifacts": [
+    {
+      "path": "route-a-mtls.workflow.json",
+      "bytes": 6973,
+      "sha256": "849418b85252b9191eebe459655e84e2e78bb45f07aa941c1f9dc6711664c553"
+    },
+    {
+      "path": "route-a-mtls.workflow.html",
+      "bytes": 814940,
+      "sha256": "68c247bdc2b1d64a774bf73ffef4e9cb399166dec74ff862eb337e377aad29f6"
+    },
+    {
+      "path": "route-a-mtls.workflow.png",
+      "bytes": 739731,
+      "sha256": "3fca6a46011c98f1071eec7f177a3e7cf5e2af690062863d7d23dafbe063b230"
+    }
+  ],
+  "browser_evidence": {
+    "status": "pass",
+    "method": "archify visual-check",
+    "viewports": [
+      [
+        1440,
+        900
+      ],
+      [
+        1600,
+        1000
+      ],
+      [
+        1920,
+        1080
+      ],
+      [
+        2048,
+        1320
+      ]
+    ],
+    "no_overflow": true,
+    "captures": [
+      "1440x900 light",
+      "1440x900 dark",
+      "2048x1320 light",
+      "2048x1320 dark"
+    ],
+    "private_receipt": ".generated/evidence/route-diagram-review-20261013/final/route-a-mtls.workflow.visual-check.json"
+  },
+  "perceptual_review": {
+    "status": "pass",
+    "reviewer": "image-capable assistant",
+    "examined": [
+      "1440x900 light",
+      "1440x900 dark",
+      "2048x1320 light",
+      "2048x1320 dark",
+      "PNG export"
+    ],
+    "findings": "5つのスイムレーンと通信の主経路を判読できる。3rd PartyサービスとKong Gatewayを第2レーン内に配置。ノード・ラベルの重なりや画面のはみ出しなし。",
+    "visual_correction_rounds": 1
+  },
+  "export": {
+    "method": "delivered Viewer PNG export",
+    "theme": "light",
+    "width": 4852,
+    "height": 3104
+  },
+  "locale": {
+    "authored": "ja",
+    "fixed_viewer_fallback": "en"
+  },
+  "user_architecture_approval_date": "2026-10-13",
+  "publication": {
+    "date": "2026-10-13",
+    "url": "https://picketfence-labs.github.io/diagrams/55b6534fdb5b/",
+    "repository": "picketfence-labs/diagrams",
+    "commit": "4aac2e965d5ee642bf3fff4047cf1999815f6cf0",
+    "http_status": 200,
+    "served_sha256": "68c247bdc2b1d64a774bf73ffef4e9cb399166dec74ff862eb337e377aad29f6",
+    "matches_delivered_html": true
+  }
+}
