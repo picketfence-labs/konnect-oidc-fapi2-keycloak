@@ -95,11 +95,11 @@ logout後もKeycloakが既存SSO sessionを使ってlogin formを省く場合は
 
 新しい隔離Keycloak環境を作る場合にだけ`make generate-dev-assets`を使い、空の`keycloak/data/`へrealmをimportします。既存DBを再利用する場合、生成し直したpassword/realmと混在させません。`make render-runtime`には対応するTerraform output stateが必要です。
 
-[![Route A と Route B を選択するデモ開始画面](docs/assets/ui-main.png)](docs/design/workflows/route-b-pkj-mtls.workflow.html)
+[![Route A と Route B を選択するデモ開始画面](docs/assets/ui-main.png)](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)
 
 *デモ開始画面。画像をクリックすると Route B のインタラクティブ workflow を開きます。*
 
-[![Keycloak のデモユーザーログイン画面](docs/assets/ui-keycloak-auth.png)](docs/design/workflows/route-a-mtls.workflow.html)
+[![Keycloak のデモユーザーログイン画面](docs/assets/ui-keycloak-auth.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
 
 *Keycloak の認証画面。画像をクリックすると Route A のインタラクティブ workflow を開きます。*
 

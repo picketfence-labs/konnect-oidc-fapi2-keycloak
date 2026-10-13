@@ -6,11 +6,9 @@ WP1～WP6は合意したデモ範囲で受入済みです。FAPI 2.0完全準拠
 
 ## 全体構成
 
-![利用者、3rd Party、Kong、IdP、Resource Serverの全体構成](docs/design/workflows/third-party-architecture.architecture.png)
+[![利用者、3rd Party、Kong、IdP、Resource Serverの全体構成](docs/design/workflows/third-party-architecture.architecture.png)](https://picketfence-labs.github.io/diagrams/b671e37f23de/)
 
-[操作できる全体構成図](docs/design/workflows/third-party-architecture.architecture.html) / [図のJSONソース](docs/design/workflows/third-party-architecture.architecture.json)
-
-全体構成図は2026-10-13に利用者の確認を完了しました。詳細は[Route Aのフロー図](docs/design/workflows/route-a-mtls.workflow.html)と[Route Bのフロー図](docs/design/workflows/route-b-pkj-mtls.workflow.html)を参照してください。両図は同じ3rd Party lane内にサービスとKong Gatewayを配置しています。
+図をクリックするとPagesのインタラクティブ図を開きます。詳細は[Route Aのフロー図](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)と[Route Bのフロー図](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)を参照してください。両図は同じ3rd Partyレーン内にサービスとKong Gatewayを配置しています。
 
 | 構成要素 | 役割・責任 | デモでの配置 |
 |---|---|---|
@@ -84,6 +82,38 @@ API Gatewayの`tls-handshake-modifier`は証明書を要求しますが、CA cha
 | active・audience・scope・エラー（R-02、03） | A/B | 対応・対象負例を検証済み | 標準introspection/OIDC、専用audience、cache無効。隔離WP3は37/37。個別失効SLAは未検証 |
 | redirect・応答issuer（C-07、15） | A/B | 部分対応 | 固定URIと提示された`iss`不一致拒否。`iss`欠落拒否は未対応 |
 | 偽装防止・表示制限 | A/B | デモ追加制御・検証済み | pre-function、認証済みclaim/証明書ヘッダーの再生成、UI allowlist。FAPI本体の独立条項と同一視しない |
+
+## Route Aの詳細：mTLSクライアント認証と証明書束縛
+
+[![Route A：3rd Party経由のmTLS認証とAPI検証フロー](docs/design/workflows/route-a-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
+
+図をクリックするとPagesで拡大・経路確認ができます。Route Aは、TLS証明書でOAuthクライアントを認証する`tls_client_auth`と、同じ証明書に束縛したアクセストークンを組み合わせます。クライアント認証は「どの3rd Partyへトークンを発行するか」、証明書束縛は「そのトークンを誰がAPIで使えるか」を検査します。
+
+1. 利用者がサービスUIでRoute Aを選ぶと、3rd PartyのKongが`third-party-fapi-mtls`としてPARを送信します。Route A証明書でASへmTLS接続し、PKCE S256のchallengeを含めて認可要求を登録します。ブラウザーはKeycloakのログイン画面へ移動します。
+2. 認証後のcallbackで、Kongはstateと提示された`iss`を確認します。続いてRoute A証明書によるクライアント認証とPKCE verifierでコードを交換します。Keycloakは同証明書のthumbprintを`cnf.x5t#S256`へ設定したトークンを発行します。
+3. Kongはトークンをセッションで管理し、BearerヘッダーとRoute A証明書によるmTLSでAPI Gatewayを呼び出します。ブラウザーはアクセストークンを直接扱いません。
+4. API Gatewayは専用クライアントによるintrospectionでactive・issuer・audience・scopeを検査し、提示された証明書と`cnf`を照合します。保護APIへの接続では別のupstream証明書を使用し、元クライアント証明書の証跡を転送します。
+5. Resource ServerはJWT署名とclaim、転送された証明書との束縛を再検証します。サービスUIはAPIの結果からclaim/headerの一致、署名、束縛の検証結果を表示します。
+
+認可コード、PAR、PKCE、mTLSクライアント認証、セッションとrefreshは標準OIDCを中心に実行します。`fapi-as-mtls-transport`はASへの送信境界を検査し、metadata/JWKS取得には専用証明書を使います。Route Aの認証・トークン束縛用証明書とmetadata専用証明書は役割が異なります。
+
+デモではRoute Aの正常フローとAPI側の証明書なし・束縛不一致等の拒否を確認しています。callbackの`iss`欠落拒否、追加の認可開始CSRF防御、個別トークン失効SLAは未対応・未検証の項目として残ります。
+
+## Route Bの詳細：private_key_jwtとmTLS証明書束縛
+
+[![Route B：3rd Party経由のprivate_key_jwt認証とAPI検証フロー](docs/design/workflows/route-b-pkj-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)
+
+図をクリックするとPagesで拡大・経路確認ができます。Route Bは、JWT assertionでOAuthクライアントを認証する`private_key_jwt`と、TLS証明書に束縛したアクセストークンを組み合わせます。JWT署名鍵とmTLS証明書の鍵を分離し、認証とAPI呼出し時の送信者制約をそれぞれ検証します。
+
+1. 利用者がRoute Bを選ぶと、3rd PartyのKongが`third-party-fapi-pkj-mtls`としてPARを送信します。標準OIDCがPS256のJWT assertionを作成し、transport補完によりRoute B証明書でASへmTLS接続します。認可コードフローとPKCE S256、Keycloakの利用者認証はRoute Aと共通です。
+2. callbackのstateと提示された`iss`を確認した後、`fapi-client-auth-bridge`がtoken送信時のPKJWT署名を担当します。assertionの`iss`/`sub`はclient ID、`aud`はKeycloakのissuer文字列、寿命は60秒以内、`jti`は送信ごとに異なる値です。ASへの接続にはRoute B証明書も提示します。
+3. Keycloakは登録済み公開JWKでassertionを検証してクライアントを認証し、アクセストークンをRoute BのTLS証明書へ束縛します。`cnf.x5t#S256`が指すのはJWT署名鍵ではなく、このTLS証明書です。
+4. KongはBearerヘッダーとRoute B証明書によるmTLSでAPI Gatewayを呼び出します。API Gatewayのintrospection・claim・PoP検査とResource ServerのJWT・束縛再検証はRoute Aと同じ方針です。
+5. 期限更新でもbridgeが送信時のPKJWT署名を担います。PARとrevocationのPKJWTは標準OIDCを使い、`fapi-as-mtls-transport`がAS接続へのmTLS補完と送信境界の検査を担当します。UIではRoute Bのclaim/header、署名と束縛結果を確認します。
+
+この分担はKong Gateway 3.16.0.0の固定実装に合わせたものです。bridgeは標準フローのtoken/refresh署名を補完し、ブラウザーから持ち込まれたassertionを使用しません。Kongの更新時には内部APIとの互換性と、標準処理・bridge・transportの組合せを再検証します。
+
+Route Bは正常動作を確認済みですが、固定版の標準PAR処理がformの`client_id`を省略する仕様差分を残します。PAR成功をRFC 9126への完全適合とは扱いません。Route Aと共通する`iss`欠落、開始CSRF、失効SLA等の差分も、次の一覧に示します。
 
 ## 未対応・未検証項目と追加設計
 

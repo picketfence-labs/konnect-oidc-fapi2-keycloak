@@ -83,5 +83,14 @@
   },
   "user_architecture_approval": "approved",
   "route_a_b_rewrite": "complete",
-  "user_architecture_approval_date": "2026-10-13"
+  "user_architecture_approval_date": "2026-10-13",
+  "publication": {
+    "date": "2026-10-13",
+    "url": "https://picketfence-labs.github.io/diagrams/b671e37f23de/",
+    "repository": "picketfence-labs/diagrams",
+    "commit": "4aac2e965d5ee642bf3fff4047cf1999815f6cf0",
+    "http_status": 200,
+    "served_sha256": "5df854ebc9a61f820af09bd4361127bceeea869d40f2feb2a0665b453e559d1c",
+    "matches_delivered_html": true
+  }
 }

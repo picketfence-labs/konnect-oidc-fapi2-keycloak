@@ -4,7 +4,7 @@
 
 全体構成図の利用者確認後、Route A/Bを5つのスイムレーンへ改訂した。利用者とAPI Gatewayの間に3rd Partyを置き、同じレーン内へサービスUIとKong Gatewayを配置した。JSON・HTML・PNGと検証receiptは[設計一覧](design/README.md)から参照できる。各図のartifact検査9/9、4画面サイズのブラウザー検証、明暗画像とPNGの目視確認が通過した。
 
-日本語化と[ARCHITECTURE.md](../ARCHITECTURE.md)の追加、実行前プレビュー5件の検証履歴への統合、reset/logout図の削除を完了した。`docker-compose.demo-native.yml`は受入済みApple Silicon構成の再現に必要なため維持した。変更は文書と図に限る。利用者の指示で現ブランチへcommit・pushし、全体レビューに進む。Pages再公開・live構成変更は行っていない。以下の受入記録と既知差分は引き続き有効である。
+日本語化と[ARCHITECTURE.md](../ARCHITECTURE.md)の追加、実行前プレビュー5件の検証履歴への統合、reset/logout図の削除を完了した。`docker-compose.demo-native.yml`は受入済みApple Silicon構成の再現に必要なため維持した。変更は文書と図に限る。利用者の指示で現ブランチへcommit・pushし、全体レビューに進む。後続レビューの指示で図3件をPagesへ公開し、全体構成図・Route A/Bの公開HTMLとローカルHTMLのhash一致を確認した。ARCHITECTURE.mdに各Routeの画像付き詳細説明を追加した。live構成変更は行っていない。以下の受入記録と既知差分は引き続き有効である。
 
 最終確認で`make validate`、`tests/test_static.py`、ローカルMarkdownリンクとアンカー264件、`git diff --check`が通過した。3図のreceiptとJSON・HTML・PNGのhashが一致し、Compose 2ファイルはHEADから変更していない。
 

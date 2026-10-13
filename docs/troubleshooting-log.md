@@ -630,3 +630,9 @@ Python 3.14では`test_early_matrix_failure_scans_bounded_logs_before_down_and_r
 - 再構成した候補の生成物検査は9/9だったが、ブラウザー検証で縦方向のはみ出しを検出した。図の縦横比がViewerの自動レイアウト適用条件を満たしていなかったため、ノード幅を広げた。文字の縮小やはみ出しの隠蔽は行っていない。
 - 最終JSONから再生成したA/Bとも9/9、警告・構成エラー0。4画面サイズの収まり・判読性検査、最小・最大サイズの明暗画像レビュー、4852×3104のPNG export確認が通過した。失敗候補と最終captureはGit外の`.generated/evidence/route-diagram-review-20261013/`に分け、最終artifactのhashと検証結果は公開receiptへ記録した。
 - 最終文書の`make validate`、静的検査、ローカルMarkdownリンク・アンカー264件、`git diff --check`が通過。3図のreceiptとartifact hashは一致し、Compose 2ファイルは変更なし。図の検証用loopback serverは停止した。
+
+## 2026-10-13: Pages公開後の確認用セレクター
+
+全体レビューの指示で全体構成図をPagesへ新規公開し、Route A/Bを既存URLへ再公開した。配信先commitは`4aac2e9`。3図ともHTTP200、配信HTMLと検証済みローカルHTMLのSHA-256一致を確認した。
+
+最初のbrowser smokeは存在しない`#diagram-svg`を待ってtimeoutとなった。生成済みHTMLのSVGにはそのIDがなく、表示障害ではなかった。実際の`svg[viewBox]`を確認するセレクターへ補正すると、3図すべてのSVG表示とテーマ切替が通過した。図のJSON・HTML・PNGは変更していない。

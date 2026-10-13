@@ -81,5 +81,14 @@
     "authored": "ja",
     "fixed_viewer_fallback": "en"
   },
-  "user_architecture_approval_date": "2026-10-13"
+  "user_architecture_approval_date": "2026-10-13",
+  "publication": {
+    "date": "2026-10-13",
+    "url": "https://picketfence-labs.github.io/diagrams/55b6534fdb5b/",
+    "repository": "picketfence-labs/diagrams",
+    "commit": "4aac2e965d5ee642bf3fff4047cf1999815f6cf0",
+    "http_status": 200,
+    "served_sha256": "68c247bdc2b1d64a774bf73ffef4e9cb399166dec74ff862eb337e377aad29f6",
+    "matches_delivered_html": true
+  }
 }

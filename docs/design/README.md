@@ -28,11 +28,11 @@
 
 | 図 | JSON | HTML | PNG | 状態 |
 |---|---|---|---|---|
-| 3rd Party経由の全体構成 | [ソース](workflows/third-party-architecture.architecture.json) | [閲覧](workflows/third-party-architecture.architecture.html) | [画像](workflows/third-party-architecture.architecture.png) | 利用者確認済み |
-| Route A: mTLS | [ソース](workflows/route-a-mtls.workflow.json) | [閲覧](workflows/route-a-mtls.workflow.html) | [画像](workflows/route-a-mtls.workflow.png) | 3rd Party構成へ改訂済み |
-| Route B: PKJWT + mTLS | [ソース](workflows/route-b-pkj-mtls.workflow.json) | [閲覧](workflows/route-b-pkj-mtls.workflow.html) | [画像](workflows/route-b-pkj-mtls.workflow.png) | 3rd Party構成へ改訂済み |
+| 3rd Party経由の全体構成 | [ソース](workflows/third-party-architecture.architecture.json) | [Pagesで閲覧](https://picketfence-labs.github.io/diagrams/b671e37f23de/) | [画像](workflows/third-party-architecture.architecture.png) | 利用者確認済み・公開済み |
+| Route A: mTLS | [ソース](workflows/route-a-mtls.workflow.json) | [Pagesで閲覧](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/) | [画像](workflows/route-a-mtls.workflow.png) | 3rd Party構成へ改訂・公開済み |
+| Route B: PKJWT + mTLS | [ソース](workflows/route-b-pkj-mtls.workflow.json) | [Pagesで閲覧](https://picketfence-labs.github.io/diagrams/d4d6f772e970/) | [画像](workflows/route-b-pkj-mtls.workflow.png) | 3rd Party構成へ改訂・公開済み |
 
-[公開済みA図](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)・[公開済みB図](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)は旧版です。上表のローカルHTML/PNGが今回の改訂版で、GitHub Pagesへは再公開していません。reset/logout図は削除しました。実行時のlogout機能と受入記録は維持します。
+2026-10-13に全体構成図をPagesへ公開し、Route A/Bも既存URLのまま改訂版へ更新しました。公開HTMLはローカルHTMLとSHA-256が一致しています。reset/logout図はこのリポジトリから削除しました。実行時のlogout機能と受入記録は維持します。
 
 全体構成図とRoute A/B図の本文は日本語です。Archify 2.17の固定Viewer UIとHTMLの言語属性は日本語に対応せず英語へフォールバックします。1440×900、1600×1000、1920×1080、2048×1320の表示検証が通過し、最小・最大サイズの明暗画像を実際に確認しました。artifact検証と画像レビューは、[全体構成receipt](workflows/third-party-architecture.receipt.json)、[Route A receipt](workflows/route-a-mtls.receipt.json)、[Route B receipt](workflows/route-b-pkj-mtls.receipt.json)へ分けて記録しています。
 

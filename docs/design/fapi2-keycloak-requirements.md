@@ -379,13 +379,13 @@ Logは、RouteとPhaseを識別できることMUST。Logは、token値、cookie�
 
 ## フロー図
 
-Route A/Bは承認済み全体構成に合わせて改訂済みである。各図は、レビュー用のJSONソース、静的なPNG、インタラクティブなHTMLの3形態で、このリポジトリ内の`workflows/`に保存する。GitHub Pagesの公開図は旧版であり、今回の改訂版はまだ再公開していない。
+Route A/Bは承認済み全体構成に合わせて改訂済みである。各図は、レビュー用のJSONソース、静的なPNG、インタラクティブなHTMLの3形態で、このリポジトリ内の`workflows/`に保存する。GitHub Pagesも2026-10-13に改訂版へ更新済みである。
 
-[![Route A: mTLS client authenticationのworkflow](workflows/route-a-mtls.workflow.png)](workflows/route-a-mtls.workflow.html)
+[![Route A: mTLSクライアント認証のフロー](workflows/route-a-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
 
 *Route A: mTLSクライアント認証。画像をクリックするとインタラクティブ版を開く。* ソース: [JSON](workflows/route-a-mtls.workflow.json) / [ローカルHTML](workflows/route-a-mtls.workflow.html)
 
-[![Route B: private_key_jwt + mTLSのworkflow](workflows/route-b-pkj-mtls.workflow.png)](workflows/route-b-pkj-mtls.workflow.html)
+[![Route B: private_key_jwt + mTLSのフロー](workflows/route-b-pkj-mtls.workflow.png)](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)
 
 *Route B: private_key_jwt + mTLS証明書束縛。画像をクリックするとインタラクティブ版を開く。* ソース: [JSON](workflows/route-b-pkj-mtls.workflow.json) / [ローカルHTML](workflows/route-b-pkj-mtls.workflow.html)
 
