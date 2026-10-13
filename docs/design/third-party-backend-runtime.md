@@ -1,6 +1,6 @@
 # バックエンド分離構成の準備・適用・受入
 
-状態: ソース・ローカル検証済み／実行受入前（2026-10-13）。資料PR #30はmainへ反映済み、コードは別Draft PR #31。旧WP1～WP6の成功は変更前の5サービス構成の履歴であり、新経路の受入ではありません。[構成と信頼境界](../../ARCHITECTURE.md)、[実装計画](third-party-backend-change-plan.md)、[ADR 0023](../decisions/0023-third-party-backend-separation.md)も参照してください。
+状態: TP部分適用で停止・固定残差分の復旧準備中／実行受入前（2026-10-13）。資料PR #30はmainへ反映済み、コードは別Draft PR #31。旧WP1～WP6の成功は変更前の5サービス構成の履歴であり、新経路の受入ではありません。[構成と信頼境界](../../ARCHITECTURE.md)、[実装計画](third-party-backend-change-plan.md)、[ADR 0023](../decisions/0023-third-party-backend-separation.md)も参照してください。
 
 ## 先に確定する対象
 
@@ -35,9 +35,13 @@ UID/GID1000がhost-owned mode0600鍵を読めること、readiness用0700 tmpfs�
 
 ## TP設定のプレビューと今回専用承認
 
-最小対象は`GATEWAY=third-party STAGE=runtime make deck-diff`です。decK1.53.1では人向けイベントがJSONの前に付くため、wrapperは正規`--silence-events`を指定します。純JSON・完全な件数・警告/エラーなしの検査を維持します。
+最小対象は`GATEWAY=third-party STAGE=runtime make deck-diff`です。新しいUI Routeはnative expressionの`http.path ==`をORで組み合わせ、`/`、`/index.html`、`/evidence.js`の3パスだけへ一致させます。`paths`と`regex_priority`は使わず、既存の`router_flavor=expressions`を維持します。[公式の完全一致・ORの説明](https://developer.konghq.com/gateway/routing/expressions/#regular-expressions-usage)を参照してください。
 
-今回の移行を実diffのJSONで診断した結果は4create/6update/0deleteです。作成はhop Certificateとstatic UI Service/Route/transformer、更新はA/B Service、CORS、OIDCの戻り先です。修正後wrapperでの外部再取得は自動承認レビューが明示許可不足として拒否したため、まだ受入済みではありません。ソース上のbootstrap15createやnoop0の許容は、今回の移行承認を別planへ流用する許可ではありません。
+旧案の`~^/`はKongのRoute schemaに適合せず、正規の非作成Routes validationでもHTTP400を再現しました。「decKのfalse-positive」とした判断は撤回しています。固定移行案内の除去adapterと`--silence-events`は撤回し、pureJSON parserを維持します。改変prefix、重複・非有限値、余分な末尾、警告/エラー、不一致の操作集合は拒否します。
+
+初回同期は、レビュー済み4create/6update/0deleteの一致確認後に実行しましたが、CLI nonzeroとなりました。read-only現状確認ではhop CertificateとUI Serviceの作成、A/B Serviceの更新の4操作が反映済み。残りはUI Route/UI transformerの2createと、A/B CORS/OIDCの4updateです。削除・予期しない対象変更はありません。最初のsync失敗rawは保持されておらず、旧Route拒否を単一原因とは断定しません。
+
+新Routeは同じ指定CPの正規Routes validationで受理されました。新しい残差分は専用`migration-recovery` planと新承認票へ結び付け、元4/6票を流用しません。任意のsubsetを許容する対応ではありません。再開前に、人が新Route表現とexact残差分6件を確認します。Docker/IdP操作と新経路の受入は未実施です。
 
 適用には次の新契約を使います。
 
@@ -46,7 +50,9 @@ UID/GID1000がhost-owned mode0600鍵を読めること、readiness用0700 tmpfs�
 - 当該target/state/role/full diffのSHA-256、完全一致するoperations/summaryへ結び付ける。
 - 人が実差分をレビューした後だけ`TP_BACKEND_RUNTIME_V2_APPROVED=YES`でTP runtimeのsyncを許可する。
 
-旧schema1/additive11票は拒否します。wrapperは同期直前のfresh diff、source/role/target、承認票の再読を照合します。不一致・予期しないentity/field・警告・削除があれば停止し、guardやscopeを広げません。同期後も同じ対象のdiffと実動作を確認します。
+commit `31e2cd2`でnative Routeと固定残差分guardを実装しました。Manager独立の対象45件・追加確認5件と意味的mutation13件の検出が成功しました。これは宣言・CLI・ローカルの検証であり、DPの実ルーティングやBackend E2Eの受入ではありません。
+
+旧schema1/additive11票は拒否します。wrapperは同期前に正規の非作成Routes online validationを行い、失敗時はsyncを呼びません。続いてfresh diff、source/role/target、承認票の再読を照合します。不一致・予期しないentity/field・警告・削除があれば停止し、guardやscopeを広げません。同期後も同じ対象のdiffと実動作を確認します。
 
 ## native実行とIdP
 

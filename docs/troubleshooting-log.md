@@ -642,10 +642,32 @@ Python 3.14では`test_early_matrix_failure_scans_bounded_logs_before_down_and_r
 
 バックエンド分離のソース・ローカル検証後、既存CAとRoute A/Bのidentityを維持した隔離素材で、TP runtimeだけの読み取り専用差分を取得した。最初のラッパー実行は `third-party runtime diff did not return valid JSON` で停止した。CP書込み、Docker起動・停止、適用承認票の作成は行っていない。
 
-decK 1.53.1のstdoutは、人向けイベント26行の後に単一の完全なJSONを出力していた。捕捉済みJSONを診断目的で既存の厳格なparserへ通すと、作成4件・更新6件・削除0件、warnings/errorsなしで、今回の固定entity集合に一致した。更新はA/B Serviceのバックエンド接続先と内部hop証明書、CORS origin、OIDCのlogin/logout戻り先だけだった。raw出力は秘密を含み得るためGit外のprivate証跡に限定した。
+decK 1.53.1のstdoutは、人向け出力26行の後に単一の完全なJSONを出力していた。初回は通常イベントと分類したが、承認後の追加調査で固定の正規表現移行案内と特定した。捕捉済みJSONを診断目的で既存の厳格なparserへ通すと、作成4件・更新6件・削除0件、warnings/errorsなしで、今回の固定entity集合に一致した。更新はA/B Serviceのバックエンド接続先と内部hop証明書、CORS origin、OIDCのlogin/logout戻り先だけだった。raw出力は秘密を含み得るためGit外のprivate証跡に限定した。
 
 CLIのhelpで正規オプション `--silence-events` を確認し、TP runtimeの要求されたdiffと同期前diffに追加した。JSONのprefixを無条件に読み飛ばす処理や、parser・変更件数guardの緩和は行っていない。Manager独立のCLI/subprocess境界回帰3件、既存selector9件、flag欠落の意味的変異2件の検出、AST・freeze・diff検査が成功した。
 
 修正後ラッパーによる実差分の再取得は、自動承認レビューが実行前に拒否した。既存credentialで特定のKonnect TP Control Planeへ接続する明示的な利用者許可を確認できず、read-onlyでも機微設定取得の可能性があるという判定だった。再試行・迂回はしていない。既取得reportの診断4/6/0とローカルCLI検証の成功を維持し、修正後の実ラッパー受入は未実施として区別する。
 
 受入用のKeycloakはlocalhost:8444で接続拒否となり、Admin tokenもclient設定も取得していない。A/Bのpost-logout戻り先2件は計画差分のままで、live照合済みとは扱わない。既存Dockerの5コンテナは停止中。新経路の実行受入は未実施であり、資料・ローカルfixture・CPプレビューをE2E成功へ読み替えない。
+
+
+## 2026-10-13: 実CLIの固定移行案内とsilence指定の誤仮定
+
+具体的なruntime候補への利用者の一括承認後、`--silence-events`付きのfresh差分はexit0/stdout空/stderr空となり、純JSON parserが拒否した。CP同期・Docker起動の前に停止した。前回の模擬CLIはsilence指定でもJSONを保持する想定であり、実CLIの挙動を再現できていなかった。
+
+公式decK1.53.1はJSON報告もcprint経由で出すため、silenceで報告自体が消える。最初の26行は通常イベントやpatchではなく、reconciler1.29.2が`~^/`を旧形式と判定することで出す固定移行案内だった。初めはfalse-positiveとしたが、後続の製品schema検証でこの判断を撤回した。[発火条件](https://github.com/Kong/go-database-reconciler/blob/v1.29.2/pkg/file/builder.go#L1388-L1406)、[正規表現の判定と固定文](https://github.com/Kong/go-database-reconciler/blob/v1.29.2/pkg/utils/utils.go#L238-L262)を原文確認し、private実captureの941byte/26行と固定文の完全一致を独立検証した。state3.0、UI UUIDと3pathは自作validatorでexact比較していたが、それをKong側のschema適合の証明と扱った判断は不十分だった。
+
+silence指定を撤回し、先頭offset0の既知の固定案内だけを1回消費して元の厳格JSON parserへ渡すadapterを、TPの要求時diffと同期前diffだけへ追加した。任意位置のJSON探索、unknown prefixの除去、警告/件数/scope/hash guardの緩和はしていない。新fixtureは実仕様のemptyと固定案内+JSONを再現する。Manager独立のCLI境界4件・selector9件・追加4件が成功し、38負例callを拒否、意味的変異4/4を検出した。Coordinatorはrunner原文と最終freeze hash一致を確認した。
+
+commit c3b8595の実wrapper fresh diffは4create/6update/0delete、stderr/warnings/errorsなし。レビュー済みの完全report hashおよびtarget/state/roleが一致し、今回専用schema2票へ結び付けた。CP/Docker/IdPの後続結果は別途実行証跡で確認し、このCLI修正の成功をE2E成功とは扱わない。
+
+
+## 2026-10-13: TP部分適用と静的UI Routeの製品schema不適合
+
+承認済み4create/6updateをstrict bindingへ結び付けてTPsyncしたが、CLI nonzero/outcome unknownとなった。実失敗rawは保持されていないため再実行で取り直さず、同じ指定CPのread-only差分で状態を確認した。hop Certificate/UI Serviceの2createとA/B Service2updateが反映済みで、UI Route/UI transformer2createとA/B CORS/OIDC4updateが残っていた。delete0、未知identity0。再sync/rollback、Docker/image取得、IdP変更は行わず停止した。
+
+公開[Kong3.9.1 router_path schema](https://github.com/Kong/kong/blob/3.9.1/kong/db/schema/typedefs.lua#L558-L570)はregex pathの`~/`始まりを要求し、`~^/`を拒否する。自作exact期待とgeneric regexの意味から製品妥当性まで推論したManager/Coordinatorのレビュー不足を認め、利用者へ訂正した。指定CPへのschemas/routes GETは404で、取得成功とは扱わなかった。公式にresourceを作らない`deck gateway validate --online-entities-list Routes`の正規経路を原文確認し、旧RouteのHTTP400/paths must begin withを実CPで再現した。元sync rawがないため、これが同期失敗の唯一の原因とは断定しない。
+
+代替は既存expressions routerの`http.path ==`をORで組み合わせたnative完全一致。priority100/protocolshttps/strip_pathfalseを維持し、paths/regex_priorityを除く。同じCP/同じ非作成validationで新Routeはexit0・stdout/stderr空となり、受理を確認した。DPでの実マッチングやBackend E2Eの証明ではない。無効stateの案内をfalse-positiveとして除去するadapterは撤回対象とし、同期直前の正規Routes検証を必須化する。
+
+残りexact2create/4updateだけの明示recovery plan、新state/role/target/full-diff bindingの承認票、元票拒否と製品validation失敗時sync0callを検証してから、新しい具体プレビューを人へ提示する。元4/6票の流用、任意subset許可、未確認の追加適用は行わない。

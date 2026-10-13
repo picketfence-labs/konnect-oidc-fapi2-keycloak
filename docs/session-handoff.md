@@ -1,10 +1,14 @@
 # OIDC デモのセッション引き継ぎ
 
-## バックエンド分離のソース完了・実行受入前（2026-10-13、最新）
+## バックエンド分離のTP部分適用・復旧準備（2026-10-13、最新）
 
-図・文書PR #30はmainへmerge済み。別Draft PR #31（feat/third-party-backend）へ実装・テストとCLI修正をpushし、mainの資料を取り込んだ。Manager独立のmake validate、380 unittest、UI/Lua/native設定が成功。CLIイベント出力を正規flagで抑制し、追加12検証/意味変異2検出が成功。下の資料先行・WP1～WP6の状態は時点付き履歴である。
+図・文書PR #30はmainへmerge済み。別Draft PR #31（feat/third-party-backend）で実装と受入準備を進め、mainの資料を取り込んだ。Manager独立のmake validate、380 unittest、UI/Lua/native設定は成功したが、実製品のRoute schemaを確認する検証が不足していた。下の資料先行・WP1～WP6の状態は時点付き履歴である。
 
-取得済み実diffのJSON診断はTP4create/6update/0delete・warnings/errorsなし、固定集合一致。修正後wrapperの再取得は、自動承認レビューが特定CPへの既存credential利用・external readの明示許可不足として実行前に拒否し、再試行していない。隔離6service候補、元DB/CA/A/B不変のsnapshot、全mountとloopback設定は検証済み。Python native image取得・CPsync・Docker起動・IdP2属性更新・新経路受入は未実施。受入前プレビューと承認待ち境界をGit外evidenceへ保存した。[準備・適用・受入手順](design/third-party-backend-runtime.md)からsource契約と未確認項目を確認する。PR #31はruntime受入までDraftを維持する。
+利用者が既存credentialでの指定TP CP確認、完全一致4create/6update/0deleteの同期、隔離6service受入の具体プレビューを一括承認した。fresh差分・承認票の照合後に同期したがCLI nonzeroとなり停止した。read-only確認ではhop Certificate/UI Serviceの作成とA/B Service更新の4操作が反映済み。残りはUI Route/UI transformerの2createとA/B CORS/OIDCの4update、削除0・予期しない対象変更0である。
+
+`--silence-events`はJSONまで抑止するため撤回した。その後の移行案内除去adapterも、旧`~^/`を有効と判断した前提が誤りだったため撤回する。正規の非作成Routes validationで旧RouteのHTTP400、新native expression案の受理を確認した。初回syncのraw失敗理由は保持されておらず、単一原因とは断定しない。詳細は[障害対応記録](troubleshooting-log.md)へ残す。
+
+3パス完全一致のnative expression、固定6操作だけの`migration-recovery`、同期前のRoutes online validationを追加する。元4/6票は流用しない。Managerが修正ソース・候補・fresh残差分を照合し、新しい具体プレビューを人が確認するまでCP writeを再開しない。Docker/image取得・IdP更新・新経路受入は未実施。隔離snapshotと原DB/PKI/stackを保持する。[準備・適用・受入手順](design/third-party-backend-runtime.md)から現行契約を確認する。PR #31はruntime受入までDraftを維持する。
 
 ## バックエンド分離: 資料先行・コード並行（2026-10-13）
 

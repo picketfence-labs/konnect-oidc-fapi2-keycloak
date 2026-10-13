@@ -1,6 +1,6 @@
 # 3rd Partyバックエンド分離の影響と対応計画
 
-- 状態: 利用者が計画を承認。図・文書はPR #30でmainへ先行反映済み。コードは別Draft PR #31でソース実装・Manager独立のローカル検証を完了。新経路の実行受入は未実施
+- 状態: 図・文書はPR #30でmainへ先行反映済み。コードは別Draft PR #31。承認済みTP同期が部分適用で停止し、固定残6操作の復旧プレビューを準備中。新経路の実行受入は未実施
 - 日付: 2026-10-13
 - 基準: main `933a51a`（文書整備PR #29をmerge済み）
 - 役割: Coordinatorが全体条件と図・文書を統括。コード側はManagerがWorkerへ委譲し、成果を検証・統合する
@@ -133,9 +133,11 @@ API:  ブラウザー → localhost:8443 → TCP forward → TP Kong
 
 ## 実装・プレビューの到達点（2026-10-13）
 
-バックエンド、専用hop、Gateway/UI/PKI/role、readiness、今回専用schema2 guardを実装。Manager独立でmake validate、380 unittest、UI/Lua、native Compose設定が成功しました。実diffのJSONを診断して4create/6update/0delete、warnings/errorsなし、固定entity/field集合との一致を確認しました。decKの人向け出力を正規 `--silence-events` で抑止する限定修正は追加のCLI検証12件と意味変異2件が成功。修正後wrapperの実再取得は自動承認レビューが特定CPへのcredential利用・external readの明示許可不足として拒否し、未実施です。
+バックエンド、専用hop、Gateway/UI/PKI/role、readiness、今回専用schema2 guardを実装。Manager独立でmake validate、380 unittest、UI/Lua、native Compose設定が成功しました。利用者の具体プレビュー一括承認後、fresh4create/6update/0deleteと承認票の一致を確認してTP同期を開始しましたが、CLI nonzeroで停止しました。read-only現状ではhop Certificate/UI Serviceの作成とA/B Service更新の4操作が反映済み。残りはUI Route/UI transformerの2create、A/B CORS/OIDCの4updateです。削除と予期しない対象変更はありません。
 
-旧DB・素材を変えない隔離候補の6サービス設定とDB snapshot一致を確認済み。CPは共有されるため、適用は既存TP CPへ接続するDPに反映されます。IdPは停止中でA/B post-logout属性のlive値は未照合です。[準備・適用・受入手順](third-party-backend-runtime.md)を参照し、実diff、人によるレビュー、Docker/IdP操作の具体許可をそろえてから実行します。新経路の受入は全項目not_runのままです。
+CLIの`--silence-events`修正はJSONも抑止するため撤回。その後の移行案内除去adapterも、旧`~^/`形式を有効とした誤判断を訂正して撤回します。正規の非作成Routes validationで旧RouteのHTTP400と新native expression案の受理を確認しました。初回同期のraw失敗理由は保持しておらず、旧Routeだけが原因とは断定しません。3パス完全一致のnative expression、固定6操作の`migration-recovery`、同期前のRoutes validationを実装し、Managerが独立確認します。元4/6承認票を流用せず、修正済みソースのfresh残差分を人がレビューするまで再同期しません。
+
+旧DB・素材を変えない隔離候補の6サービス設定とDB snapshot一致を確認済み。CPは共有されるため、適用は既存TP CPへ接続するDPに反映されます。Docker/image取得・IdP更新は未実施で、A/B post-logout属性のlive値は未照合です。[準備・適用・受入手順](third-party-backend-runtime.md)を参照してください。復旧対象の再確認後は、既に承認された隔離受入範囲に従います。新経路の受入は全項目not_runのままです。
 
 ## 調査根拠（933a51a時点）
 
