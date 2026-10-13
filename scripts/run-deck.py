@@ -520,7 +520,7 @@ def main() -> int:
     if wp5_runtime_sync:
         diff_command = [*common_command]
         diff_command[2] = "diff"
-        diff_command.extend(["--json-output", "--no-color", "--no-mask-deck-env-vars-value"])
+        diff_command.extend(["--json-output", "--no-color", "--no-mask-deck-env-vars-value", "--silence-events"])
         diff_result = run_deck_subprocess(
             diff_command,
             root=root,
@@ -607,6 +607,7 @@ def main() -> int:
         command.append("--no-color")
         if third_party_runtime:
             command.append("--no-mask-deck-env-vars-value")
+            command.append("--silence-events")
     result = run_deck_subprocess(
         command,
         root=root,

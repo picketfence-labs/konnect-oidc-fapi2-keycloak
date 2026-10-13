@@ -81,6 +81,7 @@ test:
 	python3 tests/test_up_guard.py
 	python3 -B tests/test_third_party_backend.py
 	python3 -B tests/test_backend_integration.py
+	python3 -B tests/test_deck_event_silencing.py
 	node tests/test_wp6_ui.js
 	luajit tests/test_wp1_schema.lua
 
