@@ -55,6 +55,7 @@ TEST_PRIVATE_KEY = "-----BEGIN " + "PRIVATE KEY-----\nPRIVATE_SENTINEL\n-----END
 
 
 def write_cli_fixture(root: Path, source: Path) -> None:
+    (root / "docker-compose.yml").write_bytes((source / "docker-compose.yml").read_bytes())
     (root / "infra").mkdir()
     (root / "kong/foundation").mkdir(parents=True)
     (root / ".generated").mkdir()

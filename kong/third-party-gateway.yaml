@@ -263,10 +263,10 @@ services:
     routes:
       - id: aaced8a8-6936-520b-96ea-026a7b01b4b6
         name: third-party-static-ui
-        paths: ['~^/$', '~^/index\.html$', '~^/evidence\.js$']
+        expression: '(http.path == "/" || http.path == "/index.html" || http.path == "/evidence.js")'
         protocols: [https]
         strip_path: false
-        regex_priority: 100
+        priority: 100
         tags: [fapi2-demo, static-ui]
     plugins:
       - name: request-transformer

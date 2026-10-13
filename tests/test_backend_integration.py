@@ -5,8 +5,10 @@ import contextlib
 import copy
 import importlib.util
 import io
+import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -34,6 +36,63 @@ class IntegrationTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_native_static_expression_declared_exact_asset_semantics(self):
+        # Independent declaration contract using documented == / || semantics;
+        # this does not claim execution of the pinned Kong routing engine.
+        value = target._parse_foundation(ROOT / "kong/third-party-gateway.yaml")
+        route = value["services"][-1]["routes"][0]
+        self.assertNotIn("paths", route)
+        self.assertNotIn("regex_priority", route)
+        self.assertEqual(route["protocols"], ["https"])
+        self.assertEqual(route["priority"], 100)
+        clauses = re.findall(r'http\.path\s*(==|\^=)\s*"([^"]*)"', route["expression"])
+        self.assertEqual(len(clauses), 3)
+        for path in ("/", "/index.html", "/evidence.js", "/api-typo", "/anything", "/x/index.html",
+                     "/index.html/suffix", "/index.htmlx", "/evidence.js/suffix", "/api/fapi/mtls", "/api/fapi/pkj-mtls"):
+            matched = any(path == expected if op == "==" else path.startswith(expected) for op, expected in clauses)
+            with self.subTest(path=path):
+                self.assertEqual(matched, path in {"/", "/index.html", "/evidence.js"})
+
+    def test_native_route_fields_and_expressions_flavor_fail_closed(self):
+        path = self.root / "kong/third-party-gateway.yaml"
+        original = target._parse_foundation(path)
+        for change in ({"paths": [r"~^/$", r"~^/index\.html$", r"~^/evidence\.js$"]},
+                       {"regex_priority": 100}, {"expression": 'http.path ^= "/"'},
+                       {"priority": 0}, {"protocols": ["http", "https"]}, {"strip_path": True}):
+            value = copy.deepcopy(original)
+            value["services"][-1]["routes"][0].update(change)
+            path.write_text(yaml.safe_dump(value, sort_keys=False))
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                target.validate_third_party_runtime_state(self.root)
+        path.write_bytes((ROOT / "kong/third-party-gateway.yaml").read_bytes())
+        compose_path = self.root / "docker-compose.yml"
+        compose = yaml.safe_load(compose_path.read_text())
+        for flavor in ("traditional", "traditional_compatible", "${KONG_ROUTER_FLAVOR}", None):
+            compose["services"]["kong-third-party"]["environment"]["KONG_ROUTER_FLAVOR"] = flavor
+            compose_path.write_text(yaml.safe_dump(compose))
+            with self.subTest(flavor=flavor), self.assertRaises(ValueError):
+                target.validate_third_party_runtime_state(self.root)
+
+    def test_old_migration_receipt_state_hash_rejects_before_token_or_remote(self):
+        receipt = selector.write_wp5_receipt(self.root, selector.additive_report())
+        state = (self.root / "kong/third-party-gateway.yaml").read_bytes()
+        # Reconstruct the public old regex state; never read a live approval.
+        old_state = state.replace(
+            b'expression: \'(http.path == "/" || http.path == "/index.html" || http.path == "/evidence.js")\'',
+            br"paths: ['~^/$', '~^/index\.html$', '~^/evidence\.js$']",
+        ).replace(b"priority: 100", b"regex_priority: 100")
+        self.assertNotEqual(old_state, state)
+        receipt["state_sha256"] = hashlib.sha256(old_state).hexdigest()
+        (self.root / deck.BACKEND_APPROVAL_RELATIVE).write_text(json.dumps(receipt))
+        with patch.object(sys, "argv", ["run-deck.py", "sync", "--root", str(self.root), "--gateway", "third-party", "--stage", "runtime"]), \
+             patch.dict(os.environ, {"TP_BACKEND_RUNTIME_V2_APPROVED": "YES"}), \
+             patch.object(deck, "read_env", side_effect=AssertionError("token read")), \
+             patch.object(deck, "verify_remote_target") as remote, patch.object(deck, "run_deck_subprocess") as invoke:
+            with self.assertRaisesRegex(ValueError, "does not match current"):
+                deck.main()
+            remote.assert_not_called()
+            invoke.assert_not_called()
 
     def test_each_as_service_static_identity_conjunct_and_last_identity(self):
         path = self.root / "kong/third-party-gateway.yaml"
@@ -102,6 +161,16 @@ class IntegrationTests(unittest.TestCase):
             bad["operations"]["deleting"].append({"kind": "service", "name": "foreign-last"})
             with self.assertRaises(ValueError):
                 deck.validate_backend_scope(bad, plan_type)
+
+            bad = copy.deepcopy(value)
+            bad["unexpected"] = True
+            with self.assertRaises(ValueError):
+                deck.validate_backend_scope(bad, plan_type)
+            if plan_type != "noop":
+                bad = copy.deepcopy(value)
+                bad["operations"]["creating"][-1]["unexpected"] = True
+                with self.assertRaises(ValueError):
+                    deck.validate_backend_scope(bad, plan_type)
             if plan_type != "noop":
                 bad = copy.deepcopy(value)
                 bad["operations"]["creating"][-1]["name"] = "foreign-last"
@@ -112,6 +181,29 @@ class IntegrationTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 deck.validate_backend_scope(bad, plan_type)
 
+    def test_recovery_manifest_is_independent_exact_six_operations(self):
+        expected = {
+            "creating": {("route", "third-party-static-ui"),
+                         ("plugin", "request-transformer for service third-party-static-ui")},
+            "updating": {("plugin", "cors for service third-party-route-a-api"),
+                         ("plugin", "cors for service third-party-route-b-api"),
+                         ("plugin", "openid-connect for service third-party-route-a-api"),
+                         ("plugin", "openid-connect for service third-party-route-b-api")},
+            "deleting": set(),
+        }
+        self.assertEqual(deck.BACKEND_PLANS["migration-recovery"], expected)
+        operations = {kind: [{"kind": entity, "name": name} for entity, name in sorted(entries)]
+                      for kind, entries in expected.items()}
+        value = {"summary": {"creating": 2, "updating": 4, "deleting": 0, "total": 6}, "operations": operations}
+        deck.validate_backend_scope(value, "migration-recovery")
+        for plan in ("migration", "bootstrap", "noop"):
+            with self.assertRaises(ValueError):
+                deck.validate_backend_scope(value, plan)
+        for op in operations:
+            changed = copy.deepcopy(value)
+            changed["operations"][op].append({"kind": "service", "name": "foreign-last"})
+            with self.assertRaises(ValueError):
+                deck.validate_backend_scope(changed, "migration-recovery")
     def test_old_receipt_and_late_invalid_schema_cannot_read_token_or_sync(self):
         receipt = selector.write_wp5_receipt(self.root, selector.additive_report())
         path = self.root / deck.BACKEND_APPROVAL_RELATIVE
@@ -134,6 +226,8 @@ class IntegrationTests(unittest.TestCase):
 
         def fake_deck(command, **kwargs):
             calls.append(command[2])
+            if command[2] == "validate":
+                return subprocess.CompletedProcess(command, 0, "", "")
             self.assertEqual(command[2], "diff", "a changed receipt must prevent sync")
             path = self.root / deck.BACKEND_APPROVAL_RELATIVE
             path.write_text(json.dumps({**receipt, "diff_sha256": "0" * 64}))
@@ -145,7 +239,7 @@ class IntegrationTests(unittest.TestCase):
              patch.object(deck, "run_deck_subprocess", side_effect=fake_deck):
             with self.assertRaisesRegex(ValueError, "changed after review; sync was not attempted"):
                 deck.main()
-        self.assertEqual(calls, ["diff"])
+        self.assertEqual(calls, ["validate", "diff"])
 
     def test_real_cli_old_flag_has_zero_token_remote_and_deck_calls(self):
         # Only external auth/network/decK boundaries are replaced. The original
@@ -177,6 +271,9 @@ class IntegrationMutations(unittest.TestCase):
 
     def test_phase2_semantic_mutations(self):
         cases = (
+            ("expressions_flavor_guard", "scripts/wp1_target.py",
+             'if flavor != "expressions":', 'if False:',
+             "target", IntegrationTests, "test_native_route_fields_and_expressions_flavor_fail_closed"),
             ("service_identity_conjunct", "scripts/wp1_target.py",
              "or any(service.get(name) != value for name, value in expected_service.items())",
              'or any(service.get(name) != value for name, value in expected_service.items() if name != "client_certificate")',
@@ -208,6 +305,8 @@ class IntegrationMutations(unittest.TestCase):
                     globals()[binding] = original
                     del sys.modules[mutant.__name__]
         for name, file, before, after, case in (
+            ("native_static_prefix_matches_api", "kong/third-party-gateway.yaml", 'http.path == "/"', 'http.path ^= "/"',
+             IntegrationTests("test_native_static_expression_declared_exact_asset_semantics")),
             ("backend_failure_blocks_forward", "scripts/require-wp5-readiness.sh", "check_backend_once() {", "check_backend_once() {\n  return 0",
              runtime_tests.ThirdPartyRuntimeTests("test_backend_failure_never_opens_public_forward")),
             ("declared_private_mounts", "docker-compose.yml", "      - ./.generated/pki/route-b.key:/etc/fapi/route-b.key:ro\n", "",

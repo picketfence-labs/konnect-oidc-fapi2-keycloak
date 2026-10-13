@@ -282,6 +282,16 @@ def validate_foundation_state(root: Path, gateway: str) -> None:
 
 def validate_third_party_runtime_state(root: Path) -> dict:
     """Validate the WP5 third-party state while pinning its foundation entities."""
+    compose_path = root / "docker-compose.yml"
+    if not compose_path.is_file() or compose_path.is_symlink():
+        raise ValueError("third-party runtime base Compose declaration is missing or unsafe")
+    try:
+        compose = yaml.load(compose_path.read_text(), Loader=UniqueKeyLoader)
+        flavor = compose["services"]["kong-third-party"]["environment"]["KONG_ROUTER_FLAVOR"]
+    except (yaml.YAMLError, KeyError, TypeError):
+        raise ValueError("third-party runtime base Compose router declaration is malformed") from None
+    if flavor != "expressions":
+        raise ValueError("third-party runtime requires the base Compose expressions router")
     state_path = root / RUNTIME_FILES["third-party"]
     if not state_path.is_file() or state_path.is_symlink():
         raise ValueError("third-party runtime state is missing or unsafe")
@@ -310,9 +320,11 @@ def validate_third_party_runtime_state(root: Path) -> dict:
     static_service = {
         "name": "third-party-static-ui", "id": "878509ff-0d35-56d2-ba0e-aec6bbf00fe7",
         "protocol": "http", "host": "ui", "port": 80, "tags": ["fapi2-demo", "static-ui"],
+        # Native equality avoids invalid legacy ~^/ router_path syntax.
+        # https://developer.konghq.com/gateway/routing/expressions/#regular-expressions-usage
         "routes": [{"id": "aaced8a8-6936-520b-96ea-026a7b01b4b6", "name": "third-party-static-ui",
-                    "paths": [r"~^/$", r"~^/index\.html$", r"~^/evidence\.js$"],
-                    "protocols": ["https"], "strip_path": False, "regex_priority": 100,
+                    "expression": '(http.path == "/" || http.path == "/index.html" || http.path == "/evidence.js")',
+                    "protocols": ["https"], "strip_path": False, "priority": 100,
                     "tags": ["fapi2-demo", "static-ui"]}],
         "plugins": [{"name": "request-transformer", "id": "941cfa0a-ffad-517d-b7b3-0088089513ae",
                      "tags": ["fapi2-demo", "static-ui"], "config": {"remove": {"headers": [

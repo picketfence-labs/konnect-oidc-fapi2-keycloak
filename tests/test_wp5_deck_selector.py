@@ -28,6 +28,7 @@ SPEC.loader.exec_module(run_deck)
 
 
 def fixture_tree(root: Path) -> None:
+    (root / "docker-compose.yml").write_bytes((ROOT / "docker-compose.yml").read_bytes())
     (root / "infra").mkdir()
     (root / "kong/foundation").mkdir(parents=True)
     (root / ".generated/evidence").mkdir(parents=True)
@@ -83,9 +84,9 @@ def fixture_tree(root: Path) -> None:
     role_file.chmod(0o600)
 
 
-def additive_report() -> dict:
+def additive_report(plan_type="migration") -> dict:
     changes = {}
-    for operation, identities in run_deck.BACKEND_PLANS["migration"].items():
+    for operation, identities in run_deck.BACKEND_PLANS[plan_type].items():
         changes[operation] = [{"kind": kind, "name": name, "body": {
             "old": {} if operation == "updating" else None,
             "new": {"id": name, "name": name, "config": {"enabled": True}},
@@ -95,7 +96,7 @@ def additive_report() -> dict:
     return {"changes": changes, "summary": summary, "warnings": [], "errors": []}
 
 
-def write_wp5_receipt(root: Path, report: dict) -> dict:
+def write_wp5_receipt(root: Path, report: dict, plan_type="migration") -> dict:
     info = wp1_target.local_manifest(root, "third-party", "runtime", "sync")
     state = root / "kong/third-party-gateway.yaml"
     role_values = wp1_target.validate_role_values(
@@ -108,7 +109,7 @@ def write_wp5_receipt(root: Path, report: dict) -> dict:
     receipt = {
         "schema_version": 2,
         "scope": run_deck.BACKEND_SCOPE,
-        "plan_type": "migration",
+        "plan_type": plan_type,
         "approved": True,
         "target_sha256": run_deck.canonical_sha256(info["target"]),
         "state_sha256": run_deck.file_sha256(state),
@@ -314,6 +315,8 @@ class WP5DeckSelectorTests(unittest.TestCase):
 
         def fake_deck(command, **kwargs):
             calls.append(list(command))
+            if command[2] == "validate":
+                return subprocess.CompletedProcess(command, 0, "private validation output", "")
             if command[2] == "diff":
                 return subprocess.CompletedProcess(command, 0, json.dumps(report), "")
             return subprocess.CompletedProcess(command, 0, "raw entity body", "raw private output")
@@ -331,12 +334,14 @@ class WP5DeckSelectorTests(unittest.TestCase):
         remote.assert_called_once()
         api_ca.assert_not_called()
         schemas.assert_called_once()
-        self.assertEqual([command[2] for command in calls], ["diff", "sync"])
+        self.assertEqual([command[2] for command in calls], ["validate", "diff", "sync"])
         for command in calls:
             self.assertEqual(command[command.index("--parallelism") + 1], "1")
-        self.assertIn("--no-mask-deck-env-vars-value", calls[0])
-        self.assertNotIn("--no-mask-deck-env-vars-value", calls[1])
+        self.assertIn("--no-mask-deck-env-vars-value", calls[1])
+        self.assertNotIn("--no-mask-deck-env-vars-value", calls[0])
+        self.assertNotIn("--no-mask-deck-env-vars-value", calls[2])
         self.assertIn("approved backend runtime v2 scope", output.getvalue())
+        self.assertNotIn("private validation output", output.getvalue())
         self.assertNotIn("raw entity body", output.getvalue())
         self.assertNotIn("raw private output", output.getvalue())
         self.assertEqual(receipt["summary"], {"creating":4,"updating":6,"deleting":0,"total":10})
@@ -371,7 +376,7 @@ class WP5DeckSelectorTests(unittest.TestCase):
                  patch.object(run_deck, "run_deck_subprocess", side_effect=fake_deck):
                 with self.assertRaisesRegex(ValueError, "exact reviewed scope|changed after Root review"):
                     run_deck.main()
-            self.assertEqual(calls, ["diff"])
+            self.assertEqual(calls, ["validate", "diff"])
 
 
 if __name__ == "__main__":
