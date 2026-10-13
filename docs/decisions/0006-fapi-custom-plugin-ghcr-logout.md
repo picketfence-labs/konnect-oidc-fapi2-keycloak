@@ -1,20 +1,20 @@
 # ADR 0006: FAPI 2.0二経路をcustom pluginとGHCR imageで実装する
 
-- Status: Superseded by [ADR 0007](0007-keycloak-only-fapi2-demo.md)
-- Date: 2026-09-23
+- 状態: 次のADRにより置換: [ADR 0007](0007-keycloak-only-fapi2-demo.md)
+- 日付: 2026-09-23
 
-## Context
+## 背景
 
 追加デモでは、KongをOIDC Relying Partyとして維持し、次の2経路を比較する。
 
-- Route A: `tls_client_auth` + mTLS certificate-bound access token
-- Route B: `private_key_jwt` + mTLS certificate-bound access token
+- Route A: `tls_client_auth` + mTLS証明書に束縛されたアクセストークン
+- Route B: `private_key_jwt` + mTLS証明書に束縛されたアクセストークン
 
 Kong Gateway 3.16.0.0のOpenID Connect実装は、token requestでPrivate Key JWTを生成する分岐と、mTLS client certificateを提示してmTLS endpoint aliasを使う分岐が相互排他になっている。設定だけではRoute Bを実現できない。一方、certificateの読み込みとHTTP clientのmTLS機能は再利用できる。
 
 logoutでは、Kong sessionだけでなくAuth0 SSO sessionとrefresh tokenを終了させる。ブラウザーはAuth0のOIDC Logout endpointを経由する。Auth0が有効な`id_token_hint`を受理した場合、確認画面を省略して直ちにredirectすることがあるため、合格条件は「Auth0 endpointを経由してSSO sessionが終了する」とし、確認promptの常時表示には依存しない。
 
-## Decision
+## 決定
 
 1. Route BはKong coreやBFFではなく、file-based Lua custom pluginで補完する。
 2. custom Data Plane imageは`kong/kong-gateway:3.16.0.0`をbaseとし、`ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak`へ発行する。
@@ -25,7 +25,7 @@ logoutでは、Kong sessionだけでなくAuth0 SSO sessionとrefresh tokenを�
 7. revocation後、Kong sessionを破棄し、Auth0の`end_session_endpoint`へredirectしてAuth0 SSO sessionを終了する。
 8. Auth0がRoute BのrevocationにもmTLS aliasを要求した場合、stock `token:revoke()`はPKJWTとmTLSを同時利用できない。その場合だけcustom pluginのlogout処理へcombined PKJWT + mTLS revocationを追加する。core module monkey patchは行わない。
 
-## Live tenant gate
+## 実テナントの検証条件
 
 2026-09-23のread-only確認では、現在のAuth0 tenantは次の状態だった。
 
@@ -38,7 +38,7 @@ logoutでは、Kong sessionだけでなくAuth0 SSO sessionとrefresh tokenを�
 
 Auth0公式要件ではFAPI compliance、PAR、mTLS sender constrainingはEnterprise Plan + Highly Regulated Identity add-onが必要である。したがって、現在のtenantでは二経路のlive FAPI検証を開始できない。Auth0 administratorがHRI entitlementを確認し、tenant-level PARとmTLS endpoint aliasesを有効化することを実装のexternal gateとする。
 
-## Consequences
+## 影響
 
 - BFFは追加しない。
 - Kong本体をforkせず、custom pluginとcustom imageの差分へ閉じ込める。

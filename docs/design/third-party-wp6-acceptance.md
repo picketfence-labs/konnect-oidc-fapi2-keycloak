@@ -6,7 +6,7 @@ WP6は顧客向けデモのUI表示、logout/reset後のroute切替、clean chec
 
 2026-10-05、利用者のPR #27 merge後のmain `82d7ab2`で受入確認を完了し、[WP6 #12](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/12#issuecomment-5986628372)と[Epic #6](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/6#issuecomment-5986628351)をCloseしました。新しいcheckoutへGit外の既存PKI・DP identity・runtime inputs・停止済みKeycloak DBを復元し、既存2 CPを再利用して5サービスを起動しました。全worker readiness、両Routeのlogin/API200/claim/header/binding/signature/spoof/logout、UIとJSのHTTPS配信・source一致がpassしました。Node単体検査、HTTP静的browser previewの初期画面・fragment除去、同じcookie jarでのreset/switch 4/4も既存証跡として受け入れました。HTTPS result画面の実browser表示はCA信頼エラーでnot_runのまま、契約で認められたREADMEのbrowser evidence手順を用意しています。UI previewとCompose configのsanitized review receiptはGit外に保存し、それぞれ`wp6-ui-root-review-20261005.json`（SHA-256 `57fb46d5e2409a2a2c685e19e5880a5d3ecaf0a12d29034403c83a55ca0055be`）、`wp6-native-compose-review-20261005.json`（SHA-256 `15afcf69404671eacc7f5323bad1b46de45cf6feb6bdc446c866ca778786da37`）です。Compose receiptはstatic_not_runtimeです。
 
-## WP6 acceptance ID
+## WP6受入ID
 
 | 受入ID | 実装・操作 | 検証層・結果 | 既存証跡と限界 |
 |---|---|---|---|
@@ -37,6 +37,6 @@ clean checkout `/private/tmp/konnect-oidc-fapi2-wp6-acceptance`で起動・全wo
 
 ## 明示する未対応・既知差分
 
-- RFC 9126のRoute B PKJWT PARにおけるform `client_id`省略は既知仕様gapです。stock本文を変更せず、適合を主張しません。
+- RFC 9126のRoute B PKJWT PARにおけるform `client_id`省略は既知仕様gapです。標準実装の本文を変更せず、適合を主張しません。
 - Keycloak 26.7.4のrevocation metadata URLは静的back-channel URLと文字列一致しません。[ADR 0021](../decisions/0021-wp5-revocation-metadata-gap.md)に従い現構成を維持し、META-02完全一致はpassにしません。
 - metadataの差分受入、重い網羅検証縮小、`iss`欠落guard、追加認可開始CSRF防御、DPoP、厳密な個別失効SLAは今回の対象外または未対応です。[Conformance表](third-party-fapi2-conformance.md)と[WP5受入表](third-party-wp5-acceptance.md)に既存のP0/P1/D・F/N/A・未網羅理由を残します。

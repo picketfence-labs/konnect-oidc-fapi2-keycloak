@@ -42,7 +42,7 @@
 
 利用者がPR #21〜#23をmergeし、具体的な宛先・削除範囲を承認した後、API create6/delete13とthird-party create11を適用した。main `f8c3a8f`で通常A/Bのログイン、API200、claim/header一致、偽装header上書き、期限後refresh、stock logoutを確認した。UIはHTTPS200。4 worker readiness後の公開と、reloadによるsupervisorの入口/UI閉鎖・DP停止もpassした。確認後は同じ構成で監視付きデモを再開した。
 
-通常実行ではnative Kong 3.16 base＋main plugin sourceのread-only mountを使う。公開multi-architecture imageとclean checkout再現は未受入。APIの残diffはcache_tokens_saltの1 updateのみで、cache_tokens=false。再syncはしない。
+通常実行ではnative Kong 3.16 base＋main plugin sourceのread-only mountを使う。WP5時点では公開multi-architecture imageとclean checkout再現は未受入だった。後続WP6ではnative overrideによるclean checkout再現を受入済み。APIの残diffはcache_tokens_saltの1 updateのみで、cache_tokens=false。再syncはしない。
 
 受入上の未網羅部分は、全workerへの全HTTP負例配信、全background/thread形態、fresh assertion等の負例の全組合せ、別認可開始間のPKCE challenge比較、外部URL誘導負例と通常metadata endpoint対応表。既存unit/native/隔離証跡の成功範囲は上表のとおりで、通常E2Eの成功から未実行項目をpassとしない。
 
@@ -61,8 +61,8 @@ redirect確認時に通常の認可開始controlもHTTP500で停止した。clie
 
 追加証跡: Git外`wp5-final-two-checks-20261005.json`（SHA-256 `e23fdc0e40b51dabc3a04f2abe3434e9c0c4a8c6b72e2f8c4a1920cd0f84456e`）。redirectはpass、metadataはrevocation差分ありのため全体ok=false。復旧A/Bは`wp5-normal-recovery-route_a-20261005.json`（`1f715d179d1f5bd39ad47fd2ed8c7f30606542218ed7ed858aa91216adf436ac`）、`wp5-normal-recovery-transport_route_b-20261005.json`（`5f1ef70faf861a96d4dbaf02d57ef161b2a6feb7204c07de2071604de793f74d`）。以前のrefresh証跡は上書きしない。
 
-Issue #9/#11へ最終Technical Completion Reportを記録し、利用者の指示に基づき受入確認・Close済み。受入時の現行全worker readinessとUI HTTPS200もpass。通過済みmatrixは再実行せず、一次receiptのhash/結果/private modeと、metadataの差分が承認対象だけであることを確認した。最終受入receiptはGit外`wp5-final-acceptance-20261005.json`、SHA-256 `4843f9d7a11e7e3a0655bc3bf0993589e7b393a2293281bfe24d84a32228eec3`。次の実装packageはWP6 #12（UI表示、reset/切替、再現手順）。
+Issue #9/#11へ最終Technical Completion Reportを記録し、利用者の指示に基づき受入確認・Close済み。受入時の現行全worker readinessとUI HTTPS200もpass。通過済みmatrixは再実行せず、一次receiptのhash/結果/private modeと、metadataの差分が承認対象だけであることを確認した。最終受入receiptはGit外`wp5-final-acceptance-20261005.json`、SHA-256 `4843f9d7a11e7e3a0655bc3bf0993589e7b393a2293281bfe24d84a32228eec3`。後続のWP6 #12（UI表示、切替、再現手順）も受入済み。[WP6受入表](third-party-wp6-acceptance.md)を参照する。
 
 ## 証跡の保存
 
-[直結preview](third-party-wp5-transport-preview.md)、[observer preview](third-party-wp5-observer-preview.md)、[再入preview](third-party-wp5-reentry-preview.md)にsanitized要約とreceipt hashを記録する。raw token/JWT/jti/body/cookie/password/秘密鍵/完全certificate/log/private sourceはGit・PR・Issueへ載せない。一次receiptとRoot proofはGit外で保持する。
+[直結検証履歴](verification-history.md)、[observer検証履歴](verification-history.md)、[再入検証履歴](verification-history.md)にsanitized要約とreceipt hashを記録する。raw token/JWT/jti/body/cookie/password/秘密鍵/完全certificate/log/private sourceはGit・PR・Issueへ載せない。一次receiptとRoot proofはGit外で保持する。

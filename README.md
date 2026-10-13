@@ -1,6 +1,6 @@
 # Keycloak FAPI 2.0 クライアント認証デモ
 
-Kong Gateway 3.16 を Konnect の data plane として動かし、同じ Keycloak realm に対する二つの OAuth クライアント認証方式を比較するローカルデモです。
+3rd Party側とAPI提供者側にKong Gateway 3.16を配置し、同じKeycloak realmに対する二つのOAuthクライアント認証方式を比較するローカルデモです。全体構成、FAPI要件への対応と制約は[ARCHITECTURE.md](ARCHITECTURE.md)を参照してください。
 
 | ルート | パス | token endpoint のクライアント認証 |
 | --- | --- | --- |
@@ -22,7 +22,9 @@ Apple Siliconでは[ローカルCompose override](docker-compose.demo-native.yml
 開発依存を入れ、credential-freeの静的検証を行います。
 
 ```bash
-python3 -m pip install --requirement requirements-dev.txt
+python3.13 -m venv .generated/dev-venv
+source .generated/dev-venv/bin/activate
+python -m pip install --requirement requirements-dev.txt
 make validate
 make test
 node tests/test_wp6_ui.js
@@ -30,12 +32,12 @@ node tests/test_wp6_ui.js
 
 ## 構成
 
-1. Terraform が Konnect control plane と data plane 証明書を管理します。
-2. Keycloak はローカル HTTPS で起動し、生成済み realm を import します。
-3. decK が二つの Route、OIDC plugin、upstream mTLS 証明書を Konnect へ登録します。
-4. Route B のカスタム plugin が外部入力を拒否し、60 秒以内の PS256 client assertion を生成します。
-5. PoP verifier が sender-constrained access token を検証し、トークンや証明書本体を含まない証跡だけを返します。
-6. UI が認証方式、署名済み claim、Kong が設定した Upstream ヘッダー、証明書束縛の結果を表示します。
+1. 3rd PartyサービスのUIをnginxから配信し、ブラウザーが3rd PartyのKongへ認証とAPI呼出しを要求します。
+2. 3rd PartyのKongがKeycloakでPAR、認可コード交換、セッション、refresh、logoutを扱います。
+3. Route AはmTLS認証、Route BはPKJWT認証とmTLSを組み合わせます。AS通信の不足部分をbridge/transportプラグインで補完します。
+4. API側のKongがintrospectionとPoPを検査し、認証済みclaimからヘッダーを生成します。
+5. PoP verifierがJWT署名・claimと元クライアント証明書への束縛を再検証し、UIへ安全な証跡だけを返します。
+6. 二つのGatewayを別のKonnect control planeで管理し、TerraformとdecKで構成を管理します。
 
 秘密鍵、パスワード、セッション secret、生成済み realm は `.generated/` に保存され、Git の対象外です。
 
@@ -44,7 +46,7 @@ node tests/test_wp6_ui.js
 - Terraform 1.11 以降
 - decK 1.53 以降
 - `!reset`をサポートするDocker Compose（Compose 5.2.0で確認済み。[mergeの説明](https://docs.docker.com/reference/compose-file/merge/#reset-value)を参照）
-- Python 3 と OpenSSL
+- Python 3.13（受入・CIで検証した版）とOpenSSL
 - 既存2 Control Planeを読み取れるKonnect token
 - Apple Siliconまたはarm64端末（third-party Data Planeはnative arm64で起動）
 - Node.js（UI単体検査だけに使用。runtime依存ではありません）
@@ -85,7 +87,7 @@ FAPI_DEMO_PROXY_LISTEN='0.0.0.0:8443 ssl' scripts/require-wp5-readiness.sh --sup
 
 `--supervise`は全workerのreadinessを確認してからloopbackの8443入口を開き、UIを起動します。worker状態が変わると入口とUIを閉じます。ブラウザーでは <https://localhost:3443> を開き、Route A/Bを選択します。開発CAを信頼済みの端末でだけHTTPS result画面を確認してください。`https://localhost:8444`はKeycloak、`https://localhost:8443`はGateway入口です。
 
-### Routeを切り替えてdemo userをresetする
+### Routeとデモユーザーを切り替える
 
 同じbrowser profileを使い、Route Aでsales demo userとしてloginし、claim/headerを確認してからRoute Aのlogoutを選びます。Route Bへ進み、engineering demo userで新しくloginして同じ確認を行い、Route Bのlogoutを選びます。A→B→A→Bの順で繰り返し、毎回Keycloakのlogin formが表示されてから資格情報を入力します。結果画面ではRoute、azpから決まる認証方式、department、claim/header、binding、thumbprint先頭12文字を確認します。
 
@@ -93,11 +95,11 @@ logout後もKeycloakが既存SSO sessionを使ってlogin formを省く場合は
 
 新しい隔離Keycloak環境を作る場合にだけ`make generate-dev-assets`を使い、空の`keycloak/data/`へrealmをimportします。既存DBを再利用する場合、生成し直したpassword/realmと混在させません。`make render-runtime`には対応するTerraform output stateが必要です。
 
-[![Route A と Route B を選択するデモ開始画面](docs/assets/ui-main.png)](https://picketfence-labs.github.io/diagrams/d4d6f772e970/)
+[![Route A と Route B を選択するデモ開始画面](docs/assets/ui-main.png)](docs/design/workflows/route-b-pkj-mtls.workflow.html)
 
 *デモ開始画面。画像をクリックすると Route B のインタラクティブ workflow を開きます。*
 
-[![Keycloak のデモユーザーログイン画面](docs/assets/ui-keycloak-auth.png)](https://picketfence-labs.github.io/diagrams/55b6534fdb5b/)
+[![Keycloak のデモユーザーログイン画面](docs/assets/ui-keycloak-auth.png)](docs/design/workflows/route-a-mtls.workflow.html)
 
 *Keycloak の認証画面。画像をクリックすると Route A のインタラクティブ workflow を開きます。*
 
@@ -138,10 +140,11 @@ make down
 
 ## 関連資料
 
+- [アーキテクチャとFAPI対応範囲](ARCHITECTURE.md)
 - [設計概要](docs/design-brief.md)
 - [Keycloak FAPI 2.0 デモ要件](docs/design/fapi2-keycloak-requirements.md)
 - [設計資料と workflow](docs/design/README.md)
-- [ADR 0006: custom plugin、GHCR、logout](docs/decisions/0006-fapi-custom-plugin-ghcr-logout.md)
-- [ADR 0007: Keycloak-only FAPI 2.0 demo](docs/decisions/0007-keycloak-only-fapi2-demo.md)
+- [ADR 0006: カスタムプラグイン、配布、ログアウト](docs/decisions/0006-fapi-custom-plugin-ghcr-logout.md)
+- [ADR 0007: KeycloakによるFAPIデモ](docs/decisions/0007-keycloak-only-fapi2-demo.md)
 - [ADR 0008: Route B endpoint認証の分担](docs/decisions/0008-route-b-endpoint-auth-split.md)
 - [障害対応記録](docs/troubleshooting-log.md)

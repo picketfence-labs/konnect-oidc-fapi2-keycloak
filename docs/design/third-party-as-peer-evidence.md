@@ -4,7 +4,7 @@
 
 ## 方式と状態
 
-2026-10-02のOpusレビューOM-01への設計補強。**5aはRoot受入済み、5b/5cを実装中**。direct TLS v3の40/40、同一要求の再入r4、stock v15のsigned PAR201・session/logout・access/refresh両revoke200と3操作の実AS Route B peer joinを確認した。署名はPS256、issuer文字列aud、TTL60秒、異なるjti。秘密値検出0、専用環境とPKI・portの回収も独立確認済み。v15 receipt SHA-256は`f0348037bf6796be694f9a00d58bcfeea0b963b8547f16bc5383a4c8b4257519`。PAR client_id欠落のRFC 9126ギャップは開示を維持する。relayによるAS-peer証跡をGateway直結transportの証明には扱わない。[DP0契約](third-party-as-mtls-transport.md)、[Delivery plan](third-party-delivery-plan.md)、[observer記録](third-party-wp5-observer-preview.md)を参照する。
+2026-10-02のOpusレビューOM-01への設計補強。**5a～5cと通常統合は合意した範囲で受入済み**。direct TLS v3の40/40、同一要求の再入r4、stock v15のsigned PAR201・session/logout・access/refresh両revoke200と3操作の実AS Route B peer joinを確認した。署名はPS256、issuer文字列aud、TTL60秒、異なるjti。秘密値検出0、専用環境とPKI・portの回収も独立確認済み。v15 receipt SHA-256は`f0348037bf6796be694f9a00d58bcfeea0b963b8547f16bc5383a4c8b4257519`。PAR client_id欠落のRFC 9126ギャップは開示を維持する。relayによるAS-peer証跡をGateway直結transportの証明には扱わない。[DP0契約](third-party-as-mtls-transport.md)、[開発計画](third-party-delivery-plan.md)、[observer記録](verification-history.md)を参照する。
 
 repeated-handler sub-gateも再入r4で受入済み。3モードのHTTP401が一致し、canonical observer行は1/1/0件。計測ONでは同じPARの相関IDで再入count2/3/4を確認した。Rootはcanonical13 field、期待するRoute B leaf、PKIX・有効性・clientAuth EKUとcleanupを独立監査した。terminal receiptは`/private/tmp/wp5-as-reentry-probe-run-receipt-20261004-v4-r4.json`、Root証跡は`.generated/evidence/wp5-root-reentry-r4-terminal-review-1791092645025522000.json`。これはstock claim/session/logoutの成功とは別の受入である。
 

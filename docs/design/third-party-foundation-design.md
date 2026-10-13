@@ -27,7 +27,7 @@ DP→CP用の鍵と、AS/API/Upstream用の開発CA鍵を混用しない。新�
 |---|---|---|---|
 | Route A/B | 既存`route-a.crt/.key`、`route-b.crt/.key` | `/etc/kong/fapi/route-a.crt/.key`、`route-b.crt/.key` | AS client認証／transport、3rd Party→API PoP。clientAuth |
 | metadata | `third-party-metadata.crt/.key` | `/etc/kong/fapi/third-party-metadata.crt/.key` | discovery/JWKS専用。clientAuth。OAuth clientには登録しない |
-| API server | `api-gateway.crt/.key` | `/etc/kong/fapi/api-gateway.crt/.key` | serverAuth、SAN `kong-api`、`localhost`、IP `127.0.0.1` |
+| APIサーバー | `api-gateway.crt/.key` | `/etc/kong/fapi/api-gateway.crt/.key` | serverAuth、SAN `kong-api`、`localhost`、IP `127.0.0.1` |
 | introspection | `api-introspection.crt/.key` | `/etc/kong/fapi/api-introspection.crt/.key` | `api-gateway-introspection`専用、clientAuth |
 | API→Upstream | `api-upstream.crt/.key` | `/etc/kong/fapi/api-upstream.crt/.key` | clientAuth。Upstreamがこのleaf identityを固定して照合 |
 

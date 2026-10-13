@@ -1,9 +1,9 @@
 # ADR 0010: API Gatewayはintrospectionとmutual TLSのPoPでtokenを検証する
 
-- Status: Accepted（設計PR #5、2026-10-02 merge。runtime未受入）
-- Date: 2026-10-01
+- 状態: 採用済み（設計PR #5、2026-10-02 merge。設計時点ではruntime未受入。現在の判定はWP5/WP6受入表を参照）
+- 日付: 2026-10-01
 
-## Context
+## 背景
 
 [ADR 0009](0009-third-party-client-gateway-topology.md)により、既存のKong GatewayはResource Serverとなる。FAPI 2.0 Security Profile §5.3.4は、Resource Serverに次を求める。
 
@@ -22,7 +22,7 @@ Kong `kong-ee` master（2026-09-12）のsourceでは、次を確認した。
 
 [ADR 0011](0011-customer-demo-scope.md)により、完全適合ではなく顧客向けデモを対象とする。introspection/active検査は標準機能の追加価値として維持するが、個別token失効・logout後の反映SLAはデモの必須受入ではない。
 
-## Decision
+## 決定
 
 1. API Gatewayは`auth_methods: [introspection]`でtokenを検証する。introspection endpointへは、専用のKeycloak client（`api-gateway-introspection`）として`tls_client_auth`で認証する。
 2. `introspection_check_active: true`とし、`cache_introspection: false`、`cache_tokens: false`でcacheを無効化する。説明しやすさのための既定であり、実tokenに対するGatewayからのintrospection呼出しをexact runtimeで確認する。失効反映SLAは設定しない。
@@ -33,7 +33,7 @@ Kong `kong-ee` master（2026-09-12）のsourceでは、次を確認した。
 7. API GatewayからUpstream APIへは、API Gateway専用のcertificateでmTLS接続する。Upstream APIは、そのcertificate以外からの接続を拒否する。
 8. 両Routeのtokenの`aud`に、`fapi-demo-api`と`api-gateway-introspection`を含める。Keycloak 26.7.4のintrospection client audience checkを無効化しない。Resource ServerとUpstream APIの認可には、`fapi-demo-api`を引き続き要求する。
 
-## Consequences
+## 影響
 
 - API Gatewayへのrequestごとに、Keycloakへのintrospectionが発生する（cacheを無効化した場合）。デモの規模では許容する。
 - active検査による失効の効果は、任意シナリオ`REVOKE-RS-01`/`RS-REVOKE-01`を実施した場合だけ説明する。デモresetからtoken個別失効を推論しない。
@@ -42,7 +42,7 @@ Kong `kong-ee` master（2026-09-12）のsourceでは、次を確認した。
 - CA chainを検証しない既定構成では、自己署名certificateであることだけを拒否理由にしない。`POP-03`は、提示certificateと既存tokenの`cnf`が不一致のfixtureとする（[RFC 8705 §6.2](https://www.rfc-editor.org/rfc/rfc8705.html#section-6.2)）。
 - logoutのHTTP `200`は、access token個別の失効登録を証明しない。厳密な失効を説明する場合だけ、前後の`active`/API応答と、sessionを維持したaccess token単独revokeを追加検証する。
 
-## Alternatives considered
+## 検討した代替案
 
 | 案 | 不採用の理由 |
 |---|---|
@@ -50,7 +50,7 @@ Kong `kong-ee` master（2026-09-12）のsourceでは、次を確認した。
 | PoP verifierだけで検証する（v1方式） | Resource Serverとしての責務がGatewayに無くなり、3rd Party区間の検証点がUpstreamになる |
 | `mtls-auth`でCA chainを検証し、certificateをConsumerへ対応付ける | 3rd Partyごとのconsumer管理が増える。bindingの検証には不要。将来の追加は妨げない |
 
-## Fallback（Design ownerへ戻す条件）
+## 再設計へ戻す条件
 
 WP2でintrospectionの`active`、`cnf`、audience/claimを確認する。不足した場合は原因とsanitized証跡を報告し、WP3のintrospection実装を止める。まずrealm設定とexact runtimeを確認する。
 

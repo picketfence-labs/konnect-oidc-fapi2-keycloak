@@ -12,9 +12,9 @@
 - PR #5は初回の自動承認レビュー拒否後、利用者が本PR限定の規則の例外を明示承認し、2026-10-02にmergeした。設計・WP1実装・修正のPR #13／#15／#16／#17は利用者がmainへmerge済み。PR #5の例外を他PRへ適用しない。
 - **2026-10-02時点の履歴**: main `4ce796d`で独立検証した両foundation diff=0、既存14 entity不変、API共有CA再利用・schema hash照合、19 tests、main CIはpass。[Issue #7](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/7)にTechnical Completion Reportを記録し、利用者がWP1受入・close・WP2着手を承認した。利用者の代理close承認に基づき#7はclosed。その時点で実TLS、JWT署名、Keycloak observer build、transport lifecycle、introspectionの証跡は未取得だった。
 - **WP2/WP4完了時点の履歴**: main `1fc8e23b0dc2ce58676f7f912e85cf9795813a8f`。WP2 PR #18は利用者受入済みで[Issue #8](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/8) closed。WP4 PR #19はmainへmergeされ、独立`make validate` / `make test`とfresh UPSTREAM-01がpassし、[Issue #10](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/10)は利用者受入後closed（[完了記録](https://github.com/picketfence-labs/konnect-oidc-fapi2-keycloak/issues/10#issuecomment-5963816820)）。
-- **5a冒頭の履歴（最新状態は上記受入表）**: main `a84e1dfcc55f1c14788110f17dc7e2c5a96bda76`。WP1 #7、WP2 #8、WP4 #10は受入済み・closed。WP3 #9は37/37 isolated検証を通過し、通常migration/integration gateが残るためopen。normal CP previewはcreate6 / update0 / delete13、sync未実施。WP5の修正版image v3はbuildとRoot archive reviewを通過し、direct TLS v3も40/40 PASS・Root独立確認済み。OFF記録0件、ON記録21件、証明書との対応付け18件、TLS負例4種類と後片付けがPASS。focused testsは99/99。direct AS-peer観測gateは受入済みだが、stock Kongのsigned PAR・logout時のaccess/refresh token両revoke claimsと5bが残る。WP6 #12は未開始。通常`make up`、realm更新、CP syncは未実施。詳細は[observer記録](third-party-wp5-observer-preview.md)。
+- **5a冒頭の履歴（最新状態は上記受入表）**: main `a84e1dfcc55f1c14788110f17dc7e2c5a96bda76`。WP1 #7、WP2 #8、WP4 #10は受入済み・closed。WP3 #9は37/37 isolated検証を通過し、通常migration/integration gateが残るためopen。normal CP previewはcreate6 / update0 / delete13、sync未実施。WP5の修正版image v3はbuildとRoot archive reviewを通過し、direct TLS v3も40/40 PASS・Root独立確認済み。OFF記録0件、ON記録21件、証明書との対応付け18件、TLS負例4種類と後片付けがPASS。focused testsは99/99。direct AS-peer観測gateは受入済みだが、stock Kongのsigned PAR・logout時のaccess/refresh token両revoke claimsと5bが残る。WP6 #12は未開始。通常`make up`、realm更新、CP syncは未実施。詳細は[observer記録](verification-history.md)。
 
-追加進捗（2026-10-04）: 再入計測用image v4のbuildとRoot archive reviewはPASS。network対照でinternal networkからhost loopbackへの到達失敗を確認し、成功済みdirect v3と同じ専用bridgeへ補正した。stock v4はrelayでPARを受信したが、署名検査前のform guardで拒否（HTTP500 / par_form）。ASへ未転送でclaimは未検証、専用環境の回収はRoot独立確認済み。stock v5はresponse_mode=queryへの補正後、client_id guardで拒否（HTTP500 / par_client_id、署名未検証・AS未転送）。固定SDKはPKJWT認証時にform client_idを除去するがRFC9126では必須であり、公開設定での保持経路は見つからなかった。利用者はstock本文の無変更転送を維持し、仕様gapは開示だけにする方針を決定。[ADR0019](../decisions/0019-wp5-stock-claim-fixture-boundaries.md)に具体案を記録した。v5の専用リソース・port・private fixture回収もRoot独立確認済み。再入r4は3モードPASS・Root独立確認済みで、同一PARの再入count2/3/4、canonical行数[1,1,0]、HTTP401一致、cleanup PASS。記録は[stock preview](third-party-wp5-observer-preview.md)と[再入preview](third-party-wp5-reentry-preview.md)を参照。
+追加進捗（2026-10-04）: 再入計測用image v4のbuildとRoot archive reviewはPASS。network対照でinternal networkからhost loopbackへの到達失敗を確認し、成功済みdirect v3と同じ専用bridgeへ補正した。stock v4はrelayでPARを受信したが、署名検査前のform guardで拒否（HTTP500 / par_form）。ASへ未転送でclaimは未検証、専用環境の回収はRoot独立確認済み。stock v5はresponse_mode=queryへの補正後、client_id guardで拒否（HTTP500 / par_client_id、署名未検証・AS未転送）。固定SDKはPKJWT認証時にform client_idを除去するがRFC9126では必須であり、公開設定での保持経路は見つからなかった。利用者は標準実装の本文の無変更転送を維持し、仕様gapは開示だけにする方針を決定。[ADR0019](../decisions/0019-wp5-stock-claim-fixture-boundaries.md)に具体案を記録した。v5の専用リソース・port・private fixture回収もRoot独立確認済み。再入r4は3モードPASS・Root独立確認済みで、同一PARの再入count2/3/4、canonical行数[1,1,0]、HTTP401一致、cleanup PASS。記録は[stock検証履歴](verification-history.md)と[再入検証履歴](verification-history.md)を参照。
 
 着手前にremoteを同期し、設計合意・依存WP受入・開始条件をIssueで確認する。baselineの差分があれば、再確認してからbranchを作る。設計はADR 0009〜0014、実装要件、DP0と[WP1詳細設計](third-party-foundation-design.md)を正本とする。Workerは方式を選び直さない。
 
@@ -85,7 +85,7 @@ Keycloak 26.7.4の[公開source](https://github.com/keycloak/keycloak/blob/26.7.
 
 namespaced claimのmapper設定ではURI内のdotをescapeする。Keycloakの[claim path処理](https://github.com/keycloak/keycloak/blob/26.7.4/server-spi-private/src/main/java/org/keycloak/utils/JsonUtils.java)はunescaped dotを階層の区切りとして扱い、escapeを除いてJSON keyへ写す。templateのescape表現を維持し、実token/introspectionでは`https://fapi-demo.example.com/department`と`https://fapi-demo.example.com/route`の完全一致keyを検証する。
 
-## WP3: API Gateway Resource Server
+## WP3: API GatewayのResource Server検証
 
 変更候補は`kong/api-gateway.yaml`、API用runtime/TLS設定、RS test harness。`auth_methods=[introspection]`、header only、active確認、`cache_introspection`/`cache_tokens`無効、strict mTLS PoP、issuer/audience/scopeを固定する。入力由来Cookie、`X-Demo-*`、全`X-Fapi-*`、全`X-Client-Cert*`は[ADR 0015](../decisions/0015-api-resource-server-header-boundary.md)に沿ってroute-scoped inline Luaで除去し、これはstockのautomatic prefix removalではないと説明する。続くOIDC/TMHが検証済みclaim header、URL-encoded `X-Client-Cert`、5種の固定stock detail headerを再生成する。client由来credentialはJWT再検証用`Authorization`だけを保持し、detail headerは認証に使わない。
 
@@ -98,7 +98,7 @@ namespaced claimのmapper設定ではURI内のdotをescapeする。Keycloakの[c
 - tag限定のsync前diff、承認後sync、sync後diff=0。**RS-REVOKE-01**は任意、未実施を失効保証に読み替えない。
 - **WP3-MIGRATION**: API runtime stateへfoundationを包含し、旧v1 entityの除去を独立previewする。入口停止、旧sessionと復旧手順を確認してから適用する。WP1のcreate-only基盤受入へ削除を混ぜない。
 
-## WP4: Upstream API
+## WP4: Upstream APIの実装
 
 変更候補は`pop-verifier/app.py`、API用runtime環境、`tests/test_pop_verifier.py`。
 
@@ -138,7 +138,7 @@ namespaced claimのmapper設定ではURI内のdotをescapeする。Keycloakの[c
 | 5b | `fapi-as-mtls-transport` handler、既存bridge signer APIとdelegate mode。inventory完全一致、固定mapping、Route/metadata cert、context/epoch、POST再送禁止、redirect拒否、cdata lifetime、失敗時閉鎖、restartで設定反映 |
 | 5c | `kong/third-party-gateway.yaml`、全worker preflight、実TLS/署名/lifecycle/並行/background/thread証跡、既存bridge回帰とexact image drift確認 |
 
-- **stock本文の維持**: formのclient ID省略はtrusted registryとJWTのiss/subで照合し、PAR/revokeをそのまま送る。ID補完・stock assertionの再署名をしない。PARのRFC 9126ギャップは開示し、本番向け完全準拠へ作業範囲を広げない。
+- **標準実装の本文の維持**: formのclient ID省略はtrusted registryとJWTのiss/subで照合し、PAR/revokeをそのまま送る。ID補完・stock assertionの再署名をしない。PARのRFC 9126ギャップは開示し、本番向け完全準拠へ作業範囲を広げない。
 - **B-TRANSPORT-01**: PAR、code exchange、refresh、refresh/access revokeを別operationで判定。Route B peerとPKJWT、issuer文字列aud、PS256、TTL条件を確認。token/refreshのsignerは送信時に呼ぶ。PAR/revokeのstock claimを修正しない。
 - **AS-META-MTLS-01**: A先行/B先行、cold cache、stock discovery/JWKS、bridge discovery、background/threadの専用metadata certを実AS peerで確認。warm no-fetchはskip。
 - **AS-TRANSPORT-GUARD-01**: 未知URL/HTTP/外部origin/3xx、context/signer/epoch不足、cert不一致、期限不足をnot_sentで拒否。同一POSTはfresh assertionでも拒否し、別tokenの2 revokeは許可。
@@ -190,10 +190,10 @@ WP1の最初の成果は詳細設計のresource/output/identityとfoundation sta
 
 - [実装要件とシナリオ](third-party-fapi2-requirements.md)
 - [Conformanceと優先度](third-party-fapi2-conformance.md)
-- [Delivery plan](third-party-delivery-plan.md)
+- [開発計画](third-party-delivery-plan.md)
 - [DP0 transport契約](third-party-as-mtls-transport.md)
 - [AS peer証跡契約](third-party-as-peer-evidence.md)
 - [ADR 0013: schemaと受入分担](../decisions/0013-work-package-schema-and-acceptance-boundaries.md)
 - [ADR 0014: APIの既存CA再利用](../decisions/0014-reuse-existing-api-ca.md)
 - [WP1詳細設計: address、PKI、identity、state、schema](third-party-foundation-design.md)
-- [WP2隔離検証preview](third-party-wp2-validation-preview.md)
+- [WP2隔離検証結果](third-party-wp2-runtime-evidence.md)

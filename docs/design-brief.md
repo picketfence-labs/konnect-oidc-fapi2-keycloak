@@ -1,87 +1,26 @@
 # 設計概要
 
-2026-09-22 に Auth0 を使った初期デモの検証を終了しました。認証済みユーザー 2 名のルーティングと、engineering ユーザーのヘッダー偽装防止を確認済みです。
+このデモは、3rd PartyサービスからKeycloakの認可を経て保護APIを呼び出し、mTLSと`private_key_jwt`のクライアント認証、証明書に束縛されたトークンを比較します。3rd PartyのKong GatewayとAPI提供者のKong API Gatewayを別々のKonnect control planeで管理します。
 
-次の開発では IdP を Keycloak に置き換え、FAPI 2.0 の主要なセキュリティ要素を比較できるデモへ拡張します。実装要件は [Keycloak FAPI 2.0 デモ要件](design/fapi2-keycloak-requirements.md)、設計判断は [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)を正とします。[セッション引き継ぎ](session-handoff.md)は初期デモの実績と注意事項を記録しています。
+全体構成、Route A/B、FAPI対応範囲は[ARCHITECTURE.md](../ARCHITECTURE.md)、実装契約は[3rd Partyデモ要件](design/third-party-fapi2-requirements.md)、操作手順は[README](../README.md)、詳細資料は[設計資料一覧](design/README.md)を参照してください。
 
-2026-10-02のEnhancementは、[3rd Party経由デモ要件](design/third-party-fapi2-requirements.md)とADR 0009〜0012へ拡張します。設計とWP1実装・修正は利用者がPR #5／#13／#15／#16／#17でmainへmergeしました。API CAの一意制約には[ADR 0014](decisions/0014-reuse-existing-api-ca.md)の既存CA再利用で対応し、main `4ce796d`で両diff=0、既存entity不変、tests/CIを独立検証しました。利用者はWP1受入・Issue #7 close・WP2着手を承認し、WP2をLuna / xHighで開始しました。開発の分担・受入は[Luna / xHigh移譲契約](design/third-party-luna-handoff.md)、分担判断は[ADR 0013](decisions/0013-work-package-schema-and-acceptance-boundaries.md)、基盤の具体形は[WP1詳細設計](design/third-party-foundation-design.md)を参照してください。以下の二経路構成はv1の設計記録として残します。
+## 現在の到達点
 
-## 目的
+WP1～WP6とEpic #6は合意した範囲で受入済みです。認証、API応答、署名・claim/header・証明書束縛、偽装拒否、logout、既存2 control planeを使うclean checkout再現を確認しています。試験の層と未検証項目は[WP5受入表](design/third-party-wp5-acceptance.md)と[WP6受入表](design/third-party-wp6-acceptance.md)に記録しています。
 
-同じブラウザー向け認可コードフローを使い、token endpoint のクライアント認証方式だけが異なる次の 2 経路を比較します。
+FAPI 2.0完全準拠や認定を主張しません。Route BのPAR form `client_id`省略、revocation metadata URL、`iss`欠落拒否、認可開始CSRF等の差分を開示します。
 
-| 経路 | token endpoint のクライアント認証 | 送信者制約 |
-|---|---|---|
-| Route A `/api/fapi/mtls` | `tls_client_auth` | mTLS certificate-bound access token |
-| Route B `/api/fapi/pkj-mtls` | `private_key_jwt` | mTLS certificate-bound access token |
+## 維持する設計境界
 
-両経路で Authorization Code、PAR、PKCE S256、証明書バインドトークンの検証、refresh token の revoke、Kong セッション破棄、Keycloak の RP-Initiated Logout を実演します。
+- 認証済み`department` claimをヘッダーと論理ルートへ反映し、偽装値を信頼しない。
+- A/Bを別Route・Service・証明書・セッションに分離する。
+- 標準OIDCを基礎に固定版で必要なPKJWT/mTLSを補完する。Kong coreをforkしない。
+- API入口でintrospectionとPoPを検査し、保護APIで署名と元クライアント証明書への束縛を再検証する。
+- 保護APIへ検証用Bearer tokenを転送する。Cookieと内部assertion用ヘッダーは除去する。
+- 秘密値と一次receiptはGit外に保持し、UIは許可された結果だけを表示する。
 
-## 初期デモから維持する要件
+## 設計の履歴
 
-- 認証済み `department` claim を Upstream 向けヘッダーへ設定する。
-- `department` と入力側の誤記 `departement` を正規化する。
-- 認証済み claim から導いた値で Upstream を選択する。
-- 呼び出し元が送る偽装ヘッダーを信頼しない。
-- Upstream へ `Authorization` と `Cookie` を転送しない。
-- ブラウザー UI で選択経路、クライアント認証方式、PoP 検証結果、論理ルートを確認できるようにする。
+2026-09-22にAuth0による初期デモを検証し、Keycloakを使う二経路のv1へ移行しました。2026-10-02以降は3rd PartyのクライアントGatewayを追加し、API側をResource Serverの入口へ変更しました。旧契約は[v1要件](design/fapi2-keycloak-requirements.md)、変更判断は[ADR 0009](decisions/0009-third-party-client-gateway-topology.md)以降に保持します。
 
-## 目標構成
-
-- Keycloak を Authorization Server、OpenID Provider、ログイン UI として使用する。
-- Route A と Route B を別の Kong Route と Gateway Service に分離する。
-- Route A は標準 OpenID Connect plugin の mTLS client authentication を使う。
-- Route B は最小限の file-based Lua plugin で `private_key_jwt` client assertion を生成し、標準 OpenID Connect plugin の mTLS token transport を再利用する。
-- 両経路で mTLS certificate-bound access token を発行し、PoP verifier が `cnf.x5t#S256` と TLS peer certificate を照合する。
-- custom Data Plane image は `kong/kong-gateway:3.16.0.0` を base とし、`ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak` へ発行する。
-- Konnect と Keycloak の設定を宣言的に再現し、秘密鍵と証明書はリポジトリへ収録しない。
-
-## Route B の custom plugin 境界
-
-custom plugin は `private_key_jwt` assertion の生成と token request への注入だけを担当します。BFF、Kong core fork、独自 OIDC クライアントは追加しません。
-
-assertion は Keycloak の issuer を `aud` とし、短い有効期間、一回限りの `jti`、非対称署名を使います。外部リクエストから渡された `client_assertion` と `client_assertion_type` は破棄します。詳細な契約と失敗条件は要件書に定義します。
-
-## ログアウト
-
-ログアウトボタンは次の順で処理します。
-
-1. refresh token を Keycloak の revocation endpoint で revoke する。
-2. Kong のセッションを破棄する。
-3. Keycloak の `end_session_endpoint` へ遷移する。
-4. `post_logout_redirect_uri` で UI に戻り、再アクセス時に再認証が必要であることを確認する。
-
-確認画面の表示は Keycloak のセッション状態や設定に依存するため、必須の合格条件にはしません。Keycloak の SSO セッションが終了し、保護対象へ無認証で戻れないことを合格条件にします。
-
-## 検証条件
-
-| 項目 | 合格条件 |
-|---|---|
-| 静的検証 | `make validate` が通る |
-| Route A | `tls_client_auth` で token を取得し、証明書バインドを検証できる |
-| Route B | `private_key_jwt` で token を取得し、証明書バインドを検証できる |
-| PAR と PKCE | 両経路が PAR と PKCE S256 を使用する |
-| 認証方式の分離 | Route A と Route B の設定、鍵、ログ証跡を区別できる |
-| PoP 正常系 | `cnf.x5t#S256` と TLS peer certificate の thumbprint が一致する |
-| PoP 異常系 | 証明書なし、別証明書、thumbprint 不一致を拒否する |
-| assertion 異常系 | 期限切れ、誤った `aud`、`jti` 再利用、誤署名を拒否する |
-| ヘッダー偽装防止 | Upstream が認証済み claim 由来の値だけを受け取る |
-| ログアウト | token revoke、Kong session 破棄、Keycloak SSO session 終了を確認できる |
-
-## 対象外
-
-- Entra ID と Auth0 を使った FAPI 経路
-- FAPI 2.0 Security Profile への正式な認証取得
-- DPoP-bound access token
-- BFF と Kong core fork
-- 本番可用性、HA、独自ドメイン、WAF、監査ログの長期保持
-- 実顧客の ID とデータ
-
-## 開発着手時の順序
-
-1. [要件書](design/fapi2-keycloak-requirements.md)と [ADR 0007](decisions/0007-keycloak-only-fapi2-demo.md)をレビューする。
-2. Keycloak realm、2 clients、FAPI policy、鍵と証明書の生成方法を宣言する。
-3. Route A を標準 plugin だけで成立させる。
-4. Route B の最小 custom plugin と custom image を追加する。
-5. PoP verifier と logout orchestration を追加する。
-6. UI と証跡を追加し、要件書の正常系と異常系を自動化する。
+今回の資料整理では、全体構成図の利用者確認後、Route A/B図へ3rd Partyのswimlaneを追加しました。実行時の構成変更、Control Plane適用、Docker変更は行いません。

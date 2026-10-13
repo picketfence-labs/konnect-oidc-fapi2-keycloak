@@ -1,7 +1,7 @@
 # ADR 0014: API foundationは既存CAを変更せず再利用する
 
-- Status: Accepted（PR #17を利用者がmerge。main `4ce796d`の独立再検証後、利用者がWP1受入とIssue #7 closeを承認）
-- Date: 2026-10-02
+- 状態: 採用済み（PR #17を利用者がmerge。main `4ce796d`の独立再検証後、利用者がWP1受入とIssue #7 closeを承認）
+- 日付: 2026-10-02
 - Amends: [ADR 0013](0013-work-package-schema-and-acceptance-boundaries.md)のAPI foundation CA所有範囲
 - Preserves: 既存v1のupdate/delete=0、用途別の鍵分離、P0、stage/tag限定、runtime受入と環境承認の境界
 
