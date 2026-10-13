@@ -1,6 +1,6 @@
 # バックエンド分離構成の準備・適用・受入
 
-状態: TP部分適用で停止・固定残差分の復旧準備中／実行受入前（2026-10-13）。資料PR #30はmainへ反映済み、コードは別Draft PR #31。旧WP1～WP6の成功は変更前の5サービス構成の履歴であり、新経路の受入ではありません。[構成と信頼境界](../../ARCHITECTURE.md)、[実装計画](third-party-backend-change-plan.md)、[ADR 0023](../decisions/0023-third-party-backend-separation.md)も参照してください。
+状態: TP復旧同期・実差分0を確認／隔離IdP更新の検査で停止・実行受入未完了（2026-10-13）。資料PR #30はmainへ反映済み、コードは別Draft PR #31。旧WP1～WP6の成功は変更前の5サービス構成の履歴であり、新経路の受入ではありません。[構成と信頼境界](../../ARCHITECTURE.md)、[実装計画](third-party-backend-change-plan.md)、[ADR 0023](../decisions/0023-third-party-backend-separation.md)も参照してください。
 
 ## 先に確定する対象
 
@@ -41,7 +41,7 @@ UID/GID1000がhost-owned mode0600鍵を読めること、readiness用0700 tmpfs�
 
 初回同期は、レビュー済み4create/6update/0deleteの一致確認後に実行しましたが、CLI nonzeroとなりました。read-only現状確認ではhop CertificateとUI Serviceの作成、A/B Serviceの更新の4操作が反映済み。残りはUI Route/UI transformerの2createと、A/B CORS/OIDCの4updateです。削除・予期しない対象変更はありません。最初のsync失敗rawは保持されておらず、旧Route拒否を単一原因とは断定しません。
 
-新Routeは同じ指定CPの正規Routes validationで受理されました。新しい残差分は専用`migration-recovery` planと新承認票へ結び付け、元4/6票を流用しません。任意のsubsetを許容する対応ではありません。再開前に、人が新Route表現とexact残差分6件を確認します。Docker/IdP操作と新経路の受入は未実施です。
+新Routeは同じ指定CPの正規Routes validationで受理されました。新しい残差分は専用`migration-recovery` planと新承認票へ結び付け、元4/6票を流用しません。任意のsubsetを許容する対応ではありません。復旧プレビュー時点ではDocker/IdP操作と新経路の受入は未実施とし、人が新Route表現とexact残差分6件を確認してから再開しました。
 
 適用には次の新契約を使います。
 
@@ -51,6 +51,8 @@ UID/GID1000がhost-owned mode0600鍵を読めること、readiness用0700 tmpfs�
 - 人が実差分をレビューした後だけ`TP_BACKEND_RUNTIME_V2_APPROVED=YES`でTP runtimeのsyncを許可する。
 
 commit `31e2cd2`でnative Routeと固定残差分guardを実装しました。Manager独立の対象45件・追加確認5件と意味的mutation13件の検出が成功しました。これは宣言・CLI・ローカルの検証であり、DPの実ルーティングやBackend E2Eの受入ではありません。
+
+その後、利用者が具体的な残6操作を承認しました。fresh差分と新票を照合し、Routes validation→fresh diff→承認票再読→同期を1回実行、すべて成功しました。適用後の実差分は0です。初回の4/6票は履歴として保全し、流用していません。以下の適用契約は次回以降も維持します。
 
 旧schema1/additive11票は拒否します。wrapperは同期前に正規の非作成Routes online validationを行い、失敗時はsyncを呼びません。続いてfresh diff、source/role/target、承認票の再読を照合します。不一致・予期しないentity/field・警告・削除があれば停止し、guardやscopeを広げません。同期後も同じ対象のdiffと実動作を確認します。
 
@@ -66,6 +68,8 @@ Apple Siliconではbaseと`docker-compose.demo-native.yml`を使います。TP K
 - `third-party-fapi-pkj-mtls`: `https://localhost:8443/?logout=route-b`
 
 `sync-keycloak-demo-data.py`の全体同期はusers/realm/provider等も更新するため、今回の2属性更新に流用しません。終了時はforwardを閉じ、候補projectだけを停止し、元stack・元DBを保持します。CP rollbackやリソース削除は別の具体レビュー対象です。
+
+今回、Python/UI imageをdigestで固定し、隔離first4の起動とKeycloak/TP worker readinessまで成功しました。A clientへ`id`と`attributes`だけのPUTを送った後、非対象フィールド不変の比較が失敗して停止しました。B更新とBackend/UI起動は未実施です。省略したtop-levelフィールドをKeycloak/FAPI policyが補完する経路を調査しています。失敗時のbefore/afterを保全していなかった限界を残し、原DBを開かずコピーの読み取り専用調査で変更前の値を確認します。以後の取得・送信・読戻しはprivate証跡へ保存し、認証方式やwebOrigins等の保持と、意図した差分だけであることを確認します。
 
 ## 新経路の受入項目
 

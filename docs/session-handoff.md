@@ -1,6 +1,12 @@
 # OIDC デモのセッション引き継ぎ
 
-## バックエンド分離のTP部分適用・復旧準備（2026-10-13、最新）
+## TP復旧収束・隔離IdP検査で停止（2026-10-13、最新）
+
+利用者が残6操作を承認。新`migration-recovery`票、Routes validation、fresh diff、late rereadを通してTP同期を1回だけ実行し成功した。適用後の実差分は0。Python/UI imageをdigest固定し隔離first4を起動、Keycloak/TP worker readinessが成功した。
+
+隔離IdPのA postlogout更新後、非対象field不変の比較が失敗した。送信は`id`と`attributes`だけで、省略top-level値をKeycloak/FAPI policyが補完する経路を調査している。初回before/afterはmemory比較後破棄され、直接diffの復元不能を明記する。原DBを開かずコピーのoffline readで原値を確認し、限定復旧と再開方法を具体化中。B更新、Backend/UI起動、新経路のAPI/refresh/logoutは未実施。候補だけ停止し、原DB/PKI/入力のbefore-after不変を確認。元stackは停止のまま保持する。以下の部分適用・承認待ちの記述は時点付き履歴である。
+
+## バックエンド分離のTP部分適用・復旧準備（2026-10-13、履歴）
 
 図・文書PR #30はmainへmerge済み。別Draft PR #31（feat/third-party-backend）で実装と受入準備を進め、mainの資料を取り込んだ。Manager独立のmake validate、380 unittest、UI/Lua/native設定は成功したが、実製品のRoute schemaを確認する検証が不足していた。下の資料先行・WP1～WP6の状態は時点付き履歴である。
 

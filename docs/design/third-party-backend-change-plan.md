@@ -1,6 +1,6 @@
 # 3rd Partyバックエンド分離の影響と対応計画
 
-- 状態: 図・文書はPR #30でmainへ先行反映済み。コードは別Draft PR #31。承認済みTP同期が部分適用で停止し、固定残6操作の復旧プレビューを準備中。新経路の実行受入は未実施
+- 状態: 図・文書はPR #30でmainへ先行反映済み。コードは別Draft PR #31。承認済み残6操作のTP復旧同期が成功・実差分0。隔離IdPの限定更新の比較で停止し、原値を確認中。新経路の実行受入は未完了
 - 日付: 2026-10-13
 - 基準: main `933a51a`（文書整備PR #29をmerge済み）
 - 役割: Coordinatorが全体条件と図・文書を統括。コード側はManagerがWorkerへ委譲し、成果を検証・統合する
@@ -132,6 +132,8 @@ API:  ブラウザー → localhost:8443 → TCP forward → TP Kong
 2026-10-13に利用者が計画の続行を承認した。図・文書は`docs/third-party-backend-architecture`で先行し、完成時に通知してmainへのPRを優先する。コードは別worktreeの`feat/third-party-backend`でManager/Workerが変更する。Docker実行・CP適用・新image build/publishは具体的なpreviewを提示し、人による確認後に扱う。PR #29はmerge済みであり、既存受入と旧receiptは履歴として維持する。
 
 ## 実装・プレビューの到達点（2026-10-13）
+
+最新: 利用者が下記の残6操作を承認し、新票・Routes validation・fresh diff・late rereadを経てTP同期1回が成功、postdiff0を確認しました。Python/UI imageをdigest固定して隔離first4を起動、Keycloak/TP worker readinessが成功。その後IdPのA postlogout更新の非対象field比較で停止しました。元DBを開かずコピーのoffline readで原値を確認中です。B更新・Backend/UI起動・新経路の受入は未実施。以下は復旧前までの経緯であり、最新の操作状態は[準備・適用・受入手順](third-party-backend-runtime.md)を参照してください。
 
 バックエンド、専用hop、Gateway/UI/PKI/role、readiness、今回専用schema2 guardを実装。Manager独立でmake validate、380 unittest、UI/Lua、native Compose設定が成功しました。利用者の具体プレビュー一括承認後、fresh4create/6update/0deleteと承認票の一致を確認してTP同期を開始しましたが、CLI nonzeroで停止しました。read-only現状ではhop Certificate/UI Serviceの作成とA/B Service更新の4操作が反映済み。残りはUI Route/UI transformerの2create、A/B CORS/OIDCの4updateです。削除と予期しない対象変更はありません。
 

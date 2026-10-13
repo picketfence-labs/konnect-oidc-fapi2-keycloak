@@ -671,3 +671,11 @@ commit c3b8595の実wrapper fresh diffは4create/6update/0delete、stderr/warnin
 代替は既存expressions routerの`http.path ==`をORで組み合わせたnative完全一致。priority100/protocolshttps/strip_pathfalseを維持し、paths/regex_priorityを除く。同じCP/同じ非作成validationで新Routeはexit0・stdout/stderr空となり、受理を確認した。DPでの実マッチングやBackend E2Eの証明ではない。無効stateの案内をfalse-positiveとして除去するadapterは撤回対象とし、同期直前の正規Routes検証を必須化する。
 
 残りexact2create/4updateだけの明示recovery plan、新state/role/target/full-diff bindingの承認票、元票拒否と製品validation失敗時sync0callを検証してから、新しい具体プレビューを人へ提示する。元4/6票の流用、任意subset許可、未確認の追加適用は行わない。
+
+利用者が具体残6操作を承認後、new票とfresh bindingを照合しRoutes validation→fresh diff→late reread→syncを1回だけ実行、exit0で成功した。postdiff actual0/0/0、raw診断private保全を確認した。
+
+## 2026-10-13: 隔離Keycloakの限定PUTで非対象field比較が失敗
+
+承認済み隔離候補でPython/UI imageをdigest固定し、first4起動とKeycloak/TP worker readinessが成功した。A clientのpostlogout更新は、GETした全attributesの1キーだけを変更し、top-level `id`と`attributes`だけでPUTした。readbackの全clientfield不変比較がAssertionErrorとなったため追加PUTを止めた。B更新、Backend/UI起動、8443公開と新経路の受入は未実施。候補だけ停止し、原DB/PKI/入力のbefore-after不変を確認した。
+
+初回before/afterはmemoryで比較後に破棄しており、実失敗pairの直接diffを復元できない。現況と生成templateの差を、その失敗pairの差へ読み替えない。pinned Keycloak26.7.4のupdateとFAPI policyを調査し、省略webOriginsの補完、UPDATE前policyによる省略authenticatorのdefault適用経路を確認した。[更新変換](https://github.com/keycloak/keycloak/blob/26.7.4/server-spi-private/src/main/java/org/keycloak/models/utils/RepresentationToModel.java#L510)、[認証方式の補完](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/java/org/keycloak/services/clientpolicy/executor/SecureClientAuthenticatorExecutor.java#L97)、[組込みFAPI2 profile](https://github.com/keycloak/keycloak/blob/26.7.4/services/src/main/resources/keycloak-default-client-profiles.json#L140)を根拠とする。単なる配列順序とは断定せず、原DBを開かないcopyのoffline readで実beforeを確認する。以後は送信・読戻しをprivate0600へ保存し、assert前に安全な変更field分類を出す。証明のない値を推測投入せず、意図したpostlogout2属性だけの差へ復旧する方法を具体化する。
