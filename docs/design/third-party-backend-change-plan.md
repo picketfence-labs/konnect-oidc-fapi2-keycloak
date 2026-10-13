@@ -1,6 +1,6 @@
 # 3rd Partyバックエンド分離の影響と対応計画
 
-- 状態: 図・文書はPR #30でmainへ先行反映済み。コードは別PR #31。TP復旧同期・postdiff0、隔離IdPの2属性更新、4セッションのAPI/期限越え継続/logout、Authorization負例16件、API提供者側直接検査7件が成功。Backend停止起因の入口閉鎖も別の短い既承認subsetで成功、候補全停止・原素材不変を確認
+- 状態: 完了。図・文書とコードPR #31はmainへ反映済み。4セッションのHTTP E2E、期限越え継続/logout、負例とBackend停止時の入口閉鎖を確認し、利用者が今回の受入範囲を承認した（[ADR 0024](../decisions/0024-third-party-backend-e2e-acceptance.md)）。候補全停止・原素材不変を確認。未検証項目は同ADRに保持
 - 日付: 2026-10-13
 - 基準: main `933a51a`（文書整備PR #29をmerge済み）
 - 役割: Coordinatorが全体条件と図・文書を統括。コード側はManagerがWorkerへ委譲し、成果を検証・統合する

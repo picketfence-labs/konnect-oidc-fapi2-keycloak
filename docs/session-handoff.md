@@ -1,6 +1,12 @@
 # OIDC デモのセッション引き継ぎ
 
-## 新Backend経路の限定実HTTP受入完了（2026-10-13、最新）
+## 利用者受入・今回の作業終了（2026-10-13、最新）
+
+利用者がPR #31をmainへマージした（`8b9c47a`）。実サービスを通したHTTP E2Eと実ブラウザー表示の未確認を説明し、利用者は最低限のE2E確認で十分として終了を承認した。[ADR 0024](decisions/0024-third-party-backend-e2e-acceptance.md)に完了条件、未検証範囲、証跡、再開条件を記録した。今回の作業に追加必須の検証は残さない。
+
+候補6サービスと原5サービスは停止、3000/3443/8443/8444/18443は閉鎖、supervisor/forwarder残留なし。原DB/PKI/入力は不変。候補container/network、private raw、失敗snapshotを保全し、終了記録に伴う再起動・同期・削除は行わない。実ブラウザー、AS wire/rotation、clean bootstrap、drift/restart等の未検証項目を成功扱いしない。以下は受入実績と時点付きの履歴。
+
+## 新Backend経路の限定実HTTP受入完了（2026-10-13、実績）
 
 TPは承認残6操作を1syncしてpostdiff0。IdPは失敗snapshotを保全して元停止DBコピーから再構成し、A/B postlogoutだけを更新、他の全GETfieldが正規化なしで不変。初回失敗pair消失のUNKNOWNは保持する。TP/APIのPEM障害は同構成のDP再作成で回復したが、根本原因は未確定。TP初回再createのlisten漏れも是正した履歴を残す。
 

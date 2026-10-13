@@ -1,6 +1,6 @@
 # FAPI 2.0デモの設計資料
 
-この資料は、3rd PartyのKongでOAuth・セッションを管理し、独立した3rd PartyバックエンドからAPI提供者のKongへ接続する承認済み設計を説明します。**バックエンド追加のソース・ローカル検証は完了し、新経路の実行受入は未実施です。** WP1～WP6とEpic #6の受入はバックエンド追加前の構成に対する履歴です。FAPI 2.0完全準拠や認定を主張しません。
+この資料は、3rd PartyのKongでOAuth・セッションを管理し、独立した3rd PartyバックエンドからAPI提供者のKongへ接続する構成を説明します。**PR #31はmainへマージ済みで、HTTP E2Eの範囲で利用者が受入を承認しました。** 完了条件と未検証項目は[ADR 0024](../decisions/0024-third-party-backend-e2e-acceptance.md)を参照してください。WP1～WP6とEpic #6の受入はバックエンド追加前の構成に対する履歴です。FAPI 2.0完全準拠や認定を主張しません。
 
 ## 最初に読む資料
 
@@ -51,5 +51,6 @@
 - [ADR 0020](../decisions/0020-normal-demo-runtime-sync.md) / [ADR 0021](../decisions/0021-wp5-revocation-metadata-gap.md): 通常統合とmetadata差分。
 - [ADR 0022](../decisions/0022-final-documentation-layout.md): 最終構成に合わせた資料整理。
 - [ADR 0023](../decisions/0023-third-party-backend-separation.md): UI配信と業務API呼出しの分離、内部mTLSとRoute鍵の境界。
+- [ADR 0024](../decisions/0024-third-party-backend-e2e-acceptance.md): HTTP E2Eによる受入完了と未検証範囲。
 
 初期判断は[ADR 0006](../decisions/0006-fapi-custom-plugin-ghcr-logout.md)、[ADR 0007](../decisions/0007-keycloak-only-fapi2-demo.md)、[ADR 0008](../decisions/0008-route-b-endpoint-auth-split.md)に残しています。

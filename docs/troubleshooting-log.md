@@ -709,3 +709,9 @@ Backend停止起因の入口閉鎖を確認する直前に、既存supervisorの
 初回read-only preflightではTP/APIのCompose管理hash差を検出し、Docker mutation0で停止。11項目の実効設定は一致し、hash差の原因は未確定として保全した。既存4container IDへのdocker startで再作成・設定適用を除き、supervisorがupするBackend/UIのhash一致は維持した。無断recreate/retryは行っていない。
 
 CA検証付きGET200とBackendreadyを正対照に、Backendstop→ready marker存在から除去→owned forwarder終了→8443接続拒否→UI/Backend/TP停止を確認しPASS。finallyで候補6サービス全停止・ports閉鎖・原素材不変を再確認。grant/provider業務API/CP・IdP admin write/pullbuildは0。前runの時間上限閉鎖とは独立の因果付き証跡である。private証跡はclosure-only-run-x3m4dajv、root照合はcoordinator-closure-live-review.json。
+
+## 2026-10-13: 利用者によるHTTP E2E受入と終了
+
+PR #31は利用者がmainへマージした（`8b9c47a`、受入head `1f2b634`、CI3件成功）。実Keycloakと新Backendを含むHTTP E2Eについて、2利用者×A/B全4件のAPI200・13項目照合・期限越え継続・logout、Authorization16件、提供者側直接7検査、Backend停止時の入口閉鎖が成功した。利用者は実ブラウザー表示が未確認であることも踏まえて、この範囲で十分と承認し、記録後の終了を指示した。判断は[ADR 0024](decisions/0024-third-party-backend-e2e-acceptance.md)に固定する。
+
+終了時は候補6・原5サービス停止、公開5ports閉鎖、supervisor/forwarder残留0、原DB/PKI/入力の全inventory不変。private rawと失敗snapshotを保全する。AS wire/rotation、実ブラウザー、clean bootstrap、drift/restart等は未検証のままとし、PEM障害やCompose管理hash差の未確定原因、初回IdP before/after pair消失も解決済みへ書き換えない。終了記録のための再実行・外部変更・追加の網羅試験は行わない。
