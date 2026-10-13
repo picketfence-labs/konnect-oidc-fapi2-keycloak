@@ -46,7 +46,7 @@ API:  ブラウザー → localhost:8443 → TCP forward → TP Kong
 
 既存デモのKongによるFAPIクライアント認証を維持し、薄い3rd Partyバックエンドを追加する。OAuthクライアントをバックエンドへ移す方式は、認可開始・callback・セッション・refresh・PKJWTをアプリ側へ再実装することになり、今回の最小変更案には採らない。
 
-- Kongが利用者ごとのOAuthセッションを管理し、取得したアクセストークンを内部通信だけでバックエンドへ渡す。ブラウザーへtokenを返さない。client credentialsへの置換は行わない。
+- Kongが利用者ごとのOAuthセッションを管理し、取得したアクセストークンを内部通信だけでバックエンドへ渡す。アクセストークン／refresh tokenをブラウザーへ返さず、client credentialsへ置換しない。既存`login_tokens: [id_token]`によるIDトークンのUI URL fragment返却と、UIスクリプトによる除去は維持する。全トークン非返却を達成したとは扱わない。
 - バックエンドはRoute A/Bごとの固定内部エンドポイントを持ち、固定されたAPI側Kongへだけ送信する。呼出し元が指定したURL・証明書パス・認証方式を採用しない。
 - Kong→バックエンドは専用identityのmTLSとし、そのKongからの要求だけを受け付ける。ブラウザー由来のAuthorizationや内部用ヘッダーを、認証済み要求として信頼しない。
 - バックエンド→API側KongはBearer tokenとRoute A/B証明書によるmTLSを使う。tokenの`cnf.x5t#S256`に束縛された証明書と、API接続時の証明書を一致させる。
