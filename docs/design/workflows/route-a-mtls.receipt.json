@@ -3,6 +3,29 @@
   "date": "2026-10-13",
   "diagram_type": "workflow",
   "quality_profile": "showcase",
+  "design_state": "承認済み設計・バックエンド実装／受入前",
+  "runtime_acceptance": "not_run_for_backend_path",
+  "previous_accepted_artifact": {
+    "repository_revision": "933a51a",
+    "publication_url": "https://picketfence-labs.github.io/diagrams/55b6534fdb5b/",
+    "artifacts": [
+      {
+        "path": "route-a-mtls.workflow.json",
+        "bytes": 6973,
+        "sha256": "849418b85252b9191eebe459655e84e2e78bb45f07aa941c1f9dc6711664c553"
+      },
+      {
+        "path": "route-a-mtls.workflow.html",
+        "bytes": 814940,
+        "sha256": "68c247bdc2b1d64a774bf73ffef4e9cb399166dec74ff862eb337e377aad29f6"
+      },
+      {
+        "path": "route-a-mtls.workflow.png",
+        "bytes": 739731,
+        "sha256": "3fca6a46011c98f1071eec7f177a3e7cf5e2af690062863d7d23dafbe063b230"
+      }
+    ]
+  },
   "deterministic_validation": {
     "command": "archify deliver workflow",
     "exit_code": 0,
@@ -14,18 +37,18 @@
   "artifacts": [
     {
       "path": "route-a-mtls.workflow.json",
-      "bytes": 6973,
-      "sha256": "849418b85252b9191eebe459655e84e2e78bb45f07aa941c1f9dc6711664c553"
+      "bytes": 6995,
+      "sha256": "d666d60f2d3db7a45f28c1a8b3ca66359928de79327e64cb82254a7e64a653d3"
     },
     {
       "path": "route-a-mtls.workflow.html",
-      "bytes": 814940,
-      "sha256": "68c247bdc2b1d64a774bf73ffef4e9cb399166dec74ff862eb337e377aad29f6"
+      "bytes": 814094,
+      "sha256": "5a298085c70305335b0a3539b5660734fe06f8f290a951fa660fb202e8bec7c9"
     },
     {
       "path": "route-a-mtls.workflow.png",
-      "bytes": 739731,
-      "sha256": "3fca6a46011c98f1071eec7f177a3e7cf5e2af690062863d7d23dafbe063b230"
+      "bytes": 735897,
+      "sha256": "e7ba81c3519b34c2ee54ff58c76aa638d184e8bcda98c68a2756e92cf18ac5cb"
     }
   ],
   "browser_evidence": {
@@ -56,11 +79,11 @@
       "2048x1320 light",
       "2048x1320 dark"
     ],
-    "private_receipt": ".generated/evidence/route-diagram-review-20261013/final/route-a-mtls.workflow.visual-check.json"
+    "private_receipt": ".generated/evidence/tp-backend-docs-20261013/route-a-mtls.workflow.visual-check.json"
   },
   "perceptual_review": {
     "status": "pass",
-    "reviewer": "image-capable assistant",
+    "reviewer": "image-capable diagram Worker",
     "examined": [
       "1440x900 light",
       "1440x900 dark",
@@ -68,11 +91,19 @@
       "2048x1320 dark",
       "PNG export"
     ],
-    "findings": "5つのスイムレーンと通信の主経路を判読できる。3rd PartyサービスとKong Gatewayを第2レーン内に配置。ノード・ラベルの重なりや画面のはみ出しなし。",
-    "visual_correction_rounds": 1
+    "findings": "同じ3rd Party laneで静的UI・OAuth Kong・業務バックエンドを分離。内部mTLS、バックエンドAPI呼出し、応答のKong再訪を判読。明暗で欠け・node交差・label重なりなし。1440ではタイトル2行で正常に折り返す。 PNG exportの図・凡例・境界・応答経路も一致。"
+  },
+  "candidate_history": {
+    "private_record": ".generated/evidence/tp-backend-docs-20261013/workflow-candidate-history.json",
+    "note": "初期案の停止後、Coordinatorが構造・抽象度を再計画。AS認証/token交換の意味をreview後に修正。元loopを少数repairへ読み替えない。"
+  },
+  "containment_repair": {
+    "correction_rounds": 1,
+    "change": "固有geometry不変、右余白18pxのみ追加してviewBox1213x776。font/overflowは変更なし。"
   },
   "export": {
-    "method": "delivered Viewer PNG export",
+    "status": "pass",
+    "method": "delivered Viewer PNG export by Coordinator",
     "theme": "light",
     "width": 4852,
     "height": 3104
@@ -81,14 +112,14 @@
     "authored": "ja",
     "fixed_viewer_fallback": "en"
   },
-  "user_architecture_approval_date": "2026-10-13",
   "publication": {
+    "status": "pass",
     "date": "2026-10-13",
-    "url": "https://picketfence-labs.github.io/diagrams/55b6534fdb5b/",
+    "url": "https://picketfence-labs.github.io/diagrams/697f14e71ed9/",
     "repository": "picketfence-labs/diagrams",
-    "commit": "4aac2e965d5ee642bf3fff4047cf1999815f6cf0",
+    "commit": "e87ebf8a22344110991576129e8b016a666b87a3",
     "http_status": 200,
-    "served_sha256": "68c247bdc2b1d64a774bf73ffef4e9cb399166dec74ff862eb337e377aad29f6",
+    "served_sha256": "5a298085c70305335b0a3539b5660734fe06f8f290a951fa660fb202e8bec7c9",
     "matches_delivered_html": true
   }
 }

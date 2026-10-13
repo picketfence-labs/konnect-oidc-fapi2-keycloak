@@ -3,6 +3,29 @@
   "date": "2026-10-13",
   "diagram_type": "workflow",
   "quality_profile": "showcase",
+  "design_state": "承認済み設計・バックエンド実装／受入前",
+  "runtime_acceptance": "not_run_for_backend_path",
+  "previous_accepted_artifact": {
+    "repository_revision": "933a51a",
+    "publication_url": "https://picketfence-labs.github.io/diagrams/d4d6f772e970/",
+    "artifacts": [
+      {
+        "path": "route-b-pkj-mtls.workflow.json",
+        "bytes": 6976,
+        "sha256": "d861b38399c40b86b96bfbf1a6f2b7b65f35742215e03afb9a91d2a2b544000e"
+      },
+      {
+        "path": "route-b-pkj-mtls.workflow.html",
+        "bytes": 814974,
+        "sha256": "0301ed2bbae5825c546ef21559ddfb7022198b405520a55cc550aff67f6d9fd0"
+      },
+      {
+        "path": "route-b-pkj-mtls.workflow.png",
+        "bytes": 740628,
+        "sha256": "8045cb3db58d6c83c8733aa62cddfbcb0bf8b5a070ab4ecaec894c67ad950f9d"
+      }
+    ]
+  },
   "deterministic_validation": {
     "command": "archify deliver workflow",
     "exit_code": 0,
@@ -14,18 +37,18 @@
   "artifacts": [
     {
       "path": "route-b-pkj-mtls.workflow.json",
-      "bytes": 6976,
-      "sha256": "d861b38399c40b86b96bfbf1a6f2b7b65f35742215e03afb9a91d2a2b544000e"
+      "bytes": 6901,
+      "sha256": "b64e0c156e0ad07ff84d7d22b7a62a015185eefd7d27d89d1d8614f26ed2fb73"
     },
     {
       "path": "route-b-pkj-mtls.workflow.html",
-      "bytes": 814974,
-      "sha256": "0301ed2bbae5825c546ef21559ddfb7022198b405520a55cc550aff67f6d9fd0"
+      "bytes": 813938,
+      "sha256": "47323aca558bacc6ffb7481a3c9ad98e2ea3b13fadf10aa6307616432f42cac3"
     },
     {
       "path": "route-b-pkj-mtls.workflow.png",
-      "bytes": 740628,
-      "sha256": "8045cb3db58d6c83c8733aa62cddfbcb0bf8b5a070ab4ecaec894c67ad950f9d"
+      "bytes": 734882,
+      "sha256": "aae3991ae9849d0e7a48c9f9d89570d80e5b4018b0e3b501ff03c5486a767418"
     }
   ],
   "browser_evidence": {
@@ -56,11 +79,11 @@
       "2048x1320 light",
       "2048x1320 dark"
     ],
-    "private_receipt": ".generated/evidence/route-diagram-review-20261013/final/route-b-pkj-mtls.workflow.visual-check.json"
+    "private_receipt": ".generated/evidence/tp-backend-docs-20261013/route-b-pkj-mtls.workflow.visual-check.json"
   },
   "perceptual_review": {
     "status": "pass",
-    "reviewer": "image-capable assistant",
+    "reviewer": "Coordinator, image-capable reviewer",
     "examined": [
       "1440x900 light",
       "1440x900 dark",
@@ -68,11 +91,24 @@
       "2048x1320 dark",
       "PNG export"
     ],
-    "findings": "5つのスイムレーンと通信の主経路を判読できる。3rd PartyサービスとKong Gatewayを第2レーン内に配置。ノード・ラベルの重なりや画面のはみ出しなし。",
-    "visual_correction_rounds": 1
+    "findings": "Final artifact inspected at 1440x900 and 2048x1320 in both themes and as PNG. UI/OAuth/backend responsibilities, dedicated internal mTLS, Route B outbound certificate and return via API Kong/TP Kong are readable; no clipping or overlap."
+  },
+  "candidate_history": {
+    "private_record": ".generated/evidence/tp-backend-docs-20261013/workflow-candidate-history.json",
+    "note": "初期案の停止後、Coordinatorが構造・抽象度を再計画。AS認証/token交換の意味をreview後に修正。元loopを少数repairへ読み替えない。"
+  },
+  "containment_repair": {
+    "worker_correction_rounds": 2,
+    "coordinator_handoff": {
+      "correction_rounds": 1,
+      "change": "Independent inspection confirmed right-card height. Consolidated code-exchange/session explanation into existing ownership line; preserved PKJWT bridge and certificate separation. All typography and SVG geometry unchanged.",
+      "automated_browser_status": "pass"
+    },
+    "note": "Prior failed candidates and stopped loops retained in private evidence; this does not reset or conceal prior attempts."
   },
   "export": {
-    "method": "delivered Viewer PNG export",
+    "status": "pass",
+    "method": "delivered Viewer PNG export by Coordinator",
     "theme": "light",
     "width": 4852,
     "height": 3104
@@ -81,14 +117,14 @@
     "authored": "ja",
     "fixed_viewer_fallback": "en"
   },
-  "user_architecture_approval_date": "2026-10-13",
   "publication": {
+    "status": "pass",
     "date": "2026-10-13",
-    "url": "https://picketfence-labs.github.io/diagrams/d4d6f772e970/",
+    "url": "https://picketfence-labs.github.io/diagrams/31aaf1787cd8/",
     "repository": "picketfence-labs/diagrams",
-    "commit": "4aac2e965d5ee642bf3fff4047cf1999815f6cf0",
+    "commit": "e87ebf8a22344110991576129e8b016a666b87a3",
     "http_status": 200,
-    "served_sha256": "0301ed2bbae5825c546ef21559ddfb7022198b405520a55cc550aff67f6d9fd0",
+    "served_sha256": "47323aca558bacc6ffb7481a3c9ad98e2ea3b13fadf10aa6307616432f42cac3",
     "matches_delivered_html": true
   }
 }

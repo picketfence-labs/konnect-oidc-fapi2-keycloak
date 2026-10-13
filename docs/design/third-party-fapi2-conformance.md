@@ -1,5 +1,7 @@
 # FAPI 2.0要件と顧客向けデモ対応範囲
 
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+
 ## この文書の目的
 
 本来のClient/Resource Server向けFAPI 2.0要件を、今回の顧客向けデモの採用範囲と対比する。**仕様の必須要件と、今回のデモの必須要件は同じではない**。P0/P1以外の未対応を理由に完全適合を主張できないが、すべてを今回の開発阻害条件にも設定しない。

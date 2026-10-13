@@ -1,5 +1,15 @@
 # OIDC デモのセッション引き継ぎ
 
+## バックエンド分離: 資料先行・コード並行（2026-10-13）
+
+PR #29はmain `933a51a`へmerge済み。その後、利用者からUI提供と外部API呼出しの分離、3rd Partyバックエンド経由への修正指示を受けた。確認した目標経路は「ブラウザー → 3rd Party Kong → 3rd Partyバックエンド → API提供者側Kong → Resource Server」。バックエンドから再び3rd Party Kongを経由する必要はない。
+
+Coordinatorが全体条件と図・文書を担当し、コードManagerがsource trace Workerの調査を統合する。現行でもブラウザーは3rd Party Kongを呼ぶが、KongがAPI側を直接upstreamとし、業務バックエンドがない。[影響と対応計画](design/third-party-backend-change-plan.md)に、認証担当を維持する最小変更案、証明書・tokenの境界、並行作業と受入を記録した。
+
+利用者が計画を承認し、図・文書だけを先にmainへマージするための準備を指示した。資料は`docs/third-party-backend-architecture`、コードは別worktreeの`feat/third-party-backend`で作業する。図・文書は「承認済み設計・実装／受入前」と明記して先行し、完成時に利用者へ通知する。コードはManager/Workerが担当する。新経路の実行受入・Docker/CP変更は未実施。以下の既存受入は旧トポロジーの履歴として維持する。
+
+図・文書の更新は完了。全体図とRoute A/Bは9/9・4画面サイズの包含検査・明暗画像とPNGの目視確認が通過した。新Pages URL3件へ公開し、旧図は履歴として保持する。資料ブランチの`make validate`、静的検査、Markdownローカルリンク298件が成功。資料専用PRへ分離し、コードは別ブランチのManager/Workerが統合検証中。これらの資料検証は新経路の実行受入を示さない。
+
 ## 文書整備の完了（2026-10-13）
 
 全体構成図の利用者確認後、Route A/Bを5つのスイムレーンへ改訂した。利用者とAPI Gatewayの間に3rd Partyを置き、同じレーン内へサービスUIとKong Gatewayを配置した。JSON・HTML・PNGと検証receiptは[設計一覧](design/README.md)から参照できる。各図のartifact検査9/9、4画面サイズのブラウザー検証、明暗画像とPNGの目視確認が通過した。

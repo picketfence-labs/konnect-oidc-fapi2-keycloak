@@ -1,5 +1,7 @@
 # WP5実装・受入対応表
 
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+
 ## 判定（2026-10-05）
 
 顧客向けデモのAS側の必須機能と、issuer不一致拒否・refresh rotation・PAR parameterは隔離環境で動作した。main `f8c3a8f`で通常環境への適用とA/B統合確認もpassした。重い網羅検証の省略は2026-10-05に利用者が承認した。代表redirect負例もpass。metadataのrevocation通知URL差分はADR0021の既知差分として利用者が受け入れた。PR #25 merge後のmain `72a6426`で証跡を照合し、WP3 #9・WP5 #11を受入確認完了としてCloseした。

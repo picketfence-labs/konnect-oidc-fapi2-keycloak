@@ -1,5 +1,7 @@
 # 3rd Party経由FAPI 2.0デモ要件
 
+> **構成変更の状態（2026-10-13）**: 3rd Partyバックエンド分離は承認済み設計・実装／受入前です。この資料の既存設定・受入結果は、TP KongがAPI側Kongへ直接転送する変更前の構成に対応します。新しい経路とidentityの契約は[対応計画](third-party-backend-change-plan.md)と[ADR 0023](../decisions/0023-third-party-backend-separation.md)、全体像は[ARCHITECTURE](../../ARCHITECTURE.md)を参照してください。旧passを新経路へ引き継ぎません。
+
 ## この文書の目的
 
 この文書は、既存の二経路デモ（[Keycloak FAPI 2.0二経路デモ要件](fapi2-keycloak-requirements.md)、以下「v1要件」）に3rd Partyを追加した構成について、実装契約を定義する。顧客向けデモの必須範囲と、本来のFAPI 2.0適合との差分を分ける。補完方式は[DP0契約](third-party-as-mtls-transport.md)と[ADR 0012](../decisions/0012-third-party-as-mtls-transport.md)に固定した。設計PR #5はmerge済み。実装・実行時受入は[WP5受入表](third-party-wp5-acceptance.md)と[WP6受入表](third-party-wp6-acceptance.md)に記録している。
@@ -315,3 +317,9 @@ v1のシナリオIDは、実行主体を3rd Party Gatewayへ読み替えて継�
 - [RFC 7662: token introspection](https://www.rfc-editor.org/rfc/rfc7662)
 - [RFC 6750: Bearer tokenの使用](https://www.rfc-editor.org/rfc/rfc6750)
 - [KeycloakのFAPI対応](https://www.keycloak.org/securing-apps/oidc-layers#_fapi-support)
+
+## 承認済みの次期経路契約
+
+UI配信はブラウザー→TP Kong→静的UI、業務要求はブラウザー→TP Kong→バックエンド→API側Kong→Resource Serverとします。バックエンド外向き要求をTP Kongへ戻しません。共通入口は`https://localhost:8443`、A/B公開pathは維持し、内部pathを`/evidence/route-a`と`/evidence/route-b`に固定します。任意URL・caller headerによるRoute/証明書選択・redirect追従は許しません。
+
+新しい受入では、専用内部mTLS、AS/APIでの同一A/B証明書、利用者別token引継ぎ、同時A/B分離、refresh/logout、backend迂回・偽装拒否、応答allowlist・秘密非露出、backend停止時の入口閉鎖、6サービスの再現性を確認します。既存FAPI差分の解消をこの変更の成功条件へ追加しません。
