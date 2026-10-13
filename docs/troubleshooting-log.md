@@ -636,3 +636,16 @@ Python 3.14では`test_early_matrix_failure_scans_bounded_logs_before_down_and_r
 全体レビューの指示で全体構成図をPagesへ新規公開し、Route A/Bを既存URLへ再公開した。配信先commitは`4aac2e9`。3図ともHTTP200、配信HTMLと検証済みローカルHTMLのSHA-256一致を確認した。
 
 最初のbrowser smokeは存在しない`#diagram-svg`を待ってtimeoutとなった。生成済みHTMLのSVGにはそのIDがなく、表示障害ではなかった。実際の`svg[viewBox]`を確認するセレクターへ補正すると、3図すべてのSVG表示とテーマ切替が通過した。図のJSON・HTML・PNGは変更していない。
+
+
+## 2026-10-13: バックエンド分離のTP差分プレビューとdecKイベント出力
+
+バックエンド分離のソース・ローカル検証後、既存CAとRoute A/Bのidentityを維持した隔離素材で、TP runtimeだけの読み取り専用差分を取得した。最初のラッパー実行は `third-party runtime diff did not return valid JSON` で停止した。CP書込み、Docker起動・停止、適用承認票の作成は行っていない。
+
+decK 1.53.1のstdoutは、人向けイベント26行の後に単一の完全なJSONを出力していた。捕捉済みJSONを診断目的で既存の厳格なparserへ通すと、作成4件・更新6件・削除0件、warnings/errorsなしで、今回の固定entity集合に一致した。更新はA/B Serviceのバックエンド接続先と内部hop証明書、CORS origin、OIDCのlogin/logout戻り先だけだった。raw出力は秘密を含み得るためGit外のprivate証跡に限定した。
+
+CLIのhelpで正規オプション `--silence-events` を確認し、TP runtimeの要求されたdiffと同期前diffに追加した。JSONのprefixを無条件に読み飛ばす処理や、parser・変更件数guardの緩和は行っていない。Manager独立のCLI/subprocess境界回帰3件、既存selector9件、flag欠落の意味的変異2件の検出、AST・freeze・diff検査が成功した。
+
+修正後ラッパーによる実差分の再取得は、自動承認レビューが実行前に拒否した。既存credentialで特定のKonnect TP Control Planeへ接続する明示的な利用者許可を確認できず、read-onlyでも機微設定取得の可能性があるという判定だった。再試行・迂回はしていない。既取得reportの診断4/6/0とローカルCLI検証の成功を維持し、修正後の実ラッパー受入は未実施として区別する。
+
+受入用のKeycloakはlocalhost:8444で接続拒否となり、Admin tokenもclient設定も取得していない。A/Bのpost-logout戻り先2件は計画差分のままで、live照合済みとは扱わない。既存Dockerの5コンテナは停止中。新経路の実行受入は未実施であり、資料・ローカルfixture・CPプレビューをE2E成功へ読み替えない。
