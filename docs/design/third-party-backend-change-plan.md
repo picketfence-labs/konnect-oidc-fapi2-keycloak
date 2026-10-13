@@ -1,6 +1,6 @@
 # 3rd Partyバックエンド分離の影響と対応計画
 
-- 状態: 図・文書はPR #30でmainへ先行反映済み。コードは別Draft PR #31。TP復旧同期・postdiff0、隔離IdPの2属性更新・Backend/UI起動・Route Aの実API200を確認。Route B同意遷移へ受入ヘルパーを限定対応中で、新経路全体の受入は未完了
+- 状態: 図・文書はPR #30でmainへ先行反映済み。コードは別Draft PR #31。TP復旧同期・postdiff0、隔離IdPの2属性更新、4セッションのAPI/期限越え継続/logout、Authorization負例16件、API提供者側直接検査7件が成功。Backend停止起因の入口閉鎖は未実施で、コードPRはDraftを維持
 - 日付: 2026-10-13
 - 基準: main `933a51a`（文書整備PR #29をmerge済み）
 - 役割: Coordinatorが全体条件と図・文書を統括。コード側はManagerがWorkerへ委譲し、成果を検証・統合する
@@ -133,7 +133,7 @@ API:  ブラウザー → localhost:8443 → TCP forward → TP Kong
 
 ## 実装・プレビューの到達点（2026-10-13）
 
-最新: 利用者が下記の残6操作を承認し、新票・Routes validation・fresh diff・late rereadを経てTP同期1回が成功、postdiff0を確認しました。隔離IdPは元停止DBコピーから再構成し、2属性だけの更新と他GETfield不変を確認。Backend/UI起動とRoute A/user slot0の実API200も成功しました。Route B初回同意へのヘルパー限定対応後に4session/refresh/logoutを続行します。以下は復旧前までの経緯であり、最新の操作状態は[準備・適用・受入手順](third-party-backend-runtime.md)を参照してください。
+最新: 承認残6操作は専用票で1syncしpostdiff0。隔離IdPは元停止DBコピーから再構成してpostlogout2属性だけを更新し、他の全GETfield不変を確認しました。新経路の4セッション/API/期限越え継続/logoutとAuthorization16負例、API提供者側直接検査7件が成功しました。Backend停止試験前にsupervisorの既存上限が到来したため、その閉鎖検査はnot_runです。[受入結果と未実施範囲](third-party-backend-runtime.md#新経路の受入結果2026-10-13)を正本とし、以下は復旧前までの履歴として読みます。
 
 バックエンド、専用hop、Gateway/UI/PKI/role、readiness、今回専用schema2 guardを実装。Manager独立でmake validate、380 unittest、UI/Lua、native Compose設定が成功しました。利用者の具体プレビュー一括承認後、fresh4create/6update/0deleteと承認票の一致を確認してTP同期を開始しましたが、CLI nonzeroで停止しました。read-only現状ではhop Certificate/UI Serviceの作成とA/B Service更新の4操作が反映済み。残りはUI Route/UI transformerの2create、A/B CORS/OIDCの4updateです。削除と予期しない対象変更はありません。
 

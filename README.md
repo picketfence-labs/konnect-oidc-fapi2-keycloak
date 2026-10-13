@@ -13,9 +13,9 @@
 
 ## バックエンド分離の承認済み設計
 
-> **ソース・ローカル検証済み／実行受入前（2026-10-13）**: バックエンドを加えた6サービスを実装しました。Manager独立のローカル検証は成功し、実Kong/Keycloakでの新経路は未受入です。図・資料はPR #30で先行してmainへ反映、コードは別Draft PR #31でレビューします。WP1～WP6の旧受入を新経路の成功証跡に流用しません。
+> **新経路の限定実行受入済み（2026-10-13）**: 実Kong/Keycloakと新バックエンドによるRoute A/Bを、2利用者×2Routeの4セッションで確認しました。API200・13項目の証跡・有効期限越えの継続・logout、Authorization負例16件、API提供者側の直接検査7件が成功しました。図・資料はPR #30でmainへ先行反映、コードは別PR #31です。実ブラウザー表示とAS wire上のrefresh認証・rotationは未検証です。
 
-TP設定は承認済みの残6操作を同期し、実差分0へ収束しました。隔離IdPは元DBコピーから再構成し、ログアウト2属性だけの更新を確認済み。Backend/UIの起動も成功し、新経路の受入を進めています。[現在の状態と再開条件](docs/design/third-party-backend-runtime.md#tp設定のプレビューと今回専用承認)を確認してください。
+TP設定は承認済みの残6操作を同期し、実差分0へ収束しました。隔離IdPは元DBコピーから再構成し、ログアウト2属性だけの更新を確認済み。Backend/UIを含む隔離6サービスで受入しました。[現在の状態と再開条件](docs/design/third-party-backend-runtime.md#tp設定のプレビューと今回専用承認)を確認してください。
 
 既存OIDC設定はIDトークンをログイン後のURL fragmentへ返し、UIが除去します。全トークン非返却とは異なる制約で、アクセストークン／refresh tokenの非露出と区別します。詳細は[認証からAPI応答まで](ARCHITECTURE.md#認証からapi応答まで)を参照してください。
 
@@ -104,7 +104,7 @@ logout後もKeycloakが既存SSO sessionを使ってlogin formを省く場合は
 
 *変更前のKeycloak認証画面の例。画像をクリックすると Route A のインタラクティブ workflow を開きます。*
 
-## 新経路で確認すること（実行受入は未実施）
+## 新経路の確認内容
 
 - Route A は `tls_client_auth` と表示される。
 - Route B は `private_key_jwt` と表示される。
@@ -112,8 +112,10 @@ logout後もKeycloakが既存SSO sessionを使ってlogin formを省く場合は
 - UIのthumbprintは3rd Partyバックエンド→API Gateway間のtoken bindingとclient certificateを表し、それぞれ先頭12文字だけを表示する。
 - デモユーザーに応じて `department` と `logical_route` が変わる。
 - `department_header` と `logical_route_header` が署名済み claim と一致し、UI に「claim とヘッダー: 一致」と表示される。
-- UI の偽装テストで送った `X-Demo-*` ヘッダーが、署名済み claim の値を上書きしない。
-- Route A/Bのlogout後は同じcookie jarからfresh loginし、旧Route sessionを再利用できない。
+- API提供者側へ直接送る偽装ヘッダーが、署名済み claim の値を上書きしない。実UIの操作は未検証。
+- Route A/Bのlogout後は、同じcookie jarで保護APIがログイン開始の302へ戻る。
+
+実行結果と未実施範囲は[新経路の受入結果](docs/design/third-party-backend-runtime.md#新経路の受入結果2026-10-13)を参照してください。
 
 ## 変更前の実装と受入範囲
 

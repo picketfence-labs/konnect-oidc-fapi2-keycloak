@@ -693,3 +693,10 @@ Backend/UI/readiness成功後、TPログイン開始が500となりstock OIDCの
 旧ヘルパーは全URL fragmentを拒否していたが、既存login_tokens:[id_token]はUI terminalへIDtoken fragmentを返す。実callbackの固定origin/path/queryとfragmentkeyだけを非秘密投影で確認した。固定terminalに単一非空bounded id_tokenだけを許容しHTTP送信前に破棄する限定対応を実施、Worker10/Manager独立6が成功。値をdecode/表示/転送せず、access/refresh/unknown/duplicate/offorigin等は拒否する。全tokenブラウザー非返却を証明したとは扱わない。
 
 Route A/user slot0のAPI200後、Route BはKeycloak required-actionへ遷移して旧path guardが停止した。B-only4request診断でsingle OAUTH_GRANTの通常同意と確認し、expected route clientとconsentだけの限定対応を進める。今後の実runは値を出さない観測adapterを常時併用し、失敗後の無観測fullrun反復を避ける。ブラウザー実表示は既存CA信頼エラーでnot_run、証明書検証の回避やOS truststore変更はしていない。
+
+
+## 2026-10-13: 新経路の主要受入とsupervisor上限による最終負例未実施
+
+初回同意の限定対応後、2利用者×A/Bの4セッションでAPI200・13項目の証跡・期限300秒＋35秒後の継続・logout後302が成功した。Authorization負例16件、API提供者側直接7検査も成功。AS wireのrefresh grant・認証方式・rotationを証明した結果ではない。
+
+Backend停止起因の入口閉鎖を確認する直前に、既存supervisorの3600秒上限が到来して8443がConnectionRefusedとなった。終了処理の10秒waitもtimeoutした。Backendstop負例はnot_runとし、deadline閉鎖との混同を避ける。追加起動せず候補6サービスを全停止し、公開5ports閉鎖・supervisor/forwarder残留0・原5サービス停止維持・原DB/PKI/入力inventory不変を確認した。コンテナ/networkと失敗snapshotを保全。最終結果はGit外の`final-cleanup.json`へ保存した。

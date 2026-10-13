@@ -2,7 +2,7 @@
 
 このデモは、3rd Partyサービスが利用者の認可を得てAPIを呼び出す構成で、Kong Gatewayの二つの役割を示します。3rd Party側ではOAuthクライアント、API提供者側ではResource Serverの入口として動作します。クライアント認証をRoute Aの`tls_client_auth`とRoute Bの`private_key_jwt`で比較し、両方でmTLSによるトークンの証明書束縛を検証します。
 
-> **ソース・ローカル検証済み／実行受入前（2026-10-13）**: 3rd Partyバックエンドを追加したソース実装とManager独立のローカル検証は完了しました。図・資料はPR #30で先行反映し、コードは別Draft PR #31です。実Kong/Keycloakによる新経路の受入は未実施です。WP1～WP6の旧証跡を新経路の成功証跡に流用しません。
+> **新経路の限定実行受入済み（2026-10-13）**: 実Kong/Keycloakとバックエンドを使い、2利用者×Route A/Bの4セッションでAPI200、13項目の証跡、有効期限越えの継続、logoutを確認しました。Authorization負例16件とAPI提供者側の直接検査7件も成功しています。図・資料はPR #30でmainへ先行反映し、コードは別PR #31です。[実行結果と未検証範囲](docs/design/third-party-backend-runtime.md#新経路の受入結果2026-10-13)を区別してください。
 
 FAPI 2.0完全準拠、OIDF認定、本番運用への適合を主張しません。変更契約と新たな受入項目は[対応計画](docs/design/third-party-backend-change-plan.md)、設計判断は[ADR 0023](docs/decisions/0023-third-party-backend-separation.md)を参照してください。
 
@@ -105,7 +105,7 @@ API Gatewayの`tls-handshake-modifier`は証明書を要求しますが、CA cha
 
 認可コード、PAR、PKCE、mTLSクライアント認証、セッションとrefreshは標準OIDCを中心に実行します。`fapi-as-mtls-transport`はASへの送信境界を検査し、metadata/JWKS取得には専用証明書を使います。Route Aの認証・トークン束縛用証明書とmetadata専用証明書は役割が異なります。
 
-変更前のデモではRoute Aの正常フローとAPI側の証明書なし・束縛不一致等の拒否を確認しています。新経路は実装・受入前です。callbackの`iss`欠落拒否、追加の認可開始CSRF防御、個別トークン失効SLAは未対応・未検証の項目として残ります。
+変更前のデモではRoute Aの正常フローとAPI側の証明書なし・束縛不一致等の拒否を確認しています。新経路でも2利用者の正常API・期限越え継続・logoutと、API側の証明書なし・束縛不一致拒否を確認しました。callbackの`iss`欠落拒否、追加の認可開始CSRF防御、個別トークン失効SLAは未対応・未検証の項目として残ります。
 
 ## Route Bの詳細：private_key_jwtとmTLS証明書束縛
 
@@ -121,7 +121,7 @@ API Gatewayの`tls-handshake-modifier`は証明書を要求しますが、CA cha
 
 この分担はKong Gateway 3.16.0.0の固定実装に合わせたものです。bridgeは標準フローのtoken/refresh署名を補完し、ブラウザーから持ち込まれたassertionを使用しません。Kongの更新時には内部APIとの互換性と、標準処理・bridge・transportの組合せを再検証します。
 
-変更前のRoute Bは正常動作を確認済みですが、新経路は実装・受入前です。また、固定版の標準PAR処理がformの`client_id`を省略する仕様差分を残します。PAR成功をRFC 9126への完全適合とは扱いません。Route Aと共通する`iss`欠落、開始CSRF、失効SLA等の差分も、次の一覧に示します。
+変更前のRoute Bは正常動作を確認済みですが、新経路でも2利用者の正常API・期限越え継続・logoutと、API側の証明書なし・束縛不一致拒否を確認しました。また、固定版の標準PAR処理がformの`client_id`を省略する仕様差分を残します。PAR成功をRFC 9126への完全適合とは扱いません。Route Aと共通する`iss`欠落、開始CSRF、失効SLA等の差分も、次の一覧に示します。
 
 ## 未対応・未検証項目と追加設計
 
@@ -138,8 +138,8 @@ API Gatewayの`tls-handshake-modifier`は証明書を要求しますが、CA cha
 
 ## 検証証跡と再現構成
 
-変更前の通常Route A/Bの認証、API200、claim/header、束縛、署名、偽装拒否、logoutと、既存2 control planeを使うclean checkout再現を受入済みです。これらはTP KongからAPI側Kongへ直接転送する旧構成の証跡です。新構成では専用内部mTLS identity、ASのA/B identity維持、バックエンドの同一証明書によるAPI呼出し、refresh/logout、同時A/B分離、入口のreadinessを再確認します。AS直結試験、relayを介した署名検査、AS単体TLS観測は異なる検証層です。relayの成功だけでKong→AS直結mTLSを証明したとは扱いません。失敗試行も[検証履歴](docs/design/verification-history.md)に保持します。
+変更前の通常Route A/Bの認証、API200、claim/header、束縛、署名、偽装拒否、logoutと、既存2 control planeを使うclean checkout再現を受入済みです。これらはTP KongからAPI側Kongへ直接転送する旧構成の証跡です。新構成では専用内部mTLSの他identity拒否、バックエンドのA/B証明書とtokenの束縛、4セッションの分離、期限越え継続とlogoutを実HTTPで確認しました。AS wire上の認証方式・提示identity・refresh grant・rotationは未観測です。AS直結試験、relayを介した署名検査、AS単体TLS観測は異なる検証層です。relayの成功だけでKong→AS直結mTLSを証明したとは扱いません。失敗試行も[検証履歴](docs/design/verification-history.md)に保持します。
 
-変更前の受入構成をApple Siliconで再現する場合は、主Composeと[docker-compose.demo-native.yml](docker-compose.demo-native.yml)を併用します。overrideはAPI/verifierの受入済み公開amd64 imageと、3rd Party用の固定native arm64 base＋ソースの読み取り専用mountを指定します。buildを無効にして旧受入構成を再現するため必要です。新バックエンドを含むCompose/native構成と起動手順はコード側の変更で整備し、別途受入します。
+変更前の受入構成をApple Siliconで再現する場合は、主Composeと[docker-compose.demo-native.yml](docker-compose.demo-native.yml)を併用します。overrideはAPI/verifierの受入済み公開amd64 imageと、3rd Party用の固定native arm64 base＋ソースの読み取り専用mountを指定します。buildを無効にして旧受入構成を再現するため必要です。新バックエンドを含むCompose/native構成はコード側で整備し、隔離6サービスで限定受入しました。新構成のclean checkout再現とimage公開は未実施です。
 
 起動手順とGit外入力は[README](README.md)、契約とADRへの入口は[設計資料一覧](docs/design/README.md)にまとめています。トークン、鍵、証明書本体、Terraform state、一次receiptはGitに収録しません。

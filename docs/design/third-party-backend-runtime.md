@@ -1,6 +1,6 @@
 # バックエンド分離構成の準備・適用・受入
 
-状態: TP復旧同期・実差分0、隔離IdPの2属性更新とBackend/UI起動を確認／新経路の実行受入中（2026-10-13）。資料PR #30はmainへ反映済み、コードは別Draft PR #31。旧WP1～WP6の成功は変更前の5サービス構成の履歴であり、新経路の受入ではありません。[構成と信頼境界](../../ARCHITECTURE.md)、[実装計画](third-party-backend-change-plan.md)、[ADR 0023](../decisions/0023-third-party-backend-separation.md)も参照してください。
+状態: TP復旧同期・実差分0、新経路の主要実HTTP受入が成功／Backend停止起因の入口閉鎖は未実施（2026-10-13）。資料PR #30はmainへ反映済み、コードは別Draft PR #31。旧WP1～WP6の成功は変更前の5サービス構成の履歴であり、新経路の受入ではありません。[構成と信頼境界](../../ARCHITECTURE.md)、[実装計画](third-party-backend-change-plan.md)、[ADR 0023](../decisions/0023-third-party-backend-separation.md)も参照してください。
 
 ## 先に確定する対象
 
@@ -69,16 +69,39 @@ Apple Siliconではbaseと`docker-compose.demo-native.yml`を使います。TP K
 
 `sync-keycloak-demo-data.py`の全体同期はusers/realm/provider等も更新するため、今回の2属性更新に流用しません。終了時はforwardを閉じ、候補projectだけを停止し、元stack・元DBを保持します。CP rollbackやリソース削除は別の具体レビュー対象です。
 
-今回、Python/UI imageをdigestで固定し、隔離first4の起動とKeycloak/TP worker readinessまで成功しました。A clientへ`id`と`attributes`だけのPUTを送った後、非対象フィールド不変の比較が失敗して停止しました。B更新とBackend/UI起動は未実施です。省略したtop-levelフィールドをKeycloak/FAPI policyが補完する経路を調査しています。失敗時のbefore/afterを保全していなかった限界を残し、原DBを開かずコピーの読み取り専用調査で変更前の値を確認します。以後の取得・送信・読戻しはprivate証跡へ保存し、認証方式やwebOrigins等の保持と、意図した差分だけであることを確認します。
+初回試行の履歴: Python/UI imageをdigestで固定し、隔離first4の起動とKeycloak/TP worker readinessまで成功しました。A clientへ`id`と`attributes`だけのPUTを送った後、非対象フィールド不変の比較が失敗して停止しました。B更新とBackend/UI起動は未実施です。省略したtop-levelフィールドをKeycloak/FAPI policyが補完する経路を調査しています。失敗時のbefore/afterを保全していなかった限界を残し、原DBを開かずコピーの読み取り専用調査で変更前の値を確認します。以後の取得・送信・読戻しはprivate証跡へ保存し、認証方式やwebOrigins等の保持と、意図した差分だけであることを確認します。
 
 続報: 元停止DBのコピーをH2の読み取り専用接続で限定調査し、Aの元認証方式`client-x509`と空Web Originsを確認しました。失敗した隔離DBを保全し、同じprivate DB pathへ元DBの不変コピーを再構成、fresh full GETを保存しました。認証方式・空Web Originsを明示保持し、secretやread-only値を送らない更新ヘルパーでA/Bのpostlogout2属性だけを変更しました。新before/afterは、その1属性を除く全フィールドが正規化なしで一致しています。初回の失敗pairは復元できておらず、その限界は残します。
 
 BackendはUID1000で限定mode0600鍵を読込み、実イメージの固定、非公開portsとreadinessを確認しました。静的3assetsと誤API pathの404、専用hop以外の証明書を使うBackend呼出しの401拒否が成功しました。実フローではTPとAPI側のstock OIDCにPEM読込障害が発生し、同じ構成で各DPを再作成して回復しました。TPの初回再作成はlisten指定漏れで差分検査が停止し、是正後に元設定との一致を確認しました。根本原因は未確定です。
 
-実HTTPのRoute Aは利用者slot0のAPI200と13項目の証跡照合まで成功しました。Route Bの初回同意ではKeycloakの`required-action`/`OAUTH_GRANT`へ遷移するため、受入ヘルパーを限定対応中です。既存IDトークンfragmentは、固定UI terminalで`id_token`1項目だけを確認してHTTP送信前に破棄します。未知fragmentやaccess/refresh tokenは許可しません。ブラウザー表示は既存CAの信頼エラーでnot_runです。
+Route Bの初回同意（Keycloak `required-action`/`OAUTH_GRANT`）は、対象clientと同意formに限定した受入ヘルパーで処理しました。既存IDトークンfragmentは、固定UI terminalで`id_token`1項目だけを確認してHTTP送信前に破棄します。未知fragmentやaccess/refresh tokenは許可しません。これは既存UI動作の検査で、OIDC設定の変更ではありません。ブラウザー表示は既存CAの信頼エラーでnot_runです。
 
 ## 新経路の受入項目
 
 A/B各利用者のlogin/API/refresh/logout、AS提示の元A/B証明書、専用内部hop、Backend→APIのtoken/certificate bindingを実測します。任意/重複Authorizationを実TP入口から送り、拒否またはsession-issued tokenの維持を確認します。Backend迂回や不正path、API側へ直接送るcontrolled spoof/binding負例も区別して確認します。Backend停止・restart/config driftで入口が閉じること、probeがproviderを呼ばないこと、秘密がUI/ログ/エラーへ出ないことを確認します。
 
 source/local TLSやstock fixtureの成功を、新Backend E2Eの成功へ読み替えません。未実施はnot_run、失敗はfailとして保存します。新経路の受入が終わるまでコードPRはDraftを維持し、Pagesの設計段階表示も保持します。
+
+
+## 新経路の受入結果（2026-10-13）
+
+実Kong/Keycloakと固定imageの隔離6サービスを使いました。新経路の結果は変更前のWP受入から独立した証跡です。アクセストークン・Cookie・鍵・raw管理API応答をGitへ収録しません。
+
+| 検査 | 結果 | 観測内容・限界 |
+|---|---|---|
+| 2利用者×A/Bの4セッション | PASS | 全API200。13項目を照合し、利用者・department・logical route・header・client認証ラベル・署名・binding・A/B証明書thumbprint・API Gateway peerを確認 |
+| 有効期限越えの継続 | PASS（機能） | 同じCookieJarで300秒の期限＋35秒後も4件API200と証跡一致。AS wire上のrefresh grantや認証方式の実測ではない |
+| logout | PASS | 4件とも8443の固定terminalへ戻り、その後の保護APIが302で認証開始へ戻る |
+| Authorization負例 | PASS、16件 | 任意Bearerは有sessionで本来の証跡を維持、無sessionで302。重複Authorizationはsession有無とも400 |
+| API提供者側への直接検査 | PASS、7件 | A証明書の前後対照200、B証明書への取違え401、証明書なし401、不正Bearer401。偽装certificate/X-Demo headerでも正しいAの証跡を維持し、B証明書の拒否も回避できない |
+| 専用内部hopのidentity拒否 | PASS | 信頼CAのA証明書でもBackendが401 `untrusted_gateway`。専用hop identityとの区別を確認 |
+| UI配信・private ports・UID/image/readiness | PASS | 静的3assetsと誤API pathの404、UID1000の限定鍵読込、image digest、Backend/UIの非公開ports、起動時readinessを確認 |
+| Backend停止起因の入口閉鎖 | not_run | 試験直前に既存supervisorの1時間上限が到来し入口が閉鎖。時間上限での閉鎖をBackend停止試験の成功に読み替えない |
+| 実JavaScriptブラウザー表示 | not_run | 既存CAの信頼エラー。OS truststore変更やTLS検証回避を行っていない |
+| AS wireの認証・identity・refresh grant・rotation/revocation | not_run | 既存ソース・機能結果と区別する。個別token失効やrotationを証明しない |
+| clean checkout再現・image build/publish | not_run | 今回は既存素材を保全した隔離受入。新しい公開imageは作成していない |
+
+主フローは104 HTTP要求で確認しました。API提供者側の直接検査は別の1認可grantで行い、再grantは0、tokenはmemoryから既存Backendへのstdinだけで渡しました。一次safe summaryはGit外の`.generated/evidence/tp-backend-runtime-20261013/core-live-acceptance.json`、直接検査は`provider-live-result.json`と`provider-live.ndjson`です。
+
+supervisorは承認済み3600秒上限で入口を閉じました。終了処理の10秒待機がtimeoutした履歴を保全し、候補6サービスの全停止、3000/3443/8443/8444/18443の閉鎖、supervisor/forwarder残留0を確認しました。原5サービスは停止のまま、原DB/PKI/入力の全inventoryも不変です。コンテナ・network・失敗snapshotは削除していません。最終証跡は同じGit外フォルダーの`final-cleanup.json`です。コードPRは、Backend停止起因の閉鎖試験が残るためDraftを維持します。設計図・Pagesの段階表示は今回変更していません。
