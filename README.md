@@ -13,9 +13,9 @@
 
 ## バックエンド分離の承認済み設計
 
-> **新経路の限定実行受入済み（2026-10-13）**: 実Kong/Keycloakと新バックエンドによるRoute A/Bを、2利用者×2Routeの4セッションで確認しました。API200・13項目の証跡・有効期限越えの継続・logout、Authorization負例16件、API提供者側の直接検査7件が成功しました。図・資料はPR #30でmainへ先行反映、コードは別PR #31です。実ブラウザー表示とAS wire上のrefresh認証・rotationは未検証です。
+> **新経路の限定実行受入済み（2026-10-13）**: 実Kong/Keycloakと新バックエンドによるRoute A/Bを、2利用者×2Routeの4セッションで確認しました。API200・13項目の証跡・有効期限越えの継続・logout、Authorization負例16件、API提供者側の直接検査7件、Backend停止時の入口閉鎖が成功しました。図・資料はPR #30でmainへ先行反映、コードは別PR #31です。実ブラウザー表示とAS wire上のrefresh認証・rotationは未検証です。
 
-TP設定は承認済みの残6操作を同期し、実差分0へ収束しました。隔離IdPは元DBコピーから再構成し、ログアウト2属性だけの更新を確認済み。Backend/UIを含む隔離6サービスで受入しました。[現在の状態と再開条件](docs/design/third-party-backend-runtime.md#tp設定のプレビューと今回専用承認)を確認してください。
+TP設定は承認済みの残6操作を同期し、実差分0へ収束しました。隔離IdPは元DBコピーから再構成し、ログアウト2属性だけの更新を確認済み。Backend/UIを含む隔離6サービスで受入し、終了時は候補全停止・公開port閉鎖・原DB/PKI/入力不変を確認しました。[現在の状態と再開条件](docs/design/third-party-backend-runtime.md#tp設定のプレビューと今回専用承認)を確認してください。
 
 既存OIDC設定はIDトークンをログイン後のURL fragmentへ返し、UIが除去します。全トークン非返却とは異なる制約で、アクセストークン／refresh tokenの非露出と区別します。詳細は[認証からAPI応答まで](ARCHITECTURE.md#認証からapi応答まで)を参照してください。
 
@@ -27,7 +27,7 @@ API:  ブラウザー → TP Kong → TPバックエンド → API側Kong → Re
 応答: Resource Server → API側Kong → TPバックエンド → TP Kong → ブラウザー
 ```
 
-[![承認済み設計・実装／受入前の全体構成](docs/design/workflows/third-party-architecture.architecture.png)](https://picketfence-labs.github.io/diagrams/16c30c21e271/)
+[![承認済み設計の全体構成](docs/design/workflows/third-party-architecture.architecture.png)](https://picketfence-labs.github.io/diagrams/16c30c21e271/)
 
 [Route Aの変更後フロー](https://picketfence-labs.github.io/diagrams/697f14e71ed9/) / [Route Bの変更後フロー](https://picketfence-labs.github.io/diagrams/31aaf1787cd8/)。内部mTLSとA/B証明書共有の境界は[ARCHITECTURE](ARCHITECTURE.md)、実装・受入契約は[対応計画](docs/design/third-party-backend-change-plan.md)を参照してください。
 

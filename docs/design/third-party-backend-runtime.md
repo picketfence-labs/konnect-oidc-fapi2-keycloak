@@ -1,6 +1,6 @@
 # バックエンド分離構成の準備・適用・受入
 
-状態: TP復旧同期・実差分0、新経路の主要実HTTP受入が成功／Backend停止起因の入口閉鎖は未実施（2026-10-13）。資料PR #30はmainへ反映済み、コードは別Draft PR #31。旧WP1～WP6の成功は変更前の5サービス構成の履歴であり、新経路の受入ではありません。[構成と信頼境界](../../ARCHITECTURE.md)、[実装計画](third-party-backend-change-plan.md)、[ADR 0023](../decisions/0023-third-party-backend-separation.md)も参照してください。
+状態: TP復旧同期・実差分0、新経路の限定実HTTP受入とBackend停止起因の入口閉鎖が成功・候補停止済み（2026-10-13）。資料PR #30はmainへ反映済み、コードは別PR #31。旧WP1～WP6の成功は変更前の5サービス構成の履歴であり、新経路の受入ではありません。[構成と信頼境界](../../ARCHITECTURE.md)、[実装計画](third-party-backend-change-plan.md)、[ADR 0023](../decisions/0023-third-party-backend-separation.md)も参照してください。
 
 ## 先に確定する対象
 
@@ -79,9 +79,9 @@ Route Bの初回同意（Keycloak `required-action`/`OAUTH_GRANT`）は、対象
 
 ## 新経路の受入項目
 
-A/B各利用者のlogin/API/refresh/logout、AS提示の元A/B証明書、専用内部hop、Backend→APIのtoken/certificate bindingを実測します。任意/重複Authorizationを実TP入口から送り、拒否またはsession-issued tokenの維持を確認します。Backend迂回や不正path、API側へ直接送るcontrolled spoof/binding負例も区別して確認します。Backend停止・restart/config driftで入口が閉じること、probeがproviderを呼ばないこと、秘密がUI/ログ/エラーへ出ないことを確認します。
+以下は当初の検査候補です。実施済み・未実施は次の受入結果表を正本とします。A/B各利用者のlogin/API/refresh/logout、AS提示の元A/B証明書、専用内部hop、Backend→APIのtoken/certificate bindingを実測します。任意/重複Authorizationを実TP入口から送り、拒否またはsession-issued tokenの維持を確認します。Backend迂回や不正path、API側へ直接送るcontrolled spoof/binding負例も区別して確認します。Backend停止・restart/config driftで入口が閉じること、probeがproviderを呼ばないこと、秘密がUI/ログ/エラーへ出ないことを確認します。
 
-source/local TLSやstock fixtureの成功を、新Backend E2Eの成功へ読み替えません。未実施はnot_run、失敗はfailとして保存します。新経路の受入が終わるまでコードPRはDraftを維持し、Pagesの設計段階表示も保持します。
+source/local TLSやstock fixtureの成功を、新Backend E2Eの成功へ読み替えません。未実施はnot_run、失敗はfailとして保存します。コードPRには限定受入の成功とnot_runを添えます。Pagesの図は設計artifactとして段階表示を保持します。
 
 
 ## 新経路の受入結果（2026-10-13）
@@ -97,11 +97,15 @@ source/local TLSやstock fixtureの成功を、新Backend E2Eの成功へ読み�
 | API提供者側への直接検査 | PASS、7件 | A証明書の前後対照200、B証明書への取違え401、証明書なし401、不正Bearer401。偽装certificate/X-Demo headerでも正しいAの証跡を維持し、B証明書の拒否も回避できない |
 | 専用内部hopのidentity拒否 | PASS | 信頼CAのA証明書でもBackendが401 `untrusted_gateway`。専用hop identityとの区別を確認 |
 | UI配信・private ports・UID/image/readiness | PASS | 静的3assetsと誤API pathの404、UID1000の限定鍵読込、image digest、Backend/UIの非公開ports、起動時readinessを確認 |
-| Backend停止起因の入口閉鎖 | not_run | 試験直前に既存supervisorの1時間上限が到来し入口が閉鎖。時間上限での閉鎖をBackend停止試験の成功に読み替えない |
+| Backend停止起因の入口閉鎖 | PASS | 別の短い既承認runで、CA検証付きGET200とBackend readyを確認後にBackendを停止。marker存在→除去、owned forwarder終了、8443接続拒否、UI/Backend/TP停止を実測 |
+| restart・config drift・generation変更の障害注入 | not_run | source/local検証と区別し、Backend停止の成功で全障害を網羅したとは扱わない |
 | 実JavaScriptブラウザー表示 | not_run | 既存CAの信頼エラー。OS truststore変更やTLS検証回避を行っていない |
 | AS wireの認証・identity・refresh grant・rotation/revocation | not_run | 既存ソース・機能結果と区別する。個別token失効やrotationを証明しない |
 | clean checkout再現・image build/publish | not_run | 今回は既存素材を保全した隔離受入。新しい公開imageは作成していない |
 
 主フローは104 HTTP要求で確認しました。API提供者側の直接検査は別の1認可grantで行い、再grantは0、tokenはmemoryから既存Backendへのstdinだけで渡しました。一次safe summaryはGit外の`.generated/evidence/tp-backend-runtime-20261013/core-live-acceptance.json`、直接検査は`provider-live-result.json`と`provider-live.ndjson`です。
 
-supervisorは承認済み3600秒上限で入口を閉じました。終了処理の10秒待機がtimeoutした履歴を保全し、候補6サービスの全停止、3000/3443/8443/8444/18443の閉鎖、supervisor/forwarder残留0を確認しました。原5サービスは停止のまま、原DB/PKI/入力の全inventoryも不変です。コンテナ・network・失敗snapshotは削除していません。最終証跡は同じGit外フォルダーの`final-cleanup.json`です。コードPRは、Backend停止起因の閉鎖試験が残るためDraftを維持します。設計図・Pagesの段階表示は今回変更していません。
+supervisorは承認済み3600秒上限で入口を閉じました。終了処理の10秒待機がtimeoutした履歴を保全し、候補6サービスの全停止、3000/3443/8443/8444/18443の閉鎖、supervisor/forwarder残留0を確認しました。原5サービスは停止のまま、原DB/PKI/入力の全inventoryも不変です。コンテナ・network・失敗snapshotは削除していません。最終証跡は同じGit外フォルダーの`final-cleanup.json`です。その後、元の人レビュー済みpreviewに含まれるBackend停止試験を短い別runで完了しました。3600秒runの延長ではありません。終了待機の例外捕捉とprivate captureを修正した検証用runnerをWorker7件・Manager独立4件で確認し、Coordinatorが原文とscopeを照合しています。TP/APIのCompose管理hash差は実効11設定の一致を確認して履歴保存し、sealedな既存4container IDを`docker start`しました。Backend/UIのCompose hash一致条件は維持し、再作成や設定適用を行っていません。設計図・Pagesの段階表示は今回変更していません。
+
+
+短い閉鎖runは検査120秒＋cleanup180秒の上限内でPASSし、candidate6全停止・公開ports閉鎖・原素材不変を再確認しました。ログイン/grant・provider業務API・CP/IdP admin write・pull/build/publish・retry/recreateはいずれも0です。private原文は`.generated/private/tp-backend-preview-20261013/closure-only-run-x3m4dajv/`の`overall.result.json`と`cleanup.result.json`、Coordinator照合は`coordinator-closure-live-review.json`です。初回上限閉鎖のnot_runを実障害試験の成功に読み替えず、別の因果付き証跡を追加しました。

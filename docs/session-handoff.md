@@ -1,12 +1,12 @@
 # OIDC デモのセッション引き継ぎ
 
-## 新Backend経路の主要実HTTP受入成功（2026-10-13、最新）
+## 新Backend経路の限定実HTTP受入完了（2026-10-13、最新）
 
 TPは承認残6操作を1syncしてpostdiff0。IdPは失敗snapshotを保全して元停止DBコピーから再構成し、A/B postlogoutだけを更新、他の全GETfieldが正規化なしで不変。初回失敗pair消失のUNKNOWNは保持する。TP/APIのPEM障害は同構成のDP再作成で回復したが、根本原因は未確定。TP初回再createのlisten漏れも是正した履歴を残す。
 
 2利用者×A/Bの4sessionでAPI200と13field、300秒＋35秒後の同じsessionによるAPI200、logout後の保護API302を確認。Authorization16負例、API提供者側直接7検査、専用hop以外のBackend401拒否が成功。AS wire上のrefresh grant/認証方式/rotationは未観測。ブラウザー実表示はCA信頼エラーでnot_run。IDtoken fragmentの既存返却とAT/refresh非露出を区別し、説明訂正は先行PR #32（docs2files、全CI3成功）で提供した。
 
-Backendstop試験に入る前に既存supervisorの3600秒上限が到来し入口が閉じた。Backend停止起因の入口閉鎖はnot_runで、時間上限での閉鎖を代替にしない。候補6サービス全停止、公開5ports閉鎖、supervisor/forwarder残留0、原5サービス停止維持、原DB/PKI/入力inventory不変を確認した。候補コンテナ/networkと失敗snapshotは保全。コードは別Draft PR #31を維持し、追加起動・再grant・CP/IdP writeは行わない。[受入結果](design/third-party-backend-runtime.md#新経路の受入結果2026-10-13)を参照。以下は時点付き履歴。
+初回のBackendstop試験は既存supervisor3600秒上限が先に到来してnot_runだった。その履歴を保持し、既承認subsetの短い別runでCA検証GET200/Backendready→Backendstop→marker除去/forwarder終了/8443拒否/UI・Backend・TP停止を実測PASS。候補6サービス全停止、公開5ports閉鎖、supervisor/forwarder残留0、原5サービス停止維持、原DB/PKI/入力inventory不変を確認した。候補コンテナ/networkと失敗snapshotは保全。コードは別PR #31へ限定受入結果を添える。closure-onlyでは既存固定IDを1回起動し、grant/provider API/CP・IdPwrite/pullbuild/recreate/retry0。source本体は不変。資料PR #32も人間がmainへmerge済みでコードへ取り込んだ。[受入結果](design/third-party-backend-runtime.md#新経路の受入結果2026-10-13)を参照。以下は時点付き履歴。
 
 ## TP復旧収束・隔離IdP検査で停止（2026-10-13、履歴）
 

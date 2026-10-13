@@ -700,3 +700,12 @@ Route A/user slot0のAPI200後、Route BはKeycloak required-actionへ遷移し�
 初回同意の限定対応後、2利用者×A/Bの4セッションでAPI200・13項目の証跡・期限300秒＋35秒後の継続・logout後302が成功した。Authorization負例16件、API提供者側直接7検査も成功。AS wireのrefresh grant・認証方式・rotationを証明した結果ではない。
 
 Backend停止起因の入口閉鎖を確認する直前に、既存supervisorの3600秒上限が到来して8443がConnectionRefusedとなった。終了処理の10秒waitもtimeoutした。Backendstop負例はnot_runとし、deadline閉鎖との混同を避ける。追加起動せず候補6サービスを全停止し、公開5ports閉鎖・supervisor/forwarder残留0・原5サービス停止維持・原DB/PKI/入力inventory不変を確認した。コンテナ/networkと失敗snapshotを保全。最終結果はGit外の`final-cleanup.json`へ保存した。
+
+
+## 2026-10-13: 既承認のBackend停止閉鎖を短い別runで確認
+
+元の承認previewに含まれる残試験として、同じ6候補・image・PKI・設定を使い、検査120秒＋cleanup180秒の別runを実施した。private runnerの二度目timeout捕捉と開始時captureを修正。レビューで任意OSErrorを閉鎖扱いする誤判定とpreflight失敗時の不要stopも訂正し、Worker7/Manager独立4の限定検証とCoordinator原文照合後に実行した。本体sourceは変更していない。
+
+初回read-only preflightではTP/APIのCompose管理hash差を検出し、Docker mutation0で停止。11項目の実効設定は一致し、hash差の原因は未確定として保全した。既存4container IDへのdocker startで再作成・設定適用を除き、supervisorがupするBackend/UIのhash一致は維持した。無断recreate/retryは行っていない。
+
+CA検証付きGET200とBackendreadyを正対照に、Backendstop→ready marker存在から除去→owned forwarder終了→8443接続拒否→UI/Backend/TP停止を確認しPASS。finallyで候補6サービス全停止・ports閉鎖・原素材不変を再確認。grant/provider業務API/CP・IdP admin write/pullbuildは0。前runの時間上限閉鎖とは独立の因果付き証跡である。private証跡はclosure-only-run-x3m4dajv、root照合はcoordinator-closure-live-review.json。
