@@ -179,7 +179,7 @@ def _realm(public_pem: bytes, kid: str, passwords: dict[str, str]) -> bytes:
                 "require.pushed.authorization.requests": "true",
                 "tls.client.certificate.bound.access.tokens": "true",
                 "use.refresh.tokens": "true",
-                "post.logout.redirect.uris": f"https://localhost:3443/?logout=route-{route.lower()}",
+                "post.logout.redirect.uris": f"https://localhost:8443/?logout=route-{route.lower()}",
                 "id.token.signed.response.alg": "PS256",
             },
             "consentRequired": False,
@@ -247,7 +247,7 @@ def _oidc_config(route: str, issuer: str, jwk: dict[str, str] | None,
                  session_secret: str, cache_salt: str) -> dict[str, Any]:
     path, callback_url = CALLBACKS[route]
     client_id = CLIENT_IDS[route]
-    logout = f"https://localhost:3443/?logout=route-{route.lower()}"
+    logout = f"https://localhost:8443/?logout=route-{route.lower()}"
     result: dict[str, Any] = {
         "issuer": issuer,
         "authorization_endpoint": issuer + "/protocol/openid-connect/auth",
@@ -277,7 +277,7 @@ def _oidc_config(route: str, issuer: str, jwk: dict[str, str] | None,
         "require_proof_key_for_code_exchange": True,
         "require_pushed_authorization_requests": True,
         "login_action": "redirect",
-        "login_redirect_uri": [f"https://localhost:3443/?authenticated=route-{route.lower()}"],
+        "login_redirect_uri": [f"https://localhost:8443/?authenticated=route-{route.lower()}"],
         "logout_uri_suffix": "/logout",
         "logout_methods": ["GET", "POST"],
         "logout_revoke": True,

@@ -24,3 +24,14 @@ services:
     volumes:
       - ./kong/plugins/fapi-as-mtls-transport:/usr/local/share/lua/5.1/kong/plugins/fapi-as-mtls-transport:ro
       - ./kong/plugins/fapi-client-auth-bridge:/usr/local/share/lua/5.1/kong/plugins/fapi-client-auth-bridge:ro
+
+  third-party-backend:
+    build: !reset null
+    image: python:3.13-alpine
+    user: "1000:1000"
+    working_dir: /app
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    command: ["python", "-B", "/app/app.py"]
+    volumes:
+      - ./third-party-backend/app.py:/app/app.py:ro

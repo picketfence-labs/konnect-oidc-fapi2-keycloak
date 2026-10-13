@@ -30,7 +30,7 @@ with tempfile.TemporaryDirectory() as directory:
         "KEYCLOAK_ADMIN_USERNAME=admin\n"
         "KEYCLOAK_ADMIN_PASSWORD=password-with-symbols_123\n"
     )
-    for identity in ("route-a", "route-b", "api-introspection", "api-upstream", "ca"):
+    for identity in ("route-a", "route-b", "api-introspection", "api-upstream", "ca", "third-party-backend-hop"):
         (pki / f"{identity}.crt").write_text(
             "-----BEGIN CERTIFICATE-----\ncertificate\n-----END CERTIFICATE-----\n"
         )
@@ -85,7 +85,7 @@ with tempfile.TemporaryDirectory() as directory:
     assert api_env["API_INTROSPECTION_KEY"].endswith(f"{private_key_end}\n")
     assert api_env["API_UPSTREAM_KEY"].endswith(f"{private_key_end}\n")
     assert set(third_party_env) == {
-        "ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY", "ROUTE_B_JWK",
+        "ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY", "ROUTE_B_JWK", "BACKEND_HOP_KEY",
         "FAPI_AS_TRANSPORT_ISSUER", "FAPI_AS_TRANSPORT_INTERNAL_ORIGIN"
     }
     assert third_party_env["ROUTE_A_TLS_KEY"].endswith(f"{private_key_end}\n")

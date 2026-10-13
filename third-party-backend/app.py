@@ -2,12 +2,18 @@
 """Fixed-destination business API client behind the third-party Kong."""
 
 import hmac
+import argparse
+import hashlib
 import http.client
 import json
 import os
 import re
 import socket
+import socketserver
 import ssl
+import stat
+import threading
+import uuid
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -234,5 +240,103 @@ def create_server(host="0.0.0.0", port=9444, files=None):
     return server
 
 
+READY_SOCKET = "/run/fapi/ready.sock"
+
+
+def public_config_hash(files):
+    public = {name: hashlib.sha256(ssl.PEM_cert_to_DER_cert(Path(getattr(files, name)).read_text(encoding="ascii"))).hexdigest()
+              for name in ("ca", "certificate", "gateway_pin", "route_a_certificate", "route_b_certificate")}
+    public["target"] = [API_HOST, API_PORT, API_PATH]
+    public["routes"] = dict(ROUTES)
+    return hashlib.sha256(json.dumps(public, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def validate_ready_status(value):
+    if not isinstance(value, dict) or set(value) != {"schema_version", "ready", "generation", "config_sha256", "pid"}:
+        raise ValueError("invalid readiness status")
+    if type(value["schema_version"]) is not int or value["schema_version"] != 1 or value["ready"] is not True \
+        or type(value["pid"]) is not int or value["pid"] <= 0 \
+        or not isinstance(value["generation"], str) or not re.fullmatch(r"[0-9a-f]{32}", value["generation"]) \
+        or not isinstance(value["config_sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", value["config_sha256"]):
+        raise ValueError("invalid readiness status")
+    return value
+
+
+class ReadyHandler(socketserver.BaseRequestHandler):
+    def handle(self):
+        self.request.settimeout(2)
+        try:
+            if self.request.recv(16) != b"READY\n":
+                return
+            # Revalidate all loaded identity files and key/cert pairing locally.
+            # The public hash covers certificates/config only, never private keys.
+            create_contexts(self.server.files)
+            if public_config_hash(self.server.files) != self.server.config_hash:
+                return
+            status = {"schema_version": 1, "ready": True, "generation": self.server.generation,
+                      "config_sha256": self.server.config_hash, "pid": os.getpid()}
+            self.request.sendall(json.dumps(status, sort_keys=True, separators=(",", ":")).encode() + b"\n")
+        except (OSError, ValueError, ssl.SSLError):
+            return
+
+
+class ReadyServer(socketserver.UnixStreamServer):
+    def __init__(self, files, path=READY_SOCKET):
+        parent = Path(path).parent
+        info = parent.lstat()
+        if not stat.S_ISDIR(info.st_mode) or stat.S_IMODE(info.st_mode) != 0o700 or info.st_uid != os.getuid():
+            raise ValueError("unsafe readiness directory")
+        # Never follow/replace an existing socket or stale marker silently.
+        self.files = files
+        self.config_hash = public_config_hash(files)
+        self.generation = uuid.uuid4().hex
+        super().__init__(path, ReadyHandler)
+        os.chmod(path, 0o600)
+
+    def handle_error(self, request, client_address):
+        return
+
+
+def check_ready(path=READY_SOCKET):
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
+        connection.settimeout(2)
+        connection.connect(path)
+        connection.sendall(b"READY\n")
+        chunks = bytearray()
+        while len(chunks) <= 4096:
+            chunk = connection.recv(4097 - len(chunks))
+            if not chunk:
+                break
+            chunks.extend(chunk)
+        if len(chunks) > 4096:
+            raise ValueError("invalid readiness status")
+    return validate_ready_status(json.loads(chunks, object_pairs_hook=unique_object))
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check-ready", action="store_true")
+    args = parser.parse_args()
+    if args.check_ready:
+        try:
+            print(json.dumps(check_ready(), sort_keys=True, separators=(",", ":")))
+            return 0
+        except (OSError, ValueError):
+            return 1
+    files = TLSFiles.from_environment()
+    server = create_server(files=files)
+    readiness = ReadyServer(files)
+    thread = threading.Thread(target=readiness.serve_forever, daemon=True)
+    thread.start()
+    try:
+        server.serve_forever()
+    finally:
+        readiness.shutdown()
+        readiness.server_close()
+        server.server_close()
+        Path(READY_SOCKET).unlink(missing_ok=True)
+    return 0
+
+
 if __name__ == "__main__":
-    create_server().serve_forever()
+    raise SystemExit(main())

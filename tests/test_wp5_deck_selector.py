@@ -77,37 +77,22 @@ def fixture_tree(root: Path) -> None:
         "ROUTE_A_TLS_KEY": private_key,
         "DECK_ROUTE_B_TLS_CERT_YAML": certificate,
         "ROUTE_B_TLS_KEY": private_key,
+        "DECK_BACKEND_HOP_CERT_YAML": certificate,
+        "BACKEND_HOP_KEY": private_key,
     }))
     role_file.chmod(0o600)
 
 
 def additive_report() -> dict:
-    identities = [
-        ("service", "third-party-route-a-api"),
-        ("service", "third-party-route-b-api"),
-        ("route", "third-party-route-a"),
-        ("route", "third-party-route-b"),
-        ("plugin", "cors for service third-party-route-a-api"),
-        ("plugin", "openid-connect for service third-party-route-a-api"),
-        ("plugin", "request-transformer for service third-party-route-a-api"),
-        ("plugin", "cors for service third-party-route-b-api"),
-        ("plugin", "fapi-client-auth-bridge for service third-party-route-b-api"),
-        ("plugin", "openid-connect for service third-party-route-b-api"),
-        ("plugin", "request-transformer for service third-party-route-b-api"),
-    ]
-    entries = [
-        {"kind": kind, "name": name, "body": {
-            "old": None,
-            "new": {"id": f"entity-{index + 1}", "name": name, "config": {"enabled": True}},
-        }}
-        for index, (kind, name) in enumerate(identities)
-    ]
-    return {
-        "changes": {"creating": entries, "updating": [], "deleting": []},
-        "summary": {"creating": 11, "updating": 0, "deleting": 0, "total": 11},
-        "warnings": [],
-        "errors": [],
-    }
+    changes = {}
+    for operation, identities in run_deck.BACKEND_PLANS["migration"].items():
+        changes[operation] = [{"kind": kind, "name": name, "body": {
+            "old": {} if operation == "updating" else None,
+            "new": {"id": name, "name": name, "config": {"enabled": True}},
+        }} for kind, name in sorted(identities)]
+    summary = {operation: len(entries) for operation, entries in changes.items()}
+    summary["total"] = sum(summary.values())
+    return {"changes": changes, "summary": summary, "warnings": [], "errors": []}
 
 
 def write_wp5_receipt(root: Path, report: dict) -> dict:
@@ -121,8 +106,9 @@ def write_wp5_receipt(root: Path, report: dict) -> dict:
     )
     operations, digest = run_deck.parse_sanitized_runtime_diff(json.dumps(report), [])
     receipt = {
-        "schema_version": 1,
-        "scope": "third-party-runtime",
+        "schema_version": 2,
+        "scope": run_deck.BACKEND_SCOPE,
+        "plan_type": "migration",
         "approved": True,
         "target_sha256": run_deck.canonical_sha256(info["target"]),
         "state_sha256": run_deck.file_sha256(state),
@@ -130,7 +116,7 @@ def write_wp5_receipt(root: Path, report: dict) -> dict:
         "diff_sha256": digest,
         **operations,
     }
-    path = root / run_deck.WP5_APPROVAL_RELATIVE
+    path = root / run_deck.BACKEND_APPROVAL_RELATIVE
     path.write_text(json.dumps(receipt))
     path.chmod(0o600)
     return receipt
@@ -247,22 +233,22 @@ class WP5DeckSelectorTests(unittest.TestCase):
         captured = output.getvalue() + error.getvalue()
         for secret in ("token-sentinel", "private-key-sentinel", "BEGIN CERTIFICATE"):
             self.assertNotIn(secret, captured)
-        self.assertIn("WP5_THIRD_PARTY_RUNTIME_STATE_SHA256=", captured)
-        self.assertIn("WP5_THIRD_PARTY_RUNTIME_ROLE_INPUTS_SHA256=", captured)
-        self.assertIn("WP5_THIRD_PARTY_RUNTIME_TARGET_SHA256=", captured)
-        self.assertRegex(captured, r"WP5_THIRD_PARTY_RUNTIME_DIFF_SHA256=[0-9a-f]{64}")
+        self.assertIn("TP_BACKEND_RUNTIME_V2_STATE_SHA256=", captured)
+        self.assertIn("TP_BACKEND_RUNTIME_V2_ROLE_INPUTS_SHA256=", captured)
+        self.assertIn("TP_BACKEND_RUNTIME_V2_TARGET_SHA256=", captured)
+        self.assertRegex(captured, r"TP_BACKEND_RUNTIME_V2_DIFF_SHA256=[0-9a-f]{64}")
         self.assertNotIn("WP3_MIGRATION", captured)
         self.assertIn("[REDACTED]", captured)
 
     def test_runtime_sync_requires_explicit_approval_before_auth_or_deck(self):
         with patch.object(sys, "argv", [
             str(RUN_DECK), "sync", "--root", str(self.root), "--gateway", "third-party", "--stage", "runtime",
-        ]), patch.dict(os.environ, {"WP5_THIRD_PARTY_RUNTIME_APPROVED": "NO"}), \
+        ]), patch.dict(os.environ, {"TP_BACKEND_RUNTIME_V2_APPROVED": "NO"}), \
              patch.object(run_deck, "verify_remote_target") as remote, \
              patch.object(run_deck, "check_schemas") as schemas, \
              patch.object(run_deck, "read_migration_approval") as receipt, \
              patch.object(run_deck, "run_deck_subprocess") as deck:
-            with self.assertRaisesRegex(ValueError, "WP5_THIRD_PARTY_RUNTIME_APPROVED=YES"):
+            with self.assertRaisesRegex(ValueError, "TP_BACKEND_RUNTIME_V2_APPROVED=YES"):
                 run_deck.main()
         remote.assert_not_called()
         schemas.assert_not_called()
@@ -272,7 +258,7 @@ class WP5DeckSelectorTests(unittest.TestCase):
     def test_runtime_sync_requires_private_review_receipt_before_auth(self):
         with patch.object(sys, "argv", [
             str(RUN_DECK), "sync", "--root", str(self.root), "--gateway", "third-party", "--stage", "runtime",
-        ]), patch.dict(os.environ, {"WP5_THIRD_PARTY_RUNTIME_APPROVED": "YES"}), \
+        ]), patch.dict(os.environ, {"TP_BACKEND_RUNTIME_V2_APPROVED": "YES"}), \
              patch.object(run_deck, "verify_remote_target") as remote, \
              patch.object(run_deck, "check_schemas") as schemas, \
              patch.object(run_deck, "run_deck_subprocess") as deck:
@@ -284,7 +270,7 @@ class WP5DeckSelectorTests(unittest.TestCase):
 
     def test_runtime_sync_receipt_binds_target_state_and_role_inputs_before_auth(self):
         receipt = write_wp5_receipt(self.root, additive_report())
-        path = self.root / run_deck.WP5_APPROVAL_RELATIVE
+        path = self.root / run_deck.BACKEND_APPROVAL_RELATIVE
         for field in ("target_sha256", "state_sha256", "role_inputs_sha256"):
             altered = dict(receipt)
             altered[field] = "0" * 64
@@ -292,7 +278,7 @@ class WP5DeckSelectorTests(unittest.TestCase):
             path.chmod(0o600)
             with self.subTest(field=field), patch.object(sys, "argv", [
                 str(RUN_DECK), "sync", "--root", str(self.root), "--gateway", "third-party", "--stage", "runtime",
-            ]), patch.dict(os.environ, {"WP5_THIRD_PARTY_RUNTIME_APPROVED": "YES"}), \
+            ]), patch.dict(os.environ, {"TP_BACKEND_RUNTIME_V2_APPROVED": "YES"}), \
                  patch.object(run_deck, "verify_remote_target") as remote, \
                  patch.object(run_deck, "run_deck_subprocess") as deck:
                 with self.assertRaisesRegex(ValueError, "does not match current target, state, or role inputs"):
@@ -306,17 +292,17 @@ class WP5DeckSelectorTests(unittest.TestCase):
         global_plugin["name"] = "fapi-as-mtls-transport"
         global_plugin["body"]["new"]["name"] = "fapi-as-mtls-transport"
         operations, _digest = run_deck.parse_sanitized_runtime_diff(json.dumps(report), [])
-        self.assertEqual(operations["summary"], run_deck.WP5_EXPECTED_SUMMARY)
+        self.assertEqual(operations["summary"], {"creating":4,"updating":6,"deleting":0,"total":10})
         with self.assertRaisesRegex(ValueError, "identities differ"):
-            run_deck.validate_wp5_additive_scope(operations)
+            run_deck.validate_backend_scope(operations, "migration")
         write_wp5_receipt(self.root, report)
 
         with patch.object(sys, "argv", [
             str(RUN_DECK), "sync", "--root", str(self.root), "--gateway", "third-party", "--stage", "runtime",
-        ]), patch.dict(os.environ, {"WP5_THIRD_PARTY_RUNTIME_APPROVED": "YES"}), \
+        ]), patch.dict(os.environ, {"TP_BACKEND_RUNTIME_V2_APPROVED": "YES"}), \
              patch.object(run_deck, "verify_remote_target") as remote, \
              patch.object(run_deck, "run_deck_subprocess") as deck:
-            with self.assertRaisesRegex(ValueError, "identities differ from the fixed additive scope"):
+            with self.assertRaisesRegex(ValueError, "identities differ from the exact reviewed scope"):
                 run_deck.main()
         remote.assert_not_called()
         deck.assert_not_called()
@@ -334,7 +320,7 @@ class WP5DeckSelectorTests(unittest.TestCase):
 
         with patch.object(sys, "argv", [
             str(RUN_DECK), "sync", "--root", str(self.root), "--gateway", "third-party", "--stage", "runtime",
-        ]), patch.dict(os.environ, {"WP5_THIRD_PARTY_RUNTIME_APPROVED": "YES"}), \
+        ]), patch.dict(os.environ, {"TP_BACKEND_RUNTIME_V2_APPROVED": "YES"}), \
              patch.object(run_deck, "verify_remote_target") as remote, \
              patch.object(run_deck, "verify_shared_api_ca") as api_ca, \
              patch.object(run_deck, "check_schemas") as schemas, \
@@ -350,10 +336,10 @@ class WP5DeckSelectorTests(unittest.TestCase):
             self.assertEqual(command[command.index("--parallelism") + 1], "1")
         self.assertIn("--no-mask-deck-env-vars-value", calls[0])
         self.assertNotIn("--no-mask-deck-env-vars-value", calls[1])
-        self.assertIn("approved additive 11-entity scope", output.getvalue())
+        self.assertIn("approved backend runtime v2 scope", output.getvalue())
         self.assertNotIn("raw entity body", output.getvalue())
         self.assertNotIn("raw private output", output.getvalue())
-        self.assertEqual(receipt["summary"], run_deck.WP5_EXPECTED_SUMMARY)
+        self.assertEqual(receipt["summary"], {"creating":4,"updating":6,"deleting":0,"total":10})
 
     def test_runtime_sync_rejects_changed_or_noop_diff_without_sync(self):
         approved = additive_report()
@@ -380,10 +366,10 @@ class WP5DeckSelectorTests(unittest.TestCase):
 
             with self.subTest(summary=report["summary"]), patch.object(sys, "argv", [
                 str(RUN_DECK), "sync", "--root", str(self.root), "--gateway", "third-party", "--stage", "runtime",
-            ]), patch.dict(os.environ, {"WP5_THIRD_PARTY_RUNTIME_APPROVED": "YES"}), \
+            ]), patch.dict(os.environ, {"TP_BACKEND_RUNTIME_V2_APPROVED": "YES"}), \
                  patch.object(run_deck, "verify_remote_target"), patch.object(run_deck, "check_schemas"), \
                  patch.object(run_deck, "run_deck_subprocess", side_effect=fake_deck):
-                with self.assertRaisesRegex(ValueError, "not the reviewed additive|changed after Root review"):
+                with self.assertRaisesRegex(ValueError, "exact reviewed scope|changed after Root review"):
                     run_deck.main()
             self.assertEqual(calls, ["diff"])
 

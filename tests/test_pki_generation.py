@@ -35,6 +35,8 @@ with tempfile.TemporaryDirectory() as directory:
         assert hashlib.sha256((pki / name).read_bytes()).hexdigest() == digest
 
     cases = {
+        "third-party-backend": ("third-party-backend", "serverAuth", "DNS:third-party-backend"),
+        "third-party-backend-hop": ("third-party-backend-hop", "clientAuth", None),
         "third-party-metadata": ("third-party-metadata", "clientAuth", None),
         "api-gateway": ("kong-api", "serverAuth", "DNS:kong-api, DNS:localhost, IP Address:127.0.0.1"),
         "api-introspection": ("api-gateway-introspection", "clientAuth", None),
@@ -61,7 +63,7 @@ with tempfile.TemporaryDirectory() as directory:
         assert 0 < (start - datetime.now(timezone.utc)).total_seconds() <= 30 * 24 * 60 * 60
         if san:
             sans = run_openssl("x509", "-in", str(cert_path), "-noout", "-ext", "subjectAltName")
-            for expected in ("DNS:kong-api", "DNS:localhost", "IP Address:127.0.0.1"):
+            for expected in san.split(", "):
                 assert expected in sans
         cert_public = run_openssl("x509", "-in", str(cert_path), "-noout", "-pubkey")
         pub_file = pki / "certificate-public.pem"

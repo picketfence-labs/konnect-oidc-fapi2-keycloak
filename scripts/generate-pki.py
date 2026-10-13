@@ -70,6 +70,8 @@ def main() -> int:
         ("pop-verifier", "pop-verifier", "serverAuth", "DNS:pop-verifier,DNS:localhost,IP:127.0.0.1"),
         ("route-a", "kong-fapi-mtls", "clientAuth", ""),
         ("route-b", "kong-fapi-pkj-mtls", "clientAuth", ""),
+        ("third-party-backend", "third-party-backend", "serverAuth", "DNS:third-party-backend"),
+        ("third-party-backend-hop", "third-party-backend-hop", "clientAuth", ""),
         ("third-party-metadata", "third-party-metadata", "clientAuth", ""),
         ("api-gateway", "kong-api", "serverAuth", "DNS:kong-api,DNS:localhost,IP:127.0.0.1"),
         ("api-introspection", "api-gateway-introspection", "clientAuth", ""),

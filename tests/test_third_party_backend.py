@@ -359,6 +359,45 @@ class TLSContractTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises((OSError, ValueError, ssl.SSLError)):
                 app.create_server("127.0.0.1", 0, app.TLSFiles(**{**vars(files), field: self.fixture.path("missing")}))
 
+    def test_private_unix_readiness_requires_live_loaded_configuration(self):
+        with tempfile.TemporaryDirectory(prefix="backend-ready-") as directory:
+            os.chmod(directory, 0o700)
+            path = str(Path(directory) / "ready.sock")
+            files = self.fixture.files()
+            # Configuration and TLS listener are created before readiness starts.
+            with running(app.create_server("127.0.0.1", 0, files)), running(app.ReadyServer(files, path)) as readiness, \
+                 patch.object(app, "fetch_evidence") as fetch:
+                status = app.check_ready(path)
+                self.assertTrue(status["ready"])
+                self.assertEqual(status["config_sha256"], app.public_config_hash(files))
+                self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
+                self.assertEqual(set(status), {"schema_version", "ready", "generation", "config_sha256", "pid"})
+                # Last identity is invalidated; a previously ready process must fail closed.
+                readiness.files = app.TLSFiles(**{**vars(files), "route_b_key": self.fixture.path("missing")})
+                with self.assertRaises(ValueError):
+                    app.check_ready(path)
+                fetch.assert_not_called()
+            with self.assertRaises(OSError):
+                app.check_ready(path)
+            os.chmod(directory, 0o755)
+            with self.assertRaises(ValueError):
+                app.ReadyServer(files, str(Path(directory) / "other.sock"))
+
+    def test_readiness_status_rejects_each_late_invalid_field(self):
+        valid = {"schema_version": 1, "ready": True, "generation": "a" * 32,
+                 "config_sha256": "b" * 64, "pid": 123}
+        self.assertEqual(app.validate_ready_status(valid), valid)
+        for field in valid:
+            for invalid in (None, [], {}, False, "secret", 1.1):
+                with self.subTest(field=field, invalid=invalid), self.assertRaises(ValueError):
+                    app.validate_ready_status({**valid, field: invalid})
+        with patch.object(sys, "argv", ["app.py", "--check-ready"]), \
+             patch.object(app, "check_ready", side_effect=OSError("private-secret")), \
+             patch.object(app, "create_server") as server, contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(app.main(), 1)
+            self.assertEqual(out.getvalue(), "")
+            server.assert_not_called()
+
 
 class SemanticMutationTests(unittest.TestCase):
     def test_security_properties_kill_semantic_mutants(self):

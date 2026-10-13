@@ -45,13 +45,13 @@
         <span class="tag">Route A</span>
         <h2>mTLS</h2>
         <p>クライアント証明書だけで Kong を認証します。標準 OIDC plugin の構成です。</p>
-        <a class="button" href="https://localhost:8443/api/fapi/mtls">mTLS でログイン</a>
+        <a class="button" href="/api/fapi/mtls">mTLS でログイン</a>
       </article>
       <article class="route-card" data-route="route-b">
         <span class="tag">Route B</span>
         <h2>private_key_jwt + mTLS</h2>
         <p>短命な PS256 assertion とクライアント証明書を同時に提示します。</p>
-        <a class="button" href="https://localhost:8443/api/fapi/pkj-mtls">複合認証でログイン</a>
+        <a class="button" href="/api/fapi/pkj-mtls">複合認証でログイン</a>
       </article>
     </section>
 
@@ -86,8 +86,8 @@
     if (location.hash) history.replaceState(null, '', `${location.pathname}${location.search}`);
 
     const routes = {
-      'route-a': { endpoint: 'https://localhost:8443/api/fapi/mtls', logout: 'https://localhost:8443/api/fapi/mtls/logout' },
-      'route-b': { endpoint: 'https://localhost:8443/api/fapi/pkj-mtls', logout: 'https://localhost:8443/api/fapi/pkj-mtls/logout' }
+      'route-a': { endpoint: '/api/fapi/mtls', logout: '/api/fapi/mtls/logout' },
+      'route-b': { endpoint: '/api/fapi/pkj-mtls', logout: '/api/fapi/pkj-mtls/logout' }
     };
     const selectedRoute = new URLSearchParams(location.search).get('authenticated');
     const config = routes[selectedRoute];

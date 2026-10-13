@@ -115,7 +115,7 @@ services:
       FAPI_AS_TRANSPORT_ISSUER: https://localhost:8444/realms/fapi-demo
       FAPI_AS_TRANSPORT_INTERNAL_ORIGIN: https://keycloak:8443
       FAPI_AS_TRANSPORT_STATUS_DIR: /run/kong/fapi-transport-ready
-      KONG_NGINX_MAIN_ENV: "ROUTE_A_TLS_KEY; env ROUTE_B_TLS_KEY; env ROUTE_B_JWK; env FAPI_AS_TRANSPORT_ISSUER; env FAPI_AS_TRANSPORT_INTERNAL_ORIGIN; env FAPI_AS_TRANSPORT_STATUS_DIR; env FAPI_AS_TRANSPORT_GENERATION"
+      KONG_NGINX_MAIN_ENV: "ROUTE_A_TLS_KEY; env ROUTE_B_TLS_KEY; env BACKEND_HOP_KEY; env ROUTE_B_JWK; env FAPI_AS_TRANSPORT_ISSUER; env FAPI_AS_TRANSPORT_INTERNAL_ORIGIN; env FAPI_AS_TRANSPORT_STATUS_DIR; env FAPI_AS_TRANSPORT_GENERATION"
       KONG_KONNECT_MODE: "on"
       KONG_ROUTER_FLAVOR: expressions
       KONG_PROXY_LISTEN: "${FAPI_DEMO_PROXY_LISTEN:-off}"
@@ -158,6 +158,29 @@ services:
     ports:
       - "127.0.0.1:18443:8443"
 
+  third-party-backend:
+    profiles: [demo]
+    build:
+      context: ./third-party-backend
+    image: ghcr.io/picketfence-labs/konnect-oidc-fapi2-keycloak/third-party-backend:${APP_IMAGE_TAG:-dev}
+    restart: "no"
+    tmpfs:
+      - /run/fapi:uid=1000,gid=1000,mode=0700
+    volumes:
+      - ./.generated/pki/ca.crt:/etc/fapi/ca.crt:ro
+      - ./.generated/pki/third-party-backend.crt:/etc/fapi/tls.crt:ro
+      - ./.generated/pki/third-party-backend.key:/etc/fapi/tls.key:ro
+      - ./.generated/pki/third-party-backend-hop.crt:/etc/fapi/third-party-backend-hop.crt:ro
+      - ./.generated/pki/route-a.crt:/etc/fapi/route-a.crt:ro
+      - ./.generated/pki/route-a.key:/etc/fapi/route-a.key:ro
+      - ./.generated/pki/route-b.crt:/etc/fapi/route-b.crt:ro
+      - ./.generated/pki/route-b.key:/etc/fapi/route-b.key:ro
+    healthcheck:
+      test: ["CMD", "python", "-B", "/app/app.py", "--check-ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
   ui:
     profiles: [demo]
     image: nginx:1.29-alpine
@@ -165,8 +188,3 @@ services:
     volumes:
       - ./ui:/usr/share/nginx/html:ro
       - ./ui/default.conf:/etc/nginx/conf.d/default.conf:ro
-      - ./.generated/pki/ui.crt:/etc/nginx/tls/tls.crt:ro
-      - ./.generated/pki/ui.key:/etc/nginx/tls/tls.key:ro
-    ports:
-      - "127.0.0.1:3000:80"
-      - "127.0.0.1:3443:443"

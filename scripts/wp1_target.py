@@ -296,9 +296,29 @@ def validate_third_party_runtime_state(root: Path) -> dict:
         "select_tags": ["fapi2-demo"]
     }:
         raise ValueError("third-party runtime select_tags must remain fapi2-demo")
-    for entity_set in ("certificates", "ca_certificates", "plugins"):
+    for entity_set in ("ca_certificates", "plugins"):
         if state.get(entity_set) != foundation.get(entity_set):
             raise ValueError(f"third-party runtime must preserve the foundation {entity_set} exactly")
+
+    hop_id = "742c3d79-850f-5761-9544-63864bab5cad"
+    expected_certificates = foundation["certificates"] + [{
+        "id": hop_id, "cert": "foundation-template:DECK_BACKEND_HOP_CERT_YAML",
+        "key": "{vault://env/BACKEND_HOP_KEY}", "tags": ["fapi2-demo", "backend-hop"],
+    }]
+    if state.get("certificates") != expected_certificates:
+        raise ValueError("third-party runtime must preserve A/B certificates and add exactly the backend hop identity")
+    static_service = {
+        "name": "third-party-static-ui", "id": "878509ff-0d35-56d2-ba0e-aec6bbf00fe7",
+        "protocol": "http", "host": "ui", "port": 80, "tags": ["fapi2-demo", "static-ui"],
+        "routes": [{"id": "aaced8a8-6936-520b-96ea-026a7b01b4b6", "name": "third-party-static-ui",
+                    "paths": [r"~^/$", r"~^/index\.html$", r"~^/evidence\.js$"],
+                    "protocols": ["https"], "strip_path": False, "regex_priority": 100,
+                    "tags": ["fapi2-demo", "static-ui"]}],
+        "plugins": [{"name": "request-transformer", "id": "941cfa0a-ffad-517d-b7b3-0088089513ae",
+                     "tags": ["fapi2-demo", "static-ui"], "config": {"remove": {"headers": [
+                         "Cookie", "Authorization", "client_assertion", "client_assertion_type", "X-Client-Cert",
+                         "X-Fapi-Route", "X-Fapi-Client-Auth", "X-Demo-Department", "X-Demo-Route"]}}}],
+    }
 
     ca_id = "33333333-3333-4333-8333-333333333333"
     certificate_ids = {
@@ -312,11 +332,13 @@ def validate_third_party_runtime_state(root: Path) -> dict:
     clients = {"A": "third-party-fapi-mtls", "B": "third-party-fapi-pkj-mtls"}
     paths = {"A": "/api/fapi/mtls", "B": "/api/fapi/pkj-mtls"}
     services = state.get("services")
-    if not isinstance(services, list) or len(services) != 2:
-        raise ValueError("third-party runtime must contain exactly fixed Route A and B services")
+    if not isinstance(services, list) or len(services) != 3:
+        raise ValueError("third-party runtime must contain exactly fixed Route A/B and static UI services")
 
     by_route: dict[str, dict] = {}
-    for service in services:
+    if services[-1] != static_service:
+        raise ValueError("static UI service, exact paths, or credential stripping changed")
+    for service in services[:-1]:
         if not isinstance(service, dict):
             raise ValueError("third-party runtime service is malformed")
         route = next((name for name, route_id in route_ids.items()
@@ -330,12 +352,12 @@ def validate_third_party_runtime_state(root: Path) -> dict:
             "id": THIRD_PARTY_RUNTIME_SERVICE_IDS[route],
             "name": f"third-party-route-{route.lower()}-api",
             "protocol": "https",
-            "host": "kong-api",
-            "port": 8443,
-            "path": "/fapi-api/evidence",
+            "host": "third-party-backend",
+            "port": 9444,
+            "path": f"/evidence/route-{route.lower()}",
             "tls_verify": True,
             "ca_certificates": [ca_id],
-            "client_certificate": certificate_ids[route],
+            "client_certificate": hop_id,
             "tags": ["fapi2-demo", f"route-{route.lower()}"],
         }
         if set(service) != {
@@ -401,16 +423,35 @@ def validate_third_party_runtime_state(root: Path) -> dict:
                                               if isinstance(plugin, dict)] != expected_names:
             raise ValueError(f"third-party Route {route} plugin set changed")
         for plugin in plugins:
-            if not isinstance(plugin, dict) \
+            expected_fields = {"name", "id", "tags", "config"}
+            if isinstance(plugin, dict) and plugin.get("name") == "fapi-client-auth-bridge":
+                expected_fields.add("protocols")
+            if not isinstance(plugin, dict) or set(plugin) != expected_fields \
                 or plugin.get("id") != THIRD_PARTY_RUNTIME_PLUGIN_IDS[route].get(plugin.get("name")) \
                 or plugin.get("tags") != ["fapi2-demo", f"route-{route.lower()}"]:
                 raise ValueError(f"third-party Route {route} plugin scope changed")
         plugins_by_name = {plugin["name"]: plugin for plugin in plugins}
+        if plugins_by_name["cors"].get("config") != {
+            "origins": ["https://localhost:8443"], "methods": ["GET", "POST", "OPTIONS"],
+            "headers": ["Accept", "Content-Type", "X-Demo-Department", "X-Demo-Route"],
+            "credentials": True, "max_age": 3600,
+        }:
+            raise ValueError("third-party browser origin contract changed")
+        if plugins_by_name["request-transformer"].get("config") != {
+            "remove": {"headers": ["Cookie", "client_assertion", "client_assertion_type", "X-Client-Cert",
+                                   "X-Fapi-Route", "X-Fapi-Client-Auth"]},
+            "add": {"headers": [f"X-Fapi-Route:route-{route.lower()}",
+                                "X-Fapi-Client-Auth:" + ("tls_client_auth" if route == "A" else "private_key_jwt+mtls")]},
+        }:
+            raise ValueError("third-party backend credential header boundary changed")
         oidc = plugins_by_name["openid-connect"].get("config")
         if not isinstance(oidc, dict) or any(oidc.get(name) != value for name, value in common_oidc.items()):
             raise ValueError(f"third-party Route {route} OIDC HTTPS, TLS, or session policy changed")
         if oidc.get("client_id") != [clients[route]] or oidc.get("tls_client_auth_cert_id") != certificate_ids[route]:
             raise ValueError(f"third-party Route {route} TLS client identity changed")
+        if oidc.get("login_redirect_uri") != [f"https://localhost:8443/?authenticated=route-{route.lower()}"] \
+            or oidc.get("logout_redirect_uri") != [f"https://localhost:8443/?logout=route-{route.lower()}"]:
+            raise ValueError("third-party single-origin terminal changed")
         if oidc.get("redirect_uri") != ["https://localhost:8443" + paths[route]]:
             raise ValueError(f"third-party Route {route} callback URI changed")
         if oidc.get("upstream_access_token_header") != "authorization:bearer":
@@ -522,9 +563,9 @@ ROLE_INPUT_FIELDS = {
         "certificates": {
             "DECK_FAPI_CA_CERT_YAML",
             "DECK_ROUTE_A_TLS_CERT_YAML",
-            "DECK_ROUTE_B_TLS_CERT_YAML",
+            "DECK_ROUTE_B_TLS_CERT_YAML", "DECK_BACKEND_HOP_CERT_YAML",
         },
-        "keys": {"ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY"},
+        "keys": {"ROUTE_A_TLS_KEY", "ROUTE_B_TLS_KEY", "BACKEND_HOP_KEY"},
     },
 }
 

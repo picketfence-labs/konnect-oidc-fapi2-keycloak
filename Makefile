@@ -79,6 +79,9 @@ test:
 	$(WP5_OBSERVER_PYTHON) tests/test_wp5_transport_fixture.py
 	python3 tests/test_pki_generation.py
 	python3 tests/test_up_guard.py
+	python3 -B tests/test_third_party_backend.py
+	python3 -B tests/test_backend_integration.py
+	node tests/test_wp6_ui.js
 	luajit tests/test_wp1_schema.lua
 
 test-plugin:
